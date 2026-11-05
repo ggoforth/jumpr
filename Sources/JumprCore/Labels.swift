@@ -15,7 +15,8 @@ public enum Labels {
     /// Label rectangle in global top-left coordinates, clamped inside `screen`.
     ///
     /// The label must not hide what it points at. A target under four label widths gets
-    /// its label hanging off its bottom-right corner, overlapping only a few points; at a
+    /// its label hanging off its bottom-right corner, overlapping only a few points (more
+    /// across than down, so the label reads as attached to its target); at a
     /// screen edge the label flips to the other side of the target rather than sliding
     /// back over it. A larger target (a row, a wide button) keeps its label inside, at
     /// the right end: outside, it would straddle two stacked rows and belong to neither.
@@ -27,7 +28,7 @@ public enum Labels {
             x = target.maxX - w - 2
             y = target.height >= 2 * h ? target.maxY - h - 2 : target.midY - h / 2
         } else {
-            let ox = min(fontSize * 0.4, target.width / 4)
+            let ox = min((fontSize * 0.75).rounded(), target.width / 2)
             let oy = min(fontSize * 0.4, target.height / 4)
             x = target.maxX - ox
             y = target.maxY - oy
