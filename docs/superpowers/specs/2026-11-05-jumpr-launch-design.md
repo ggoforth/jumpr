@@ -1,7 +1,7 @@
 # Jumpr launch: direct sale
 
 **Date:** 2026-11-05
-**Status:** draft, waiting for Greg's approval
+**Status:** Greg gave the go-ahead on 2026-11-05 with four changes, marked **[changed]** below: Sparkle now, Watchflows' build procedure on the Mac mini, an in-browser demo on the site, and Claude creates the cloud pieces.
 **Builds on:** `2026-11-04-jumpr-design.md` (the app itself). Where the two disagree, this one wins.
 
 ---
@@ -50,6 +50,11 @@ So every choice here favors **least ongoing effort**: nothing to babysit, nothin
 | A simple marketing site | 2026-11-05 |
 | No Setapp | 2026-11-05 |
 | Tags are made by Greg, by hand, in GitHub | standing rule |
+| **Sparkle for updates, built in now**, as its own PR into `main` | 2026-11-05 |
+| **The build follows Watchflows' build procedures.** The Mac mini is the builder (reached over ssh); the Studio is the fallback. | 2026-11-05 |
+| The site is "super simple" and **shows how Jumpr works with an in-browser demo** | 2026-11-05 |
+| The site ships to AWS the way Watchflows' does: a GitHub Action that deploys on merge to `main`, **after Greg approves the design** | 2026-11-05 |
+| Claude has access to Linear, AWS and GitHub and creates what is needed there | 2026-11-05 |
 
 ### Claude's calls (not confirmed by Greg — check these while reading)
 
@@ -57,14 +62,14 @@ So every choice here favors **least ongoing effort**: nothing to babysit, nothin
 |---|---|---|---|
 | C1 | **7-day full trial**, then the hotkey shows a buy prompt | Watchflows does 14; at $10 a week is enough to decide | Change one number |
 | C2 | **Launch without the background cache** | Greg called 90–150 ms "very fast". The cache is the biggest remaining build. | Ship it as an update |
-| C3 | **No Sparkle. A small "update available" notice** that links to the download | Sparkle means a third-party framework, nested signing, a second signing key, and a feed to maintain. Side cash. | Customers replace the app by hand; add Sparkle later |
+| C3 | ~~No Sparkle~~ **[changed]** Overruled by Greg: Sparkle, now. | | |
 | C4 | **No "recover my key" page.** Lost key → email support; a one-line tool issues a new key | Watchflows' version needs a database and rate limiting | A few support emails |
 | C5 | **Build for Apple silicon and Intel, but only claim "macOS 15 or later"** on the site | One extra flag; Intel Macs still run macOS 15. No Intel Mac here to test on, so the site makes no Intel promise. | An Intel buyer hits a bug and gets a refund. Drop the flag. |
 | C6 | **Keep the bundle ID `com.greggoforth.jumpr`** | Changing it later resets every customer's Accessibility grant and settings | None if kept forever |
 | C7 | **No analytics on the site** at launch | One less account and no consent question | Add Plausible later (Watchflows' snippet) |
 | C8 | **Site is 4 pages** (section 9) | Simple, as asked | Add pages |
 | C9 | **Hide the "On battery" picker and the timing readout toggle** in Settings | Without the cache the picker does nothing; the readout is a builder's tool | Un-hide |
-| C10 | **Releases run from a script on a Mac that has the signing certificate**, started by hand after Greg tags | Watchflows' Mac mini flow is 1,400 lines. Wire Jumpr into it later if wanted. | One command per release instead of zero |
+| C10 | ~~A hand-run release script~~ **[changed]** Overruled by Greg: follow Watchflows' build procedures on the Mac mini. | | |
 | C11 | **Start at login is opt-in only** | A paid app should not add itself to login items unasked | Flip the default |
 | C12 | **One payment function serves Stripe test mode and live mode** | Each Stripe event says which mode it is; the function picks that mode's settings. Test settings are optional. | Run two functions instead |
 | C13 | **Jumpr gets its own bucket, CDN and a login limited to them**, inside the same AWS account as Watchflows | Nothing Jumpr does can touch Watchflows' site or downloads | Greg prefers a separate account: only the setup steps change |
@@ -78,7 +83,7 @@ So every choice here favors **least ongoing effort**: nothing to babysit, nothin
 |---|---|---|
 | Q1 | **Domain?** | Site, key email sender, update check address. Use the placeholder `DOMAIN` until known. |
 | Q2 | **Support email address?** | Site footer, key email, refund policy |
-| Q3 | **Who creates the cloud pieces** (section 12): Greg by hand, or Claude with command-line access to AWS and Stripe? | Nothing in the code; only go-live |
+| Q3 | ~~Who creates the cloud pieces~~ **Answered:** Claude, for AWS and GitHub. Stripe and the email sender were not mentioned: still to confirm. | |
 
 ---
 
@@ -147,14 +152,16 @@ Source to port: `Watchflows/Services/LicenseManager.swift` and `LicenseStorage.s
 - "Buy" opens the site's buy link. "Enter key" takes a pasted key and says plainly whether it worked.
 - The state rules live in `JumprCore` (pure, unit-tested): trial arithmetic, clock-backwards cases, key parsing, signature check against test vectors made with a test key.
 
-### Update notice (C3)
+### Updates: Sparkle **[changed]**
 
-- At launch, and when the Mac wakes or unlocks, if more than 24 hours passed since the last check: fetch `https://DOMAIN/releases.json`. No repeating timer.
-- Shape: `{"version": "1.1.0", "url": "https://DOMAIN/download/Jumpr.zip", "notes": "…"}`.
-- Newer than the running version → the menu shows "Update available: 1.1.0", which opens `url`. Nothing is downloaded or installed automatically.
-- "Check for Updates…" in the menu checks now and reports the result.
-- A Settings toggle, on by default, turns the automatic check off.
-- The request carries nothing about the user. A failed check is silent.
+Mirror Watchflows (`project.yml` lines 157–184, `Watchflows/App/UpdaterController.swift`, `scripts/update_appcast.py`).
+
+- Sparkle 2, pinned to the version Watchflows pins.
+- Feed: `https://DOMAIN/appcast.xml` in release builds. Development builds have the feed switched off, as Watchflows' Debug build does.
+- Checks automatically once a day; a Settings toggle turns that off. "Check for Updates…" in the menu.
+- Each release zip is signed with Jumpr's own Sparkle key (not Watchflows'). The private half lives in the keychain of the build Macs, never in the repo.
+- Jumpr is a Swift package, not an Xcode project, so the build script must copy Sparkle's framework into the app and sign it from the inside out. This is the one third-party dependency; `JumprCore` stays dependency-free.
+- This is the only network request the app makes.
 
 ---
 
@@ -168,7 +175,7 @@ Source to port: `Watchflows/Services/LicenseManager.swift` and `LicenseStorage.s
 
 | Page | Content |
 |---|---|
-| `index.html` | What it is in one line. What makes it different: **every display at once**, and **speed**. A visual of labels over an app. Download (free trial) and Buy $10. Short FAQ: permissions, privacy, refunds, system requirements. |
+| `index.html` | What it is in one line. What makes it different: **every display at once**, and **speed**. **An in-browser demo [changed]:** a mock desktop the visitor can drive — press the hotkey (or a button), labels appear, type a label, the thing is "clicked". Works with a keyboard and, on a phone, by tapping. Download (free trial) and Buy $10. Short FAQ: permissions, privacy, refunds, system requirements. |
 | `thank-you.html` | "Check your email for your key." How to enter it. Download button. |
 | `privacy.html` | Jumpr reads what is on screen locally to place labels. It sends nothing. One update check a day. Payment is handled by Stripe; the key email by Resend. |
 | `terms.html` | Short terms and the refund policy: 14 days, email support. |
@@ -179,7 +186,7 @@ Source to port: `Watchflows/Services/LicenseManager.swift` and `LicenseStorage.s
 - Plain claims only; any speed number must be one that was measured.
 - Light and dark.
 
-**Left to the builder:** layout, the hero visual (an HTML/CSS mock of labels is fine; no screen recording is required), wording. Greg approves the look before it goes live.
+**Left to the builder:** layout, how the demo looks, wording. **Greg approves the design before anything is deployed.** Deploy is a GitHub Action on merge to `main`, copied from Watchflows.
 
 ---
 
@@ -208,26 +215,17 @@ Source to port: `Watchflows/Services/LicenseManager.swift` and `LicenseStorage.s
 
 ---
 
-## 11. Part F — release
+## 11. Part F — release **[changed]**
 
-`make release VERSION=1.0.0`, run on a Mac that has the certificate, after Greg has tagged `v1.0.0`:
+**Follow Watchflows' build procedures.** Source: `/Users/greg/Projects/watchflows/scripts/release_local.sh`, `internal/agent-reference.md` lines 255–375, and the fallback workflow `.github/workflows/build.yml`.
 
-1. Refuse to run unless the checked-out commit is the one the tag points at and the tree is clean.
-2. Build release, Apple silicon + Intel (C5). Stamp the version into the app.
-3. Sign with **Developer ID Application**, hardened runtime.
-4. Notarize (`notarytool`, a saved profile named `jumpr-notary`) and staple.
-5. Zip with `ditto`; reject a zip containing `__MACOSX`.
-6. Upload `download/Jumpr-<version>.zip` (never overwritten) and `download/Jumpr.zip` (always the latest).
-7. Write and upload `releases.json`.
-8. Refresh the CDN for those paths.
-9. Print what it uploaded and the checks to run by hand.
-
-- Development builds keep the "Apple Development" identity (`make app`, `make run`).
-- The script never creates or pushes a tag.
-- It refuses to run while the placeholder licence public key is compiled in (C16).
-- Uploads use a named AWS profile on the release Mac (`jumpr`), never keys in the repo. The notary profile name can be overridden, so an existing saved profile for the same Apple account can be reused.
-- If the notary profile or the AWS profile is missing, the dry run still works and says which is missing.
-- A dry-run mode does steps 1–5 and stops.
+- **Builder:** the Mac mini, over ssh. The Studio is the fallback (it has a Developer ID Application certificate).
+- **Trigger:** Greg tags `vX.Y.Z` in GitHub. The script never creates or pushes a tag.
+- **Stages, as in Watchflows, minus the Setapp phase:** check the tag and a clean tree → build → sign with Developer ID Application, hardened runtime → notarize and staple → zip with `ditto`, rejecting `__MACOSX` → sign the zip for Sparkle → update `appcast.xml` → upload `download/Jumpr-<version>.zip` (never overwritten), `download/Jumpr.zip` (latest) and the appcast → refresh the CDN → create the GitHub Release.
+- Build both architectures (C5). Development builds keep the "Apple Development" identity.
+- It refuses to run while the placeholder licence public key or the placeholder feed address is compiled in (C16).
+- Credentials come from the build Mac's keychain and a named AWS profile, never from the repo.
+- A dry-run mode stops before any upload.
 
 ---
 
