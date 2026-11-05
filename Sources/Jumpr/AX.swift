@@ -49,6 +49,13 @@ func axCopy(_ el: AXUIElement, _ name: String) -> AnyObject? {
     return AXUIElementCopyAttributeValue(el, name as CFString, &v) == .success ? v : nil
 }
 
+/// The actions the element offers (`AXPress`, `AXShowMenu`, …); nil if it did not answer.
+func axActionNames(_ el: AXUIElement) -> [String]? {
+    var names: CFArray?
+    guard AXUIElementCopyActionNames(el, &names) == .success else { return nil }
+    return names as? [String]
+}
+
 func axPoint(_ v: AnyObject) -> CGPoint? {
     guard CFGetTypeID(v) == AXValueGetTypeID() else { return nil }
     var p = CGPoint.zero

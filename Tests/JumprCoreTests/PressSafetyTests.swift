@@ -66,3 +66,23 @@ import CoreGraphics
     #expect(afterAXPress(-25200) == .click)   // failure
     #expect(afterAXPress(-25205) == .click)   // attributeUnsupported / anything else
 }
+
+// Dia's web content answers "success" to an AXPress it does not offer, and nothing happens.
+
+@Test func axPressIsUsedWhenTheElementOffersIt() {
+    #expect(usesAXPress(role: "AXButton", actions: ["AXPress", "AXShowMenu"]))
+}
+
+@Test func axPressIsNotUsedWhenTheElementDoesNotOfferIt() {
+    #expect(!usesAXPress(role: "AXLink", actions: ["AXShowMenu", "AXScrollToVisible"]))
+    #expect(!usesAXPress(role: "AXRow", actions: []))
+}
+
+@Test func axPressIsTriedWhenTheActionsCouldNotBeRead() {
+    #expect(usesAXPress(role: "AXButton", actions: nil))
+}
+
+@Test func textFieldsAlwaysGetAClick() {
+    #expect(!usesAXPress(role: "AXTextField", actions: ["AXPress"]))
+    #expect(!usesAXPress(role: "AXTextArea", actions: nil))
+}

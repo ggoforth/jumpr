@@ -53,7 +53,7 @@ final class Presser {
         }
 
         var axError: Int32?
-        if !Roles.text.contains(t.role) {
+        if usesAXPress(role: t.role, actions: axActionNames(el)) {
             let err = AXUIElementPerformAction(el, kAXPressAction as CFString).rawValue
             axError = err
             switch afterAXPress(err) {

@@ -273,6 +273,10 @@ final class Controller {
             CATransaction.setDisableActions(true)
             for (label, p) in placed { p.layer.isHidden = !label.hasPrefix(prefix) }
             CATransaction.commit()
+            CATransaction.flush()  // show it now, not at the next run loop pass
+            if debugLabels {
+                log("narrowed \(prefix.isEmpty ? "-" : prefix): \(placed.keys.filter { $0.hasPrefix(prefix) }.count) of \(placed.count) shown")
+            }
             return true
         case .cancelled:
             cancel()
