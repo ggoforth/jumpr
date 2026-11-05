@@ -39,6 +39,33 @@ import CoreGraphics
     #expect(clickPoint(visible: visible, current: visible.offsetBy(dx: 0, dy: 10)) == CGPoint(x: 100, y: 15))
 }
 
+@Test func clicksAtOnceWhenTheAppIsAlreadyInFront() {
+    #expect(clickReadiness(appFrontmost: true, windowMain: true, waited: 0) == .ready)
+    // A window that does not say whether it is main does not hold the click back.
+    #expect(clickReadiness(appFrontmost: true, windowMain: nil, waited: 0) == .ready)
+}
+
+@Test func waitsForABackgroundAppToComeForwardBeforeClicking() {
+    // Dia on another display while Claude is in front: 40 ms is not enough, so keep waiting.
+    #expect(clickReadiness(appFrontmost: false, windowMain: true, waited: 0) == .wait)
+    #expect(clickReadiness(appFrontmost: false, windowMain: true, waited: 0.04) == .wait)
+    #expect(clickReadiness(appFrontmost: false, windowMain: true, waited: 0.3) == .wait)
+    // In front, but another of its windows is still the main one.
+    #expect(clickReadiness(appFrontmost: true, windowMain: false, waited: 0.1) == .wait)
+    #expect(clickReadiness(appFrontmost: true, windowMain: true, waited: 0.12) == .ready)
+}
+
+@Test func givesUpWaitingAfterTheLimit() {
+    #expect(clickReadiness(appFrontmost: false, windowMain: true, waited: 0.5) == .giveUp)
+    #expect(clickReadiness(appFrontmost: true, windowMain: false, waited: 0.6) == .giveUp)
+    #expect(clickReadiness(appFrontmost: false, windowMain: true, waited: 0.2, limit: 0.2) == .giveUp)
+}
+
+@Test func anAppThatDoesNotAnswerGetsTheOldFixedPause() {
+    #expect(clickReadiness(appFrontmost: nil, windowMain: nil, waited: 0) == .wait)
+    #expect(clickReadiness(appFrontmost: nil, windowMain: nil, waited: 0.04) == .ready)
+}
+
 @Test func menuItemRelabelsOnlyWhenLeftSelected() {
     #expect(relabelsAfterPress(role: "AXMenuItem", result: .pressed, selected: true))
     #expect(!relabelsAfterPress(role: "AXMenuItem", result: .pressed, selected: false))

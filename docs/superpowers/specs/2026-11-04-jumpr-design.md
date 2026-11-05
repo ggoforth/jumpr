@@ -334,8 +334,11 @@ being worked in clean again before the next trigger.
    part (places the cursor).
 5. Everything else: accessibility "press". A "cannot complete" reply counts as
    delivered — apps answer that way while a menu they just opened is tracking.
-6. If "press" is unsupported: synthetic click, after a ~40 ms pause for the raise
-   to land.
+6. If "press" is unsupported: synthetic click. Before any synthetic click into a
+   window, wait until the app says it is frontmost and that window is its main
+   window (up to half a second), then a further 50 ms (changed 2026-11-05, JUM-72;
+   was a fixed 40 ms). A click on a window that is not in front only brings it
+   forward: browsers do not pass it on to the page. One click, never two.
 7. If the pressed element was a menu bar item, or a menu item with a submenu: when
    the menu opens, label it automatically.
 

@@ -58,6 +58,27 @@ public func clickPoint(visible: CGRect, current: CGRect) -> CGPoint {
     return CGPoint(x: r.midX, y: r.midY)
 }
 
+public enum ClickReadiness: Equatable {
+    /// Click now.
+    case ready
+    /// Ask again shortly.
+    case wait
+    /// It never came forward; click anyway and say so in the log.
+    case giveUp
+}
+
+/// Whether a synthetic click can be sent yet. A click on a window that is not in front only
+/// brings it forward: browsers do not pass that first click on to the page. So after asking
+/// the app forward, wait until it says it is frontmost and the target's window is its main
+/// window. `nil` means the app did not answer; `waited` and `limit` are seconds.
+///
+/// One click, never two: an app that does pass the first click on would get a double click.
+public func clickReadiness(appFrontmost: Bool?, windowMain: Bool?, waited: Double, limit: Double = 0.5) -> ClickReadiness {
+    if appFrontmost == true && windowMain != false { return .ready }
+    if appFrontmost == nil && waited >= 0.04 { return .ready }  // cannot tell: the old fixed pause
+    return waited >= limit ? .giveUp : .wait
+}
+
 /// A press that opened a menu labels it right away: a menu bar item or menu item the
 /// press left selected (its menu or submenu opened). Menu-bar extras share the
 /// `AXMenuBarItem` role but open panels, not menus, so they are not relabelled unless selected.

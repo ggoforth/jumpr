@@ -45,10 +45,13 @@ final class Presser {
                             scanner: Scanner) -> (PressResult, axError: Int32?) {
         guard pressDecision(scanned: t.rect, current: axFrame(el)) == .press else { return (.skipped, nil) }
 
+        var raised: AXUIElement?
         if let wid = t.window {  // bring the owning app + window forward first
-            AXUIElementSetAttributeValue(axApp(t.pid), kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+            let err = AXUIElementSetAttributeValue(axApp(t.pid), kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+            if err != .success { log("press: asking pid \(t.pid) forward failed (ax=\(err.rawValue))") }
             if let w = scanner.appWindows(pid: t.pid).first(where: { $0.id == wid })?.element {
                 AXUIElementPerformAction(w, kAXRaiseAction as CFString)
+                raised = w
             }
         }
 
@@ -60,10 +63,10 @@ final class Presser {
             switch afterAXPress(err) {
             case .pressed: return (.pressed, err)
             case .skip: return (.skipped, err)
-            case .click: usleep(40_000)  // let the raise land
+            case .click: waitUntilForward(t, window: raised)
             }
         } else if t.window != nil {
-            usleep(40_000)  // let the raise land
+            waitUntilForward(t, window: raised)
         }
 
         // The raise (and a failed press) may have moved or closed it: check again, from now.
@@ -71,6 +74,34 @@ final class Presser {
         guard pressDecision(scanned: t.rect, current: fresh) == .press, let fresh else { return (.skipped, axError) }
         click(at: clickPoint(visible: t.rect, current: fresh))
         return (.clicked, axError)
+    }
+
+    /// Blocks until the target's app is in front and its window is the main one, so the
+    /// click lands as a click rather than only bringing the window forward (see
+    /// `clickReadiness`). Something with no window (a menu bar icon) gets a short fixed pause.
+    private static func waitUntilForward(_ t: Target, window: AXUIElement?) {
+        guard t.window != nil else { usleep(40_000); return }
+        let app = axApp(t.pid)
+        let t0 = now()
+        var waited = false
+        while true {
+            let front = axCopy(app, kAXFrontmostAttribute as String) as? Bool
+            let main = window.flatMap { axCopy($0, kAXMainAttribute as String) as? Bool }
+            switch clickReadiness(appFrontmost: front, windowMain: main, waited: now() - t0) {
+            case .ready:
+                guard waited else { return }  // it was already in front
+                usleep(50_000)  // the app says it is active; let the window server catch up
+                log(String(format: "press: pid %d came forward in %.0f ms", t.pid, (now() - t0) * 1000))
+                return
+            case .giveUp:
+                log(String(format: "press: pid %d not in front after %.0f ms (frontmost=%@ main=%@), clicking anyway",
+                           t.pid, (now() - t0) * 1000, "\(front as Any)", "\(main as Any)"))
+                return
+            case .wait:
+                waited = true
+                usleep(10_000)
+            }
+        }
     }
 
     private static func click(at p: CGPoint) {
