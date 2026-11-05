@@ -32,6 +32,8 @@
     <section class="demo wrap" aria-labelledby="demo-title">
       <h2 id="demo-title" class="visually-hidden">Try it here</h2>
 
+      <p class="phone-note">On a Mac, <kbd>⌘</kbd><kbd>⇧</kbd><kbd>Space</kbd> labels every display at once. Here is one.</p>
+
       <div class="stage" id="stage" tabindex="0" role="group" aria-roledescription="interactive demo"
            aria-label="A pretend Mac with two displays" aria-describedby="demo-help">
         <div class="displays">
@@ -120,8 +122,8 @@
             <div class="stand" aria-hidden="true"></div>
           </div>
 
-          <!-- Display 2: browser and a settings window -->
-          <div class="display">
+          <!-- Display 2: browser and a settings window (not shown on phones) -->
+          <div class="display display-2">
             <div class="screen" data-screen="2">
               <div class="menubar is-dim">
                 <span class="mb-app">Chat</span><span class="mb-item">File</span><span class="mb-item">Edit</span><span class="mb-item">View</span>

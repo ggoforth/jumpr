@@ -26,7 +26,12 @@
 
   var reduceMQ = window.matchMedia('(prefers-reduced-motion: reduce)');
   var coarseMQ = window.matchMedia('(pointer: coarse)');
+  // Phones (same breakpoint as site.css) show one display; the second is
+  // display:none, so it gets no labels and autoplay skips its steps.
+  var phoneMQ = window.matchMedia('(max-width: 760px)');
   function reduced() { return reduceMQ.matches; }
+  function touch() { return coarseMQ.matches; }        // tap wording, no keyboard hints
+  function phone() { return phoneMQ.matches; }
 
   function $(sel, root) { return (root || stage).querySelector(sel); }
   function $$(sel, root) { return Array.prototype.slice.call((root || stage).querySelectorAll(sel)); }
@@ -267,8 +272,9 @@
     });
     var screens = {};
     els.forEach(function (el) { screens[el.closest('.screen').getAttribute('data-screen')] = 1; });
-    say(openMenu ? 'Labels on the menu’s items.'
-      : Object.keys(screens).length > 1 ? 'Labels on both displays.' : 'Labels on the display.');
+    if (touch() && !session.auto) say(openMenu ? 'Labels on the menu’s items. Tap one.' : 'Labels are up. Tap one to click it.');
+    else say(openMenu ? 'Labels on the menu’s items.'
+      : Object.keys(screens).length > 1 ? 'Labels on both displays.' : 'Labels are up.');
     updatePrompt();
   }
 
@@ -305,11 +311,6 @@
     y = Math.max(0, Math.min(y, s.height - h));
     node.style.left = (x / s.width * 100) + '%';
     node.style.top = (y / s.height * 100) + '%';
-    node.addEventListener('click', function (e) {
-      e.stopPropagation();
-      if (!session || session.locked || node.classList.contains('is-out')) return;
-      choose(entry);
-    });
     return node;
   }
 
@@ -325,7 +326,8 @@
     if (next.length === 2) { choose(hits[0]); return; }
     session.typed = next;
     session.entries.forEach(function (e) { e.node.classList.toggle('is-out', e.label.indexOf(next) !== 0); });
-    say('Typed ' + next + ' — ' + hits.length + ' label' + (hits.length === 1 ? '' : 's') + ' left.');
+    var left = hits.length + ' label' + (hits.length === 1 ? '' : 's') + ' left.';
+    say(touch() ? next + ' — ' + left : 'Typed ' + next + ' — ' + left);
     updatePrompt();
   }
 
@@ -368,6 +370,28 @@
   /* ------------------------------------------------------------------ */
 
   function say(text) { captionEl.textContent = text; }
+
+  // Tapping: each label answers taps in a box at least 34 px square around
+  // it. Where boxes overlap, the label whose centre is nearest wins.
+  var TAP = 34;
+  function labelAt(x, y) {
+    if (!session || session.locked) return null;
+    var best = null, bestD = Infinity;
+    session.entries.forEach(function (e) {
+      if (e.node.classList.contains('is-out')) return;
+      var r = e.node.getBoundingClientRect();
+      var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      var hw = Math.max(r.width + 12, TAP) / 2, hh = Math.max(r.height + 12, TAP) / 2;
+      if (Math.abs(x - cx) > hw || Math.abs(y - cy) > hh) return;
+      var d = Math.hypot(x - cx, y - cy);
+      if (d < bestD) { bestD = d; best = e; }
+    });
+    return best;
+  }
+
+  function idleCaption() {
+    return touch() ? 'Tap Show labels.' : phone() ? 'A pretend Mac.' : 'A pretend Mac with two displays.';
+  }
 
   var active = false; // the demo has focus
 
@@ -514,11 +538,12 @@
   });
 
   stage.addEventListener('pointerdown', function (e) {
-    interact(!!e.target.closest('.lbl'));
+    interact(!!labelAt(e.clientX, e.clientY));
   });
 
   stage.addEventListener('click', function (e) {
-    if (e.target.closest('.lbl')) return;
+    var hit = labelAt(e.clientX, e.clientY);
+    if (hit) { choose(hit); return; }
     var t = e.target.closest('[data-act]');
     if (session) cancel();
     if (t) {
@@ -553,7 +578,7 @@
   window.addEventListener('resize', function () {
     if (window.innerWidth === lastWidth) return; // phones fire resize on scroll
     lastWidth = window.innerWidth;
-    if (session && !session.locked) { session.auto ? stopAuto() : cancel(); scheduleAuto(6000); }
+    if (session && !session.locked) { session.auto ? stopAuto() : cancel(); say(idleCaption()); scheduleAuto(6000); }
   });
 
   if ('IntersectionObserver' in window) {
@@ -571,11 +596,25 @@
   if (reduceMQ.addEventListener) reduceMQ.addEventListener('change', onMotionChange);
   if (coarseMQ.addEventListener) coarseMQ.addEventListener('change', updatePrompt);
 
+  // Crossing the phone breakpoint (rotation) changes which display exists:
+  // end any label session cleanly rather than leave stale labels.
+  function onPhoneChange() {
+    stopAuto();
+    cancel();
+    closeMenu();
+    stage.setAttribute('aria-label', phone() ? 'A pretend Mac' : 'A pretend Mac with two displays');
+    say(idleCaption());
+    updatePrompt();
+    scheduleAuto(6000);
+  }
+  if (phoneMQ.addEventListener) phoneMQ.addEventListener('change', onPhoneChange);
+
   /* ------------------------------------------------------------------ */
 
   renderChat();
   renderBrowser();
-  say('A pretend Mac with two displays.');
+  if (phone()) stage.setAttribute('aria-label', 'A pretend Mac');
+  say(idleCaption());
   updatePrompt();
   scheduleAuto(3000);
 })();
