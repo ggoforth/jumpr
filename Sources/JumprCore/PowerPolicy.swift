@@ -29,3 +29,20 @@ public func warmth(_ s: PowerState, mode: BatteryMode) -> Warmth {
     case .onDemand: return .none
     }
 }
+
+/// The three things that make the screen unusable, tracked apart so that one
+/// ending (an unlock, say) cannot clear another that still holds.
+public struct LockCauses: Equatable {
+    public var sessionLocked = false
+    public var displaysAsleep = false
+    public var screenSaver = false
+
+    public init(sessionLocked: Bool = false, displaysAsleep: Bool = false, screenSaver: Bool = false) {
+        self.sessionLocked = sessionLocked
+        self.displaysAsleep = displaysAsleep
+        self.screenSaver = screenSaver
+    }
+
+    /// Locked while any cause holds.
+    public var locked: Bool { sessionLocked || displaysAsleep || screenSaver }
+}

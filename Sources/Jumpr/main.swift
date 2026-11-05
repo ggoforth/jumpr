@@ -84,6 +84,13 @@ statusItem.onTogglePause = { defaults.set(!defaults.bool(forKey: Keys.paused), f
 let pausedWatcher = DefaultsWatcher(Keys.paused) { applyPaused() }
 applyPaused()
 
+// Power: battery, Low Power Mode, lock and pause (pause is only reflected; `applyPaused` acts on it).
+let powerSource = PowerSource()
+powerSource.onChange = { _ in }  // the watcher (Task 13) consumes this
+powerSource.start()
+// Both the hotkey and the SIGUSR1 debug trigger go through `trigger`, so both are refused.
+controller.isLocked = { powerSource.state.locked }
+
 onboarding.start(
     onTrusted: {
         let ok = keyTap.start()

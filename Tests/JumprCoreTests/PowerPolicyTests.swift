@@ -23,3 +23,21 @@ private func s(battery: Bool = false, low: Bool = false, locked: Bool = false, p
     #expect(warmth(s(locked: true), mode: .full) == .none)
     #expect(warmth(s(paused: true), mode: .full) == .none)
 }
+
+@Test func noLockCauseIsUnlocked() {
+    #expect(!LockCauses().locked)
+}
+
+@Test func anyLockCauseLocks() {
+    #expect(LockCauses(sessionLocked: true).locked)
+    #expect(LockCauses(displaysAsleep: true).locked)
+    #expect(LockCauses(screenSaver: true).locked)
+}
+
+@Test func endingOneCauseKeepsTheOthers() {
+    var c = LockCauses(sessionLocked: true, displaysAsleep: false, screenSaver: true)
+    c.sessionLocked = false  // unlocked while the screen saver still runs
+    #expect(c.locked)
+    c.screenSaver = false
+    #expect(!c.locked)
+}
