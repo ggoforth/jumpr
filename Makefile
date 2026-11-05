@@ -3,6 +3,7 @@
 test:
 	swift test
 
+# Env: CODESIGN_IDENTITY, CODESIGN_OPTIONS, JUMPR_FEED_URL, JUMPR_SPARKLE_PUBLIC_KEY (defaults: dev build, updates off; see the script).
 app:
 	scripts/build-app.sh
 

@@ -9,6 +9,7 @@ struct SettingsView: View {
     var onHotkey: (Hotkey) -> Void
     @ObservedObject var onboarding: Onboarding
     @ObservedObject var loginItem: LoginItem
+    @ObservedObject var updater: UpdaterController
 
     @AppStorage(Keys.labelSize) private var size = 15.0
     @AppStorage(Keys.labelColor) private var labelHex = "FFD60A"
@@ -46,6 +47,16 @@ struct SettingsView: View {
                         .font(.callout).foregroundStyle(.secondary)
                 }
                 Toggle("Show timing readout", isOn: $showReadout)
+            }
+            Section("Updates") {
+                // Sparkle's own setting; Jumpr stores no copy of it.
+                Toggle("Check for updates automatically",
+                       isOn: Binding(get: { updater.automaticallyChecks }, set: { updater.setAutomaticallyChecks($0) }))
+                    .disabled(!updater.isConfigured)
+                if !updater.isConfigured {
+                    Text("Updates are off in development builds.")
+                        .font(.callout).foregroundStyle(.secondary)
+                }
             }
         }
         .formStyle(.grouped)
@@ -112,12 +123,14 @@ final class SettingsWindow {
     private let onHotkey: (Hotkey) -> Void
     private let onboarding: Onboarding
     private let loginItem: LoginItem
+    private let updater: UpdaterController
     private var window: NSWindow?
 
-    init(onboarding: Onboarding, loginItem: LoginItem,
+    init(onboarding: Onboarding, loginItem: LoginItem, updater: UpdaterController,
          onRecording: @escaping (Bool) -> Void, onHotkey: @escaping (Hotkey) -> Void) {
         self.onboarding = onboarding
         self.loginItem = loginItem
+        self.updater = updater
         self.onRecording = onRecording
         self.onHotkey = onHotkey
     }
@@ -126,7 +139,7 @@ final class SettingsWindow {
         loginItem.refresh()  // the status can change outside Jumpr
         if window == nil {
             let root = SettingsView(onRecording: onRecording, onHotkey: onHotkey,
-                                    onboarding: onboarding, loginItem: loginItem)
+                                    onboarding: onboarding, loginItem: loginItem, updater: updater)
             let w = NSWindow(contentViewController: NSHostingController(rootView: root))
             w.title = "Jumpr Settings"
             w.styleMask = [.titled, .closable]
