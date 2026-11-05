@@ -1,0 +1,62 @@
+import CoreGraphics
+
+public typealias WindowID = UInt32
+
+public struct Win: Equatable {
+    public let id: WindowID
+    public let pid: Int32
+    public let name: String
+    public let bounds: CGRect
+    public let layer: Int
+    public let alpha: Double
+
+    public init(id: WindowID, pid: Int32, name: String, bounds: CGRect, layer: Int, alpha: Double) {
+        self.id = id
+        self.pid = pid
+        self.name = name
+        self.bounds = bounds
+        self.layer = layer
+        self.alpha = alpha
+    }
+
+    /// Normal-layer, non-transparent windows hide whatever is behind them.
+    public var occludes: Bool { (0..<20).contains(layer) && alpha > 0 }
+}
+
+public struct WindowStack {
+    /// On-screen windows, front to back.
+    public let wins: [Win]
+
+    public init(_ wins: [Win]) {
+        self.wins = wins
+    }
+
+    public func win(_ id: WindowID) -> Win? {
+        wins.first { $0.id == id }
+    }
+
+    public func top(at p: CGPoint) -> Win? {
+        wins.first { $0.occludes && $0.bounds.contains(p) }
+    }
+
+    /// True if `window` (or a helper window of the same app that is not in
+    /// `appWindows`) is the topmost occluding window at `p`.
+    public func isVisible(_ p: CGPoint, window: WindowID, pid: Int32, appWindows: Set<WindowID>) -> Bool {
+        guard let t = top(at: p) else { return false }
+        return t.id == window || (t.pid == pid && !appWindows.contains(t.id))
+    }
+
+    /// Samples a 5x5 grid inside the window's bounds.
+    public func anyVisible(_ window: WindowID) -> Bool {
+        guard let w = win(window) else { return false }
+        let r = w.bounds
+        for i in 1...5 {
+            for j in 1...5 {
+                let p = CGPoint(x: r.minX + r.width * CGFloat(i) / 6,
+                                y: r.minY + r.height * CGFloat(j) / 6)
+                if top(at: p)?.id == window { return true }
+            }
+        }
+        return false
+    }
+}
