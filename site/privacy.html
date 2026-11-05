@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy: Jumpr</title>
+  <meta name="description" content="What Jumpr reads, what it sends, and what it keeps.">
+  <meta name="color-scheme" content="light dark">
+  <link rel="canonical" href="https://DOMAIN/privacy.html">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="site-header wrap">
+    <a class="brand" href="index.html" aria-label="Jumpr home"><span class="brand-mark" aria-hidden="true">J</span>Jumpr</a>
+    <a class="header-link" href="/download/Jumpr.zip">Download</a>
+  </header>
+
+  <main id="main" class="doc wrap">
+    <h1>Privacy</h1>
+    <p class="updated">Last updated: November 5, 2026</p>
+
+    <h2>The short version</h2>
+    <p>Jumpr works on your Mac. What it reads to place labels never leaves your Mac. The app has no account and no analytics. Its only network request is a daily check for updates, which you can turn off.</p>
+
+    <h2>What Jumpr reads, and why</h2>
+    <p>To put a label on each clickable thing, Jumpr uses the macOS Accessibility permission to find buttons, links, icons and menus on your displays, and to click the one you choose. This happens on your Mac. None of it is sent anywhere.</p>
+
+    <h2>The update check</h2>
+    <p>Once a day, Jumpr asks <code>https://DOMAIN/appcast.xml</code> whether a new version is out. Like any web request, it shows our server your IP address, along with the Jumpr version and macOS version. We use that only to offer the right update. You can turn the check off in Jumpr’s Settings, and check by hand from the menu.</p>
+
+    <h2>Your license key</h2>
+    <p>Jumpr checks your key on your Mac, without going online, and keeps it in <code>~/Library/Application&nbsp;Support/Jumpr/</code>.</p>
+
+    <h2>When you buy</h2>
+    <ul>
+      <li><strong>Payment</strong> is handled by Stripe. We receive your email address and the purchase record. We never see your full card number.</li>
+      <li><strong>Your key</strong> is emailed to you through Resend, which keeps a delivery record.</li>
+      <li>We use your email address to send your key, answer you, and handle refunds. Nothing else. We don’t sell it or share it.</li>
+    </ul>
+
+    <h2>This website</h2>
+    <p>No cookies, no analytics, no tracking, and no scripts from anyone else. The demo on the home page runs entirely in your browser. Our hosting provider may keep standard access logs, such as IP address and the page requested.</p>
+
+    <h2>Questions, or want something deleted?</h2>
+    <p>Write to <a href="mailto:SUPPORT_EMAIL">SUPPORT_EMAIL</a>. If this policy changes, the new version will be posted here with a new date.</p>
+  </main>
+
+  <footer class="site-footer wrap">
+    <span class="footer-brand"><span class="brand-mark" aria-hidden="true">J</span>Jumpr</span>
+    <nav aria-label="Footer">
+      <a href="privacy.html">Privacy</a>
+      <a href="terms.html">Terms</a>
+      <a href="mailto:SUPPORT_EMAIL">SUPPORT_EMAIL</a>
+    </nav>
+  </footer>
+</body>
+</html>
