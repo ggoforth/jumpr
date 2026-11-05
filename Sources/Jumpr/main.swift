@@ -19,7 +19,20 @@ controller.readout.enabled = defaults.bool(forKey: Keys.showReadout)
 keyTap.onHotkey = { DispatchQueue.main.async { controller.trigger() } }
 keyTap.onKey = { controller.handle($0) }
 keyTap.onDisabled = { log("key tap: re-enabled after the system switched it off") }
-controller.onMatched = { target, _ in log("matched \(target.role)") }
+let presser = Presser(scanner: scanner)
+controller.onMatched = { target, drawn in
+    let t0 = now()
+    presser.press(target, drawn: drawn) { result in
+        log(String(format: "→ %@ %@ %.0f ms", target.role, "\(result)", (now() - t0) * 1000))
+        presser.openedMenu(target, result: result) { opened in
+            guard opened else { return }
+            // Label the menu the press just opened, unless a session started meanwhile.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                if !controller.isActive { controller.trigger() }
+            }
+        }
+    }
+}
 log("key tap: \(trusted ? keyTap.start() : false)")
 
 // Debug: `kill -USR1 <pid>` = scan + paint without the keyboard, cancelled after 2 s.
