@@ -7,11 +7,15 @@ import JumprCore
 /// `onChange`. `onChange` fires only when the state actually changes.
 final class PowerSource {
     var onChange: (PowerState) -> Void = { _ in }
+    /// Fires on every lock event (session lock, screen saver start, display sleep), whether
+    /// or not the combined state changed: a stale cause must not hide a real lock.
+    var onLockEvent: () -> Void = {}
     private(set) var state = PowerState(onBattery: false, lowPower: false, locked: false, paused: false)
 
     private var lock = LockCauses()
     private var started = false
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
+    private var distributedObservers: [DistributedObserver] = []
     private var pausedWatcher: DefaultsWatcher?
     private var batterySource: CFRunLoopSource?
 
@@ -28,13 +32,13 @@ final class PowerSource {
                           displaysAsleep: CGDisplayIsAsleep(CGMainDisplayID()) != 0,
                           screenSaver: false)
 
-        let distributed = DistributedNotificationCenter.default()
-        observe(distributed, "com.apple.screenIsLocked") { $0.lock.sessionLocked = true }
-        observe(distributed, "com.apple.screenIsUnlocked") { $0.lock.sessionLocked = false }
-        observe(distributed, "com.apple.screensaver.didstart") { $0.lock.screenSaver = true }
-        observe(distributed, "com.apple.screensaver.didstop") { $0.lock.screenSaver = false }
+        // Distributed: delivered immediately even while Jumpr is not the active app.
+        observeDistributed("com.apple.screenIsLocked", lockEvent: true) { $0.lock.sessionLocked = true }
+        observeDistributed("com.apple.screenIsUnlocked") { $0.lock.sessionLocked = false }
+        observeDistributed("com.apple.screensaver.didstart", lockEvent: true) { $0.lock.screenSaver = true }
+        observeDistributed("com.apple.screensaver.didstop") { $0.lock.screenSaver = false }
         let workspace = NSWorkspace.shared.notificationCenter
-        observe(workspace, NSWorkspace.screensDidSleepNotification.rawValue) { $0.lock.displaysAsleep = true }
+        observe(workspace, NSWorkspace.screensDidSleepNotification.rawValue, lockEvent: true) { $0.lock.displaysAsleep = true }
         observe(workspace, NSWorkspace.screensDidWakeNotification.rawValue) { $0.lock.displaysAsleep = false }
         // Posted on an arbitrary thread; the observer queue brings it to main.
         observe(NotificationCenter.default, NSNotification.Name.NSProcessInfoPowerStateDidChange.rawValue) { _ in }
@@ -58,12 +62,13 @@ final class PowerSource {
         logState()
     }
 
-    /// The user pressed the hotkey: clears the display-asleep and screen-saver causes,
-    /// so a missed wake or stop notification is stale at most until the next press.
+    /// The user pressed the hotkey: clears the display-asleep and screen-saver causes and
+    /// resyncs the session lock to the live value, so a missed notification is stale at
+    /// most until the next press.
     func noteUserActivity() {
         dispatchPrecondition(condition: .onQueue(.main))
         guard started else { return }
-        lock.noteUserActivity()
+        lock.noteUserActivity(sessionLockedNow: screenIsLocked())
         refresh()
     }
 
@@ -72,14 +77,29 @@ final class PowerSource {
         if let batterySource { CFRunLoopRemoveSource(CFRunLoopGetMain(), batterySource, .defaultMode) }
     }
 
-    /// Runs `update` on main for each `name` posted to `center`, then re-reads the state.
-    private func observe(_ center: NotificationCenter, _ name: String, _ update: @escaping (PowerSource) -> Void) {
+    /// Runs `update` on main for each `name` posted to `center`, then `handle`.
+    private func observe(_ center: NotificationCenter, _ name: String, lockEvent: Bool = false,
+                         _ update: @escaping (PowerSource) -> Void) {
         let token = center.addObserver(forName: Notification.Name(name), object: nil, queue: .main) { [weak self] _ in
-            guard let self else { return }
-            update(self)
-            refresh()
+            self?.handle(update, lockEvent: lockEvent)
         }
         observers.append((center, token))
+    }
+
+    /// The same for a distributed notification, delivered immediately.
+    private func observeDistributed(_ name: String, lockEvent: Bool = false,
+                                    _ update: @escaping (PowerSource) -> Void) {
+        distributedObservers.append(DistributedObserver(name) { [weak self] in
+            self?.handle(update, lockEvent: lockEvent)
+        })
+    }
+
+    /// Applies one cause change, re-reads the state, and reports a lock event.
+    private func handle(_ update: (PowerSource) -> Void, lockEvent: Bool) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        update(self)
+        refresh()
+        if lockEvent { onLockEvent() }
     }
 
     private func refresh() {

@@ -12,14 +12,14 @@ let onboarding = Onboarding()
 let loginItem = LoginItem()
 
 // Power: battery, Low Power Mode, lock and pause (pause is only reflected; `applyPaused` acts on it).
-// The rest of `onChange` belongs to the watcher (Task 13).
+// `onChange` belongs to the watcher (Task 13).
 let powerSource = PowerSource()
-powerSource.onChange = { state in
-    // A capturing key listener must never be live at a lock screen.
-    if state.locked && controller.isActive {
-        controller.cancel()
-        log("cancelled: locked")
-    }
+// A capturing key listener must never be live at a lock screen. Driven by every lock
+// event, not by a change in the combined state, so a stale cause cannot hide a lock.
+powerSource.onLockEvent = {
+    guard controller.isActive else { return }
+    controller.cancel()
+    log("cancelled: locked")
 }
 log("launch")
 log("trusted: \(AXIsProcessTrusted())")

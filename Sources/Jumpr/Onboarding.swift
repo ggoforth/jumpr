@@ -16,7 +16,7 @@ final class Onboarding: ObservableObject {
 
     private var onTrusted: () -> Bool = { true }
     private var onLost: () -> Void = {}
-    private var observer: NSObjectProtocol?
+    private var observer: DistributedObserver?
 
     static let accessibilityPane = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
 
@@ -33,9 +33,8 @@ final class Onboarding: ObservableObject {
             let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
             _ = AXIsProcessTrustedWithOptions(options)
         }
-        observer = DistributedNotificationCenter.default().addObserver(
-            forName: NSNotification.Name("com.apple.accessibility.api"), object: nil, queue: .main
-        ) { [weak self] _ in
+        // Delivered immediately even while Jumpr is not the active app (it rarely is).
+        observer = DistributedObserver("com.apple.accessibility.api") { [weak self] in
             for delay in [0.5, 2.0] {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) { self?.recheck() }
             }
