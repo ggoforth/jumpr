@@ -75,8 +75,10 @@ final class Presser {
     private static func click(at p: CGPoint) {
         let src = CGEventSource(stateID: .hidSystemState)
         for type in [CGEventType.mouseMoved, .leftMouseDown, .leftMouseUp] {
-            CGEvent(mouseEventSource: src, mouseType: type, mouseCursorPosition: p, mouseButton: .left)?
-                .post(tap: .cghidEventTap)
+            guard let e = CGEvent(mouseEventSource: src, mouseType: type, mouseCursorPosition: p,
+                                  mouseButton: .left) else { continue }
+            e.flags = []  // a modifier still held from typing the label must not ride along
+            e.post(tap: .cghidEventTap)
         }
     }
 }

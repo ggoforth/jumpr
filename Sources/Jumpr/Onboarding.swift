@@ -115,10 +115,21 @@ final class LoginItem: ObservableObject {
             return
         }
         UserDefaults.standard.set(true, forKey: Keys.loginItemSetUp)
-        apply(true)
+        // Off main: registering is an XPC round trip, and the key listener has just started
+        // on the main run loop. The status comes back to main.
+        DispatchQueue.global(qos: .utility).async {
+            Self.register(true)
+            DispatchQueue.main.async { self.refresh() }
+        }
     }
 
     private func apply(_ on: Bool) {
+        Self.register(on)
+        refresh()
+    }
+
+    /// Registers or unregisters the login item and logs the result. Any thread.
+    private static func register(_ on: Bool) {
         let service = SMAppService.mainApp
         do {
             if on { try service.register() } else { try service.unregister() }
@@ -126,6 +137,5 @@ final class LoginItem: ObservableObject {
         } catch {
             log("login item: \(on ? "register" : "unregister") failed (\(error.localizedDescription))")
         }
-        refresh()
     }
 }

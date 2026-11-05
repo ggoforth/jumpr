@@ -4,7 +4,8 @@ import JumprCore
 
 /// Web-based apps (Electron, Chromium) keep their accessibility tree off until asked.
 /// Records only the trees Jumpr itself switched on, so it can switch exactly those back
-/// off: a tree another tool (VoiceOver, another labeler) switched on is left alone.
+/// off. An `AXEnhancedUserInterface` another tool switched on is left alone; an
+/// `AXManualAccessibility` cannot be read back, so Jumpr cannot tell (design: Known limits).
 /// `enableIfNeeded` and `noteScan` make AX calls: call them off the main thread (on the
 /// pid's scan queue). `disableAll` and `allowEnabling` may be called from main.
 final class TreeRegistry {
@@ -32,16 +33,13 @@ final class TreeRegistry {
     var enabledPids: Set<Int32> { lock.withLock { manual } }
 
     /// The caller has seen a visible window for `pid`. On first sight of a regular app,
-    /// sets `AXManualAccessibility` unless it is already on, and records the pid only
-    /// if Jumpr switched it on.
+    /// sets `AXManualAccessibility`, and records the pid only if the app accepted it.
     func enableIfNeeded(pid: Int32, bundleID: String?) {
         guard lock.withLock({ enabling && seen.insert(pid).inserted }) else { return }
         guard NSRunningApplication(processIdentifier: pid)?.activationPolicy == .regular else { return }
         let app = axApp(pid)
-        if Self.isOn(app, Self.manualAttr) {
-            log("tree already on: AXManualAccessibility \(bundleID ?? "pid \(pid)"), left alone")
-            return
-        }
+        // No "already on" check here: `AXManualAccessibility` is write-only in practice (a
+        // read never returns true), unlike `AXEnhancedUserInterface` in `noteScan`.
         // Record the pid before switching the tree on, so a `disableAll` that starts during
         // the call still switches it off (its work queues behind this on the pid's queue).
         guard record(pid, in: \.manual) else { return }

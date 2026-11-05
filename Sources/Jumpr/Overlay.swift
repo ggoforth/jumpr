@@ -15,7 +15,7 @@ struct LabelStyle {
         let font = NSFont.monospacedSystemFont(ofSize: size, weight: .bold)
         func color(_ key: String, _ fallback: String) -> CGColor {
             let c = d.string(forKey: key).flatMap { RGB(hex: $0) } ?? RGB(hex: fallback)!
-            return CGColor(red: c.r, green: c.g, blue: c.b, alpha: 1)
+            return CGColor(srgbRed: c.r, green: c.g, blue: c.b, alpha: 1)  // sRGB, as in the Settings preview
         }
         return LabelStyle(font: font, size: size, advance: font.maximumAdvancement.width,
                           bg: color(Keys.labelColor, "FFD60A"), fg: color(Keys.labelTextColor, "000000"))

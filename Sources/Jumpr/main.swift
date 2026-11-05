@@ -28,7 +28,23 @@ log("trusted: \(AXIsProcessTrusted())")
 powerSource.start()
 
 let defaults = UserDefaults.standard
-keyTap.hotkey = defaults.string(forKey: Keys.hotkey).flatMap { Hotkey(stored: $0) } ?? .default
+/// The stored hotkey, or the default when none is stored; nil for a value that does not
+/// parse or has no ⌘/⌃/⌥ (ignored, the current hotkey stays).
+func storedHotkey() -> Hotkey? {
+    guard let s = defaults.string(forKey: Keys.hotkey) else { return .default }
+    guard let h = Hotkey(stored: s), h.isValid else { return nil }
+    return h
+}
+func applyHotkey(_ h: Hotkey) {
+    guard h != keyTap.hotkey else { return }
+    keyTap.hotkey = h
+    log("hotkey applied: \(h.display(keyName: characterForKey)) (\(h.stored))")
+}
+keyTap.hotkey = storedHotkey() ?? .default
+// Live, like `paused` and `showReadout`: the Settings recorder and `defaults write` both land here.
+let hotkeyWatcher = DefaultsWatcher(Keys.hotkey) {
+    if let h = storedHotkey() { applyHotkey(h) } else { log("hotkey: stored value ignored, not a valid hotkey") }
+}
 controller.readout.enabled = defaults.bool(forKey: Keys.showReadout)
 let readoutWatcher = DefaultsWatcher(Keys.showReadout) {
     let on = defaults.bool(forKey: Keys.showReadout)
@@ -43,10 +59,7 @@ let settingsWindow = SettingsWindow(
         keyTap.suspended = recording
         log("hotkey recorder: \(recording ? "recording, key listener suspended" : "done, key listener resumed")")
     },
-    onHotkey: { hotkey in
-        keyTap.hotkey = hotkey
-        log("hotkey: \(hotkey.display(keyName: characterForKey)) (\(hotkey.stored))")
-    })
+    onHotkey: { applyHotkey($0) })  // usually already applied by `hotkeyWatcher`
 statusItem.onSettings = { settingsWindow.show() }
 // The tap callback must return at once: the trigger runs on main's next turn.
 // A real hotkey press proves the displays are awake and no screen saver runs.
