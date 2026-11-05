@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Privacy: Jumpr</title>
-  <meta name="description" content="What Jumpr reads, what it sends, and what it keeps.">
+  <meta name="description" content="Jumpr is fully local. What it reads stays on your Mac. What leaves it, and why.">
   <meta name="color-scheme" content="light dark">
   <link rel="canonical" href="https://getjumpr.app/privacy.html">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -19,33 +19,95 @@
   </header>
 
   <main id="main" class="doc wrap">
-    <h1>Privacy</h1>
+    <h1>Privacy Policy</h1>
     <p class="updated">Last updated: November 5, 2026</p>
+    <p class="lede">Jumpr is a fully local Mac app. What it reads on your screen stays on your Mac, and there is no account to create. A few things do leave your Mac, each one because you asked for something that needs it. This page lists every one of them: what is sent, to whom, why, and what you can ask us to do about it.</p>
 
-    <h2>The short version</h2>
-    <p>Jumpr works on your Mac. What it reads to place labels never leaves your Mac. The app has no account and no analytics. Its only network request is a daily check for updates, which you can turn off.</p>
+    <h2>1. Who is responsible</h2>
+    <p>The controller of the personal data described here is BaggaDonuts LLC, a California limited liability company, 1187 N Willow Ave #103-815, Clovis, CA 93611, United States, trading as Jumpr. Reach us at <a href="mailto:support@getjumpr.app">support@getjumpr.app</a>. We have not appointed a data protection officer; the same address reaches the person responsible for privacy.</p>
 
-    <h2>What Jumpr reads, and why</h2>
-    <p>To put a label on each clickable thing, Jumpr uses the macOS Accessibility permission to find buttons, links, icons and menus on your displays, and to click the one you choose. This happens on your Mac. None of it is sent anywhere.</p>
-
-    <h2>The update check</h2>
-    <p>Once a day, Jumpr asks <code>https://getjumpr.app/appcast.xml</code> whether a new version is out. Like any web request, it shows our server your IP address, along with the Jumpr version and macOS version. We use that only to offer the right update. You can turn the check off in Jumpr’s Settings, and check by hand from the menu.</p>
-
-    <h2>Your license key</h2>
-    <p>Jumpr checks your key on your Mac, without going online, and keeps it in <code>~/Library/Application&nbsp;Support/Jumpr/</code>.</p>
-
-    <h2>When you buy</h2>
+    <h2>2. The short version</h2>
     <ul>
-      <li><strong>Payment</strong> is handled by Stripe. We receive your email address and the purchase record. We never see your full card number.</li>
-      <li><strong>Your key</strong> is emailed to you through Resend, which keeps a delivery record.</li>
-      <li>We use your email address to send your key, answer you, and handle refunds. Nothing else. We don’t sell it or share it.</li>
+      <li>The app has no account, no sign-in, no analytics, no telemetry and no crash reporting.</li>
+      <li>What Jumpr reads to place its labels never leaves your Mac. It is not recorded, and it is not stored or sent anywhere.</li>
+      <li>The app’s only network request is a daily check for updates, which you can turn off.</li>
+      <li>When you buy, Stripe takes the payment and we keep its record of the purchase so we can send your key and handle refunds.</li>
+      <li>You can ask us to show, correct or delete what we hold. Section 9 says how.</li>
     </ul>
 
-    <h2>This website</h2>
-    <p>No cookies, no analytics, no tracking, and no scripts from anyone else. The demo on the home page runs entirely in your browser. Our hosting provider may keep standard access logs, such as IP address and the page requested.</p>
+    <h2>3. What stays on your Mac</h2>
+    <ul>
+      <li>Everything Jumpr reads through the macOS Accessibility permission: the buttons, links, icons and menus on your displays, and where they are. Jumpr uses it to place labels and to click the one you choose.</li>
+      <li>What you type while labels are showing.</li>
+      <li>Your settings, your trial start date, and your license key, kept in <code>~/Library/Application&nbsp;Support/Jumpr/</code>.</li>
+    </ul>
+    <p>Your license key is checked on your Mac, offline. Removing the app and that folder removes everything related to Jumpr from your Mac.</p>
 
-    <h2>Questions, or want something deleted?</h2>
-    <p>Write to <a href="mailto:SUPPORT_EMAIL">SUPPORT_EMAIL</a>. If this policy changes, the new version will be posted here with a new date.</p>
+    <h2>4. What leaves your Mac, and why</h2>
+    <p>Each item below is one thing that leaves your Mac. “Basis” is the legal ground we rely on under the GDPR and similar laws: <em>contract</em> means we need it to provide something you asked for; <em>legitimate interest</em> means we need it to run the service in a way you would reasonably expect.</p>
+
+    <h3>Update checks</h3>
+    <p><strong>What is sent.</strong> Once a day, a request to getjumpr.app asking whether a new version is out. Like any web request, it carries your IP address and a user agent naming Jumpr and its version.</p>
+    <p><strong>Why, and basis.</strong> To offer you the right update. Legitimate interest. You can turn the check off in Jumpr’s Settings.</p>
+    <p><strong>Kept.</strong> In our hosting provider’s ordinary access logs.</p>
+
+    <h3>Downloading an update</h3>
+    <p><strong>What is sent.</strong> When you choose to install an update, Jumpr downloads it from getjumpr.app. The request carries the same information as the update check.</p>
+    <p><strong>Why, and basis.</strong> To deliver the update you asked for. Contract.</p>
+    <p><strong>Kept.</strong> In our hosting provider’s ordinary access logs.</p>
+
+    <h3>Payments</h3>
+    <p><strong>What is sent.</strong> Checkout happens on Stripe, which collects your card details. We never see them. We receive your email address, what you bought, the amount and the date.</p>
+    <p><strong>Why, and basis.</strong> To deliver your license key, handle refunds and keep accounting records. Contract; records are also a legal obligation.</p>
+    <p><strong>Kept.</strong> Your purchase record stays in Stripe for as long as tax and accounting law requires.</p>
+
+    <h3>Your license key email</h3>
+    <p><strong>What is sent.</strong> After you pay, your license key is emailed to the address you gave at checkout, through Resend, which processes the address and the message. The key itself contains that email address.</p>
+    <p><strong>Why, and basis.</strong> To get you your key. Contract.</p>
+    <p><strong>Kept.</strong> Resend keeps delivery records under its own policy.</p>
+
+    <h3>Email you send us</h3>
+    <p><strong>What is sent.</strong> Whatever you write to <a href="mailto:support@getjumpr.app">support@getjumpr.app</a>, and your address.</p>
+    <p><strong>Why, and basis.</strong> To read and answer you. Contract, or legitimate interest where there is no purchase.</p>
+
+    <h3>This website</h3>
+    <p><strong>What is sent.</strong> Nothing beyond what your browser sends to load a page. The site has no analytics, sets no cookies of its own, and runs no trackers or scripts from anyone else. The demo on the home page runs entirely in your browser.</p>
+    <p><strong>Kept.</strong> Amazon Web Services, which hosts the site, keeps ordinary access logs, such as your IP address and the page requested.</p>
+
+    <h2>5. Service providers</h2>
+    <p>These are the companies that process personal data for us, and what each one does.</p>
+    <ul>
+      <li><strong>Amazon Web Services</strong> hosts this website, the downloads and the update feed. United States.</li>
+      <li><strong>Stripe</strong> handles payments. United States, with regional entities.</li>
+      <li><strong>Resend</strong> sends the license key email. United States.</li>
+    </ul>
+
+    <h2>6. Where data is processed</h2>
+    <p>We are in the United States, and our providers process data there. If you are in the European Economic Area, the United Kingdom or Switzerland, the data in section 4 is transferred to the United States. We rely on the provider’s participation in the EU-US Data Privacy Framework where it participates, and otherwise on the European Commission’s Standard Contractual Clauses (and the UK Addendum) in our agreement with that provider. You can ask us for details of the safeguard that applies to a given provider.</p>
+
+    <h2>7. No sale of data, and what happens if Jumpr changes hands</h2>
+    <p>We do not sell personal data, share it for cross-context behavioral advertising, or use it for profiling. We disclose it only to the providers in section 5, to the extent each needs it, and when the law requires us to. If BaggaDonuts LLC or the Jumpr product is sold, merged or transferred, the data described here may be transferred to the successor, who must honor this policy for data collected under it; we will tell you by email or on this page.</p>
+
+    <h2>8. Do Not Track</h2>
+    <p>Some browsers send a “Do Not Track” or Global Privacy Control signal. This website does not track visitors, sets no cookies of its own and runs no advertising, so there is nothing for such a signal to switch off.</p>
+
+    <h2>9. Your rights</h2>
+    <p>Wherever you live, you can ask us to tell you what personal data we hold about you, to give you a copy in a usable format, to correct it, to delete it, and to restrict or object to how we use it. Email <a href="mailto:support@getjumpr.app">support@getjumpr.app</a> from the address you bought with, or tell us how to verify it is you; we answer within 30 days. We honor these requests for everyone, including California residents, whether or not a particular law requires it, and we will never treat you differently for making one. Records we must keep by law, such as purchase records, are kept for as long as the law requires.</p>
+    <p>If you are in the EEA, the UK or Switzerland and believe we have not handled your data lawfully, you have the right to complain to your local data protection authority; we would appreciate the chance to resolve it first.</p>
+
+    <h2>10. Security</h2>
+    <p>Jumpr does its work on your Mac and checks your license there, so there is very little for us to hold. Our website and downloads run on AWS. No method of transmission or storage is perfectly secure; if we learn of a breach affecting your data we will tell you and, where the law requires it, the relevant authority, without undue delay.</p>
+
+    <h2>11. Children</h2>
+    <p>Jumpr is not directed at anyone under 16, and the <a href="terms.html">Terms</a> require you to be at least 18 (or the age of majority where you live) to accept them. We do not knowingly collect data from children; if you believe a child has given us data, email us and we will delete it.</p>
+
+    <h2>12. Changes to this policy</h2>
+    <p>We update this page when the product changes what leaves your Mac. A change that adds a data flow, changes a purpose or shares data with a new kind of recipient is announced in the release notes. The “Last updated” date at the top always tells you the current version.</p>
+
+    <h2>13. Contact</h2>
+    <p>BaggaDonuts LLC, 1187 N Willow Ave #103-815, Clovis, CA 93611, United States.</p>
+    <p>Privacy questions and requests: <a href="mailto:support@getjumpr.app">support@getjumpr.app</a>.</p>
+
   </main>
 
   <footer class="site-footer wrap">
@@ -53,7 +115,7 @@
     <nav aria-label="Footer">
       <a href="privacy.html">Privacy</a>
       <a href="terms.html">Terms</a>
-      <a href="mailto:SUPPORT_EMAIL">SUPPORT_EMAIL</a>
+      <a href="mailto:support@getjumpr.app">support@getjumpr.app</a>
     </nav>
   </footer>
 </body>
