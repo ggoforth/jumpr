@@ -3,7 +3,7 @@
 |  |  |
 |---|---|
 | Date | 2026-11-04 |
-| Status | Awaiting Greg's approval |
+| Status | Approved by Greg, 2026-11-04 |
 | Evidence | Throwaway spike on branch `spike/cold-scan`, file `spike/Spike.swift` |
 
 ---
@@ -25,7 +25,9 @@ on a second and a terminal on a third, all visible. He glances at Claude, hits t
 hotkey, sees the label on "+ New", types it — and is in a new chat. No "switch app
 first" step.
 
-Personal tool first. A commercial release may follow.
+Personal tool first. What follows is undecided: after approving this design Greg
+said to consider open-sourcing it and giving it away rather than selling it.
+Nothing in v1 depends on which.
 
 ---
 
