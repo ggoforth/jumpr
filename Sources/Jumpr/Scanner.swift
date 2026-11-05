@@ -98,8 +98,20 @@ final class Scanner {
                 }
             } else {
                 let isDock = NSRunningApplication(processIdentifier: req.pid)?.bundleIdentifier == "com.apple.dock"
-                result = scanSystem(pid: req.pid, app: axApp(req.pid), isDock: isDock, isFront: req.pid == frontPid,
-                                    pieces: nil, screens: screens, stack: stack, deadline: deadline)
+                let app = axApp(req.pid)
+                var pieces: (AXUIElement?, AXUIElement?) = (nil, nil)
+                var err = AXError.success
+                if !isDock {  // the Dock is walked from the application element itself
+                    let (values, e) = axMultiResult(app, systemAttrs)
+                    if let a = values, a.count == 2 { pieces = (axElementValue(a[0]), axElementValue(a[1])) }
+                    else { err = e }
+                }
+                if didNotAnswer(err, after: now() - t0) {
+                    result = .empty(pid: req.pid, window: nil, startedAt: t0, ms: (now() - t0) * 1000, timedOut: true)
+                } else {
+                    result = scanSystem(pid: req.pid, app: app, isDock: isDock, isFront: req.pid == frontPid,
+                                        pieces: pieces, screens: screens, stack: stack, deadline: deadline)
+                }
             }
             DispatchQueue.main.async { completion(result) }
         }
@@ -117,7 +129,7 @@ final class Scanner {
             let app = axApp(pid)
 
             if isDock {
-                deliver(scanSystem(pid: pid, app: app, isDock: true, isFront: false, pieces: nil,
+                deliver(scanSystem(pid: pid, app: app, isDock: true, isFront: false, pieces: (nil, nil),
                                    screens: screens, stack: stack, deadline: deadline))
                 return
             }
@@ -151,6 +163,7 @@ final class Scanner {
 
     private let windowsAttr = ["AXWindows"] as CFArray
     private let appAttrs = ["AXWindows", "AXMenuBar", "AXExtrasMenuBar"] as CFArray
+    private let systemAttrs = ["AXMenuBar", "AXExtrasMenuBar"] as CFArray
 
     /// Window IDs from `_AXUIElementGetWindow`; on error, the same app's on-screen window
     /// whose bounds match the element's frame (within 1 pt per edge).
@@ -182,20 +195,16 @@ final class Scanner {
     }
 
     /// Dock: the whole application tree. Otherwise the menu bar (front app only) and extras.
-    /// `pieces` is (menu bar, extras) when the caller already fetched them.
+    /// `pieces` is (menu bar, extras), already fetched by the caller (unused for the Dock).
     private func scanSystem(pid: Int32, app: AXUIElement, isDock: Bool, isFront: Bool,
-                            pieces: (AXUIElement?, AXUIElement?)?, screens: [CGRect],
+                            pieces: (AXUIElement?, AXUIElement?), screens: [CGRect],
                             stack: WindowStack, deadline: Double) -> WindowScan {
         let t0 = now()
         var roots: [AXUIElement] = []
         if isDock {
             roots = [app]
         } else {
-            var bar = pieces?.0, extras = pieces?.1
-            if pieces == nil, let a = axMulti(app, ["AXMenuBar", "AXExtrasMenuBar"] as CFArray), a.count == 2 {
-                bar = axElementValue(a[0])
-                extras = axElementValue(a[1])
-            }
+            let (bar, extras) = pieces
             if isFront, let bar { roots.append(bar) }
             if let extras { roots.append(extras) }
         }

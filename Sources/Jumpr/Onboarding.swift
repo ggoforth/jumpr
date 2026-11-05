@@ -11,6 +11,8 @@ final class Onboarding: ObservableObject {
     @Published private(set) var trusted = false
     /// The grant arrived but the key listener still could not start.
     @Published private(set) var needsRelaunch = false
+    /// Set while a relaunch is in flight: a second click must not start a second instance.
+    private var relaunching = false
 
     private var onTrusted: () -> Bool = { true }
     private var onLost: () -> Void = {}
@@ -61,12 +63,15 @@ final class Onboarding: ObservableObject {
     /// Starts a new instance of this bundle, then quits this one — only once the new
     /// instance is running. If it could not start, this one stays.
     func relaunch() {
+        guard !relaunching else { return }
+        relaunching = true
         let config = NSWorkspace.OpenConfiguration()
         config.createsNewApplicationInstance = true
         NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: config) { app, error in
             DispatchQueue.main.async {
                 if let error {
                     log("relaunch: failed (\(error.localizedDescription)), staying")
+                    self.relaunching = false
                     return
                 }
                 log("relaunch: new instance running (pid \(app.map { String($0.processIdentifier) } ?? "?"))")

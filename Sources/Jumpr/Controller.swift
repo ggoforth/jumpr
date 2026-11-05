@@ -78,6 +78,7 @@ final class Controller {
         readout.begin()
 
         let stack = WindowServer.snapshot()
+        let lockedAtStart = screenIsLocked()  // for noteScan: locked scans see no windows
         screens = overlays.map(\.frame)
         let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
         var pids: [Int32] = []
@@ -112,8 +113,10 @@ final class Controller {
                             done: { [weak self, scanner, registry] in
                                 if hasVisibleWindow {
                                     let n = windowNodes
+                                    // Locked at any point while this app was scanned: its zero nodes mean nothing.
+                                    let locked = lockedAtStart || screenIsLocked()
                                     scanner.perform(pid: pid, background: true) {
-                                        registry.noteScan(pid: pid, bundleID: bundle, windowNodes: n)
+                                        registry.noteScan(pid: pid, bundleID: bundle, windowNodes: n, screenLocked: locked)
                                     }
                                 }
                                 guard let self, isCurrent(gen) else { return }  // stale: drop

@@ -135,4 +135,17 @@ settingsSignal.setEventHandler {
 }
 settingsSignal.resume()
 
+// SIGTERM (`pkill`, logout) and SIGINT take the normal quit path above, so the trees
+// Jumpr switched on are switched off.
+let quitSignals: [DispatchSourceSignal] = [SIGTERM, SIGINT].map { sig in
+    signal(sig, SIG_IGN)
+    let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+    source.setEventHandler {
+        log("quit: \(sig == SIGTERM ? "SIGTERM" : "SIGINT")")
+        NSApp.terminate(nil)
+    }
+    source.resume()
+    return source
+}
+
 app.run()
