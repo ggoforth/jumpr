@@ -55,6 +55,7 @@ So every choice here favors **least ongoing effort**: nothing to babysit, nothin
 | The site is "super simple" and **shows how Jumpr works with an in-browser demo** | 2026-11-05 |
 | The site ships to AWS the way Watchflows' does: a GitHub Action that deploys on merge to `main`, **after Greg approves the design** | 2026-11-05 |
 | Claude has access to Linear, AWS and GitHub and creates what is needed there | 2026-11-05 |
+| **The name stays Jumpr. The domain is `getjumpr.app`** (bought 2026-11-05). `jumpr.com`, `.app`, `.dev` and `.io` were taken. | 2026-11-05 |
 
 ### Claude's calls (not confirmed by Greg — check these while reading)
 
@@ -81,7 +82,7 @@ So every choice here favors **least ongoing effort**: nothing to babysit, nothin
 
 | # | Question | Blocks |
 |---|---|---|
-| Q1 | **Domain?** | Site, key email sender, update check address. Use the placeholder `DOMAIN` until known. |
+| Q1 | ~~Domain?~~ **Answered 2026-11-05: `getjumpr.app`**, bought by Greg. Wherever this document says `DOMAIN`, read `getjumpr.app`. | |
 | Q2 | **Support email address?** | Site footer, key email, refund policy |
 | Q3 | ~~Who creates the cloud pieces~~ **Answered:** Claude, for AWS and GitHub. Stripe and the email sender were not mentioned: still to confirm. | |
 
