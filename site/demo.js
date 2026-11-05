@@ -272,8 +272,8 @@
     updatePrompt();
   }
 
-  // Positions a label the way the app does (Labels.frame): centred on small
-  // targets, at the left edge of wide ones, vertically centred, kept on screen.
+  // Positions a label the way the app does (Labels.frame): centered on small
+  // targets, at the left edge of wide ones, vertically centered, kept on screen.
   function place(entry, delay) {
     var screen = entry.el.closest('.screen');
     var layer = screen.querySelector('.labels');

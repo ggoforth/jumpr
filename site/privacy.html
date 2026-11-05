@@ -15,7 +15,7 @@
 
   <header class="site-header wrap">
     <a class="brand" href="index.html" aria-label="Jumpr home"><span class="brand-mark" aria-hidden="true">J</span>Jumpr</a>
-    <a class="header-link" href="/download/Jumpr.zip">Download</a>
+    <a class="header-link" href="https://github.com/ggoforth/jumpr/releases/latest/download/Jumpr.zip">Download</a>
   </header>
 
   <main id="main" class="doc wrap">
@@ -28,10 +28,9 @@
 
     <h2>2. The short version</h2>
     <ul>
-      <li>The app has no account, no sign-in, no analytics, no telemetry and no crash reporting.</li>
+      <li>Jumpr is free and open source. The app has no account, no sign-in, no analytics, no telemetry and no crash reporting.</li>
       <li>What Jumpr reads to place its labels never leaves your Mac. It is not recorded, and it is not stored or sent anywhere.</li>
       <li>The app’s only network request is a daily check for updates, which you can turn off.</li>
-      <li>When you buy, Stripe takes the payment and we keep its record of the purchase so we can send your key and handle refunds.</li>
       <li>You can ask us to show, correct or delete what we hold. Section 9 says how.</li>
     </ul>
 
@@ -39,38 +38,27 @@
     <ul>
       <li>Everything Jumpr reads through the macOS Accessibility permission: the buttons, links, icons and menus on your displays, and where they are. Jumpr uses it to place labels and to click the one you choose.</li>
       <li>What you type while labels are showing.</li>
-      <li>Your settings (label size and colours, hotkey, switches), kept in the app’s preferences at <code>~/Library/Preferences/com.greggoforth.jumpr.plist</code>.</li>
-      <li>Your license key and your trial start date, kept in <code>~/Library/Application&nbsp;Support/Jumpr/</code>. The trial start date is also kept in the preferences.</li>
-      <li>A small log of Jumpr’s own activity, at <code>~/Library/Logs/Jumpr.log</code>: when it showed labels, how long that took, and for each press the kind of control and the name of the app it was in. It does not log window contents, text on screen, or what you type. The log stays on your Mac and is capped in size.</li>
+      <li>Your settings (label size and colors, hotkey, switches), kept in the app’s preferences at <code>~/Library/Preferences/com.greggoforth.jumpr.plist</code>.</li>
+      <li>A small log of Jumpr’s own activity, at <code>~/Library/Logs/Jumpr.log</code>: when it showed labels, how long that took, and for each press the kind of control and the name of the app it was in. It does not log window contents, text on screen, or what you type. The log stays on your Mac.</li>
     </ul>
-    <p>Your license key is checked on your Mac, offline. Removing the app, the preferences file, the <code>Jumpr</code> folder in Application Support and the log removes everything related to Jumpr from your Mac.</p>
+    <p>Removing the app, the preferences file and the log removes everything related to Jumpr from your Mac.</p>
 
     <h2>4. What leaves your Mac, and why</h2>
     <p>Each item below is one thing that leaves your Mac. “Basis” is the legal ground we rely on under the GDPR and similar laws: <em>contract</em> means we need it to provide something you asked for; <em>legitimate interest</em> means we need it to run the service in a way you would reasonably expect.</p>
 
     <h3>Update checks</h3>
-    <p><strong>What is sent.</strong> Once a day, a request to getjumpr.app asking whether a new version is out. Like any web request, it carries your IP address and a user agent naming Jumpr and its version.</p>
+    <p><strong>What is sent.</strong> Once a day, Jumpr fetches an update feed from getjumpr.app to see whether a new version is out. Checking for updates, and downloading one when you say so, is the only thing the app connects to the internet for. Like any web request, the server sees your IP address and standard request details, such as a user agent naming Jumpr and its version.</p>
     <p><strong>Why, and basis.</strong> To offer you the right update. Legitimate interest. You can turn the check off in Jumpr’s Settings.</p>
     <p><strong>Kept.</strong> In our hosting provider’s ordinary access logs.</p>
 
     <h3>Downloading an update</h3>
-    <p><strong>What is sent.</strong> When you choose to install an update, Jumpr downloads it from getjumpr.app. The request carries the same information as the update check.</p>
+    <p><strong>What is sent.</strong> When you choose to install an update, Jumpr downloads it from GitHub. GitHub sees your IP address and standard request details, like any web request.</p>
     <p><strong>Why, and basis.</strong> To deliver the update you asked for. Contract.</p>
-    <p><strong>Kept.</strong> In our hosting provider’s ordinary access logs.</p>
-
-    <h3>Payments</h3>
-    <p><strong>What is sent.</strong> Checkout happens on Stripe, which collects your card details. We never see them. We receive your email address, what you bought, the amount and the date.</p>
-    <p><strong>Why, and basis.</strong> To deliver your license key, handle refunds and keep accounting records. Contract; records are also a legal obligation.</p>
-    <p><strong>Kept.</strong> Your purchase record stays in Stripe for as long as tax and accounting law requires.</p>
-
-    <h3>Your license key email</h3>
-    <p><strong>What is sent.</strong> After you pay, your license key is emailed to the address you gave at checkout, through Resend, which processes the address and the message. The key itself contains that email address.</p>
-    <p><strong>Why, and basis.</strong> To get you your key. Contract.</p>
-    <p><strong>Kept.</strong> Resend keeps delivery records under its own policy.</p>
+    <p><strong>Kept.</strong> By GitHub, under <a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement">GitHub’s own privacy statement</a>. The same applies when you download Jumpr or view its source on GitHub.</p>
 
     <h3>Email you send us</h3>
     <p><strong>What is sent.</strong> Whatever you write to <a href="mailto:support@getjumpr.app">support@getjumpr.app</a>, and your address.</p>
-    <p><strong>Why, and basis.</strong> To read and answer you. Contract, or legitimate interest where there is no purchase.</p>
+    <p><strong>Why, and basis.</strong> To read and answer you. Legitimate interest.</p>
 
     <h3>This website</h3>
     <p><strong>What is sent.</strong> Nothing beyond what your browser sends to load a page. The site has no analytics, sets no cookies of its own, and runs no trackers or scripts from anyone else. The demo on the home page runs entirely in your browser.</p>
@@ -79,9 +67,8 @@
     <h2>5. Service providers</h2>
     <p>These are the companies that process personal data for us, and what each one does.</p>
     <ul>
-      <li><strong>Amazon Web Services</strong> hosts this website, the downloads and the update feed. United States.</li>
-      <li><strong>Stripe</strong> handles payments. United States, with regional entities.</li>
-      <li><strong>Resend</strong> sends the license key email. United States.</li>
+      <li><strong>Amazon Web Services</strong> hosts this website and the update feed. United States.</li>
+      <li><strong>GitHub</strong> hosts the source code and the downloads, under its own privacy statement. United States.</li>
     </ul>
 
     <h2>6. Where data is processed</h2>
@@ -94,11 +81,11 @@
     <p>Some browsers send a “Do Not Track” or Global Privacy Control signal. This website does not track visitors, sets no cookies of its own and runs no advertising, so there is nothing for such a signal to switch off.</p>
 
     <h2>9. Your rights</h2>
-    <p>Wherever you live, you can ask us to tell you what personal data we hold about you, to give you a copy in a usable format, to correct it, to delete it, and to restrict or object to how we use it. Email <a href="mailto:support@getjumpr.app">support@getjumpr.app</a> from the address you bought with, or tell us how to verify it is you; we answer within 30 days. We honor these requests for everyone, including California residents, whether or not a particular law requires it, and we will never treat you differently for making one. Records we must keep by law, such as purchase records, are kept for as long as the law requires.</p>
+    <p>Wherever you live, you can ask us to tell you what personal data we hold about you, to give you a copy in a usable format, to correct it, to delete it, and to restrict or object to how we use it. Email <a href="mailto:support@getjumpr.app">support@getjumpr.app</a> and tell us how to verify it is you; we answer within 30 days. We honor these requests for everyone, including California residents, whether or not a particular law requires it, and we will never treat you differently for making one.</p>
     <p>If you are in the EEA, the UK or Switzerland and believe we have not handled your data lawfully, you have the right to complain to your local data protection authority; we would appreciate the chance to resolve it first.</p>
 
     <h2>10. Security</h2>
-    <p>Jumpr does its work on your Mac and checks your license there, so there is very little for us to hold. Our website and downloads run on AWS. No method of transmission or storage is perfectly secure; if we learn of a breach affecting your data we will tell you and, where the law requires it, the relevant authority, without undue delay.</p>
+    <p>Jumpr does its work on your Mac, so there is very little for us to hold. Our website and downloads run on AWS. No method of transmission or storage is perfectly secure; if we learn of a breach affecting your data we will tell you and, where the law requires it, the relevant authority, without undue delay.</p>
 
     <h2>11. Children</h2>
     <p>Jumpr is not directed at anyone under 16, and the <a href="terms.html">Terms</a> require you to be at least 18 (or the age of majority where you live) to accept them. We do not knowingly collect data from children; if you believe a child has given us data, email us and we will delete it.</p>
@@ -117,6 +104,8 @@
     <nav aria-label="Footer">
       <a href="privacy.html">Privacy</a>
       <a href="terms.html">Terms</a>
+      <a href="https://github.com/ggoforth/jumpr">GitHub</a>
+      <a href="https://watchflows.app/">Watchflows</a>
       <a href="mailto:support@getjumpr.app">support@getjumpr.app</a>
     </nav>
   </footer>
