@@ -54,7 +54,8 @@ public final class CacheStore {
 
     private let config: CacheConfig
     private var entries: [WindowID: Entry] = [:]
-    private var scanning: Set<Int32> = []
+    /// Scans in progress per pid; a pid is scanning while its count is above zero.
+    private var scanning: [Int32: Int] = [:]
     private var appNextAllowed: [Int32: Double] = [:]
 
     public init(config: CacheConfig = .init()) {
@@ -89,24 +90,30 @@ public final class CacheStore {
     }
 
     public func scanStarted(window: WindowID, pid: Int32, at t: Double) {
-        scanning.insert(pid)
+        scanning[pid, default: 0] += 1
     }
 
     public func scanFinished(window: WindowID, pid: Int32, targets: [Target], startedAt: Double,
                              at t: Double, background: Bool, failed: Bool) {
-        let wasScanning = scanning.remove(pid) != nil
+        let running = scanning[pid] ?? 0
+        let wasScanning = running > 0
+        scanning[pid] = running > 1 ? running - 1 : nil
         if var e = entries[window] {
+            // A press after the scan started is not reflected in its result.
+            let pressedMidScan = e.priority && e.pressedAt > startedAt
             if !failed {
                 e.targets = targets
                 e.lastScanFinished = t
-                e.stale = e.lastChange > startedAt
+                e.stale = e.lastChange > startedAt || pressedMidScan
                 if e.restless && !e.stale {
                     e.restless = false
                     e.strikes = 0
                 }
             }
-            e.priority = false
-            e.lastChangeSincePress = nil
+            if !pressedMidScan {
+                e.priority = false
+                e.lastChangeSincePress = nil
+            }
             entries[window] = e
         } else if !wasScanning {
             return  // window and app both forgotten: nothing to space
@@ -122,7 +129,7 @@ public final class CacheStore {
 
     public func appGone(pid: Int32) {
         entries = entries.filter { $0.value.pid != pid }
-        scanning.remove(pid)
+        scanning[pid] = nil
         appNextAllowed[pid] = nil
     }
 
@@ -153,7 +160,7 @@ public final class CacheStore {
     /// Stale, warm windows whose app is not scanning, priority first then by window ID.
     private func candidates(warm: (Due) -> Bool) -> [(due: Due, dueAt: Double)] {
         entries
-            .filter { $0.value.stale && !scanning.contains($0.value.pid) }
+            .filter { $0.value.stale && scanning[$0.value.pid] == nil }
             .sorted { a, b in
                 a.value.priority != b.value.priority ? a.value.priority : a.key < b.key
             }
@@ -166,7 +173,8 @@ public final class CacheStore {
             if let changedAt = e.lastChangeSincePress { return changedAt + config.settle }
             return e.pressedAt + config.afterPress
         }
-        if e.restless { return e.lastChange + config.restlessQuiet }
-        return max(e.lastChange + config.settle, appNextAllowed[e.pid] ?? -.infinity)
+        let spacedUntil = appNextAllowed[e.pid] ?? -.infinity
+        if e.restless { return max(e.lastChange + config.restlessQuiet, spacedUntil) }
+        return max(e.lastChange + config.settle, spacedUntil)
     }
 }

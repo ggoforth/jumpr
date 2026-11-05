@@ -134,3 +134,42 @@ private func near(_ a: Double?, _ b: Double) -> Bool {
     #expect(c.nextWake(after: 5, warm: all) == nil)
     #expect(c.served(1) == .never)
 }
+@Test func restlessWindowStillRespectsAppSpacing() {
+    let c = CacheStore()
+    var t = 0.0
+    c.changed(window: 1, pid: 10, at: t)
+    for _ in 0..<3 {                                    // make window 1 restless with foreground scans
+        c.scanStarted(window: 1, pid: 10, at: t)
+        c.scanFinished(window: 1, pid: 10, targets: tg(1), startedAt: t, at: t + 0.01, background: false, failed: false)
+        t += 0.5
+        c.changed(window: 1, pid: 10, at: t)
+    }
+    #expect(c.isRestless(1))                            // t = 1.5, quiet until 3.5
+    c.changed(window: 2, pid: 10, at: 1.5)
+    c.scanStarted(window: 2, pid: 10, at: 1.5)
+    c.scanFinished(window: 2, pid: 10, targets: tg(1), startedAt: 1.5, at: 2.0, background: true, failed: false)   // 0.5 s scan → spaced until 12.0
+    #expect(c.due(at: 3.51, warm: all).isEmpty)         // quiet, but the app is spaced
+    #expect(near(c.nextWake(after: 3.51, warm: all), 12.0))
+    #expect(c.due(at: 12.01, warm: all) == [Due(window: 1, pid: 10)])
+}
+@Test func pressDuringScanIsKept() {
+    let c = CacheStore()
+    c.scanStarted(window: 1, pid: 10, at: 0)
+    c.pressed(window: 1, pid: 10, at: 0.05)
+    c.scanFinished(window: 1, pid: 10, targets: tg(2), startedAt: 0, at: 0.1, background: true, failed: false)
+    #expect(c.served(1) == .stale)                      // the scan saw the window before the press
+    #expect(c.count(1) == 2)
+    #expect(c.due(at: 0.14, warm: all).isEmpty)
+    #expect(near(c.nextWake(after: 0.1, warm: all), 0.15))   // still priority: pressedAt + afterPress, spacing ignored
+    #expect(c.due(at: 0.16, warm: all) == [Due(window: 1, pid: 10)])
+}
+@Test func overlappingScansOfOneAppAreCounted() {
+    let c = CacheStore()
+    c.changed(window: 1, pid: 10, at: 0); c.changed(window: 2, pid: 10, at: 0)
+    c.scanStarted(window: 1, pid: 10, at: 0.3)          // foreground
+    c.scanStarted(window: 1, pid: 10, at: 0.3)          // background, overlapping
+    c.scanFinished(window: 1, pid: 10, targets: tg(1), startedAt: 0.3, at: 0.4, background: false, failed: false)
+    #expect(c.due(at: 0.5, warm: all).isEmpty)          // one scan of pid 10 still running
+    c.scanFinished(window: 1, pid: 10, targets: tg(1), startedAt: 0.3, at: 0.45, background: false, failed: false)
+    #expect(c.due(at: 0.5, warm: all) == [Due(window: 2, pid: 10)])
+}
