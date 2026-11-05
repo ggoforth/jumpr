@@ -13,11 +13,27 @@ public enum Labels {
     }
 
     /// Label rectangle in global top-left coordinates, clamped inside `screen`.
+    ///
+    /// The label must not hide what it points at. A target under four label widths gets
+    /// its label hanging off its bottom-right corner, overlapping only a few points; at a
+    /// screen edge the label flips to the other side of the target rather than sliding
+    /// back over it. A larger target (a row, a wide button) keeps its label inside, at
+    /// the right end: outside, it would straddle two stacked rows and belong to neither.
     public static func frame(length: Int, target: CGRect, screen: CGRect, fontSize: CGFloat, advance: CGFloat) -> CGRect {
         let w = ceil(CGFloat(length) * advance + fontSize * 0.6)
         let h = ceil(fontSize * 1.3)
-        let x = target.width < 60 ? target.midX - w / 2 : target.minX + 2
-        let y = target.midY - h / 2
+        var x: CGFloat, y: CGFloat
+        if target.width >= 4 * w {
+            x = target.maxX - w - 2
+            y = target.height >= 2 * h ? target.maxY - h - 2 : target.midY - h / 2
+        } else {
+            let ox = min(fontSize * 0.4, target.width / 4)
+            let oy = min(fontSize * 0.4, target.height / 4)
+            x = target.maxX - ox
+            y = target.maxY - oy
+            if x + w > screen.maxX { x = target.minX - w + ox }
+            if y + h > screen.maxY { y = target.minY - h + oy }
+        }
         let cx = max(screen.minX, min(x, screen.maxX - w))
         let cy = max(screen.minY, min(y, screen.maxY - h))
         return CGRect(x: cx, y: cy, width: w, height: h)

@@ -146,7 +146,7 @@ No cache; every trigger scanned from scratch.
 | Default hotkey `⌘⇧Space` | The one that worked |
 | Hotkey and label typing both go through one always-on key listener | The system hotkey API didn't fire; the listener is needed for typing anyway |
 | Always re-check every visible window in the background after painting from cache | Makes correctness independent of how well each app reports changes |
-| Never press an element that has moved away from where its label was drawn | Guards the "wrong click" anti-goal |
+| Never press an element that has moved away from where it was when it was labelled | Guards the "wrong click" anti-goal |
 | A window known to be stale waits for its fresh scan instead of showing old labels | Labels that appear and then jump read as broken; a ~100 ms wait in one window does not |
 | Background scans are capped at ~5% of any app's time, and paused for windows that won't stop changing | Scans run inside the other app; uncapped, they'd cause stutter and battery drain there |
 | Web-based apps get their accessibility tree switched on while they have a visible window, and switched back off on Pause or Quit | Without it they get no labels at all; with it they do extra work for as long as it's on |
@@ -176,7 +176,7 @@ hotkey
   │
   └─ user types a label
         → re-read that element's position
-        → still under its label?  press it, bring its app forward
+        → still where it was?     press it, bring its app forward
         → moved or gone?          do nothing; labels are already correcting
 ```
 
@@ -316,16 +316,19 @@ being worked in clean again before the next trigger.
 - Length is chosen before the scans finish, from the last known element counts,
   with headroom: 1 letter up to 26, 2 up to 676, 3 beyond. If the real count
   overflows, the extras go unlabeled and the readout says so.
-- Placement: centered on small elements, at the left edge (vertically centered) of
-  wide ones, always inside the visible part of the element and inside the display.
+- Placement (changed 2026-11-05, JUM-71): a label must not hide what it points at.
+  Small and medium elements (under four label widths) get the label hanging off their
+  bottom-right corner, overlapping only a few points; at a display edge it flips to the
+  other side of the element. Large elements (rows, wide buttons) keep it inside, at the
+  right end, so stacked rows never share a label. Always inside the display.
 - Typing narrows: labels that no longer match disappear. Backspace undoes a letter.
   Esc or the hotkey cancels. Keys with ⌘, ⌃ or ⌥ pass through to the system.
 
 ### 7.6 Pressing
 
 1. Re-read the element's position (one request, under a millisecond).
-2. If it no longer overlaps where its label was drawn, or it no longer exists: do
-   nothing.
+2. If it no longer overlaps where it was when scanned, or it no longer exists: do
+   nothing. (The label is not the reference: it sits beside small elements.)
 3. If it belongs to a window: bring that app forward and raise that window.
 4. Text fields and text areas: synthetic mouse click at the center of the visible
    part (places the cursor).

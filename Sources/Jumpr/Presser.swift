@@ -11,15 +11,15 @@ final class Presser {
         self.scanner = scanner
     }
 
-    /// `drawn` is where the element's label was painted, global top-left. The completion
-    /// also gets the raw `AXError` that `AXPress` returned, or nil if it was not called.
-    func press(_ t: Target, drawn: CGRect, completion: @escaping (PressResult, Int32?) -> Void) {
+    /// The completion also gets the raw `AXError` that `AXPress` returned, or nil if it
+    /// was not called.
+    func press(_ t: Target, completion: @escaping (PressResult, Int32?) -> Void) {
         guard let el = axElement(t.id) else {
             DispatchQueue.main.async { completion(.skipped, nil) }
             return
         }
         scanner.perform(pid: t.pid, background: false) { [scanner] in
-            let (result, axError) = Presser.run(t, element: el, drawn: drawn, scanner: scanner)
+            let (result, axError) = Presser.run(t, element: el, scanner: scanner)
             DispatchQueue.main.async { completion(result, axError) }
         }
     }
@@ -41,9 +41,9 @@ final class Presser {
     }
 
     /// Runs on the app's queue.
-    private static func run(_ t: Target, element el: AXUIElement, drawn: CGRect,
+    private static func run(_ t: Target, element el: AXUIElement,
                             scanner: Scanner) -> (PressResult, axError: Int32?) {
-        guard pressDecision(drawn: drawn, current: axFrame(el)) == .press else { return (.skipped, nil) }
+        guard pressDecision(scanned: t.rect, current: axFrame(el)) == .press else { return (.skipped, nil) }
 
         if let wid = t.window {  // bring the owning app + window forward first
             AXUIElementSetAttributeValue(axApp(t.pid), kAXFrontmostAttribute as CFString, kCFBooleanTrue)
@@ -68,8 +68,8 @@ final class Presser {
 
         // The raise (and a failed press) may have moved or closed it: check again, from now.
         let fresh = axFrame(el)
-        guard pressDecision(drawn: drawn, current: fresh) == .press, let fresh else { return (.skipped, axError) }
-        click(at: clickPoint(visible: t.rect, drawn: drawn, current: fresh))
+        guard pressDecision(scanned: t.rect, current: fresh) == .press, let fresh else { return (.skipped, axError) }
+        click(at: clickPoint(visible: t.rect, current: fresh))
         return (.clicked, axError)
     }
 

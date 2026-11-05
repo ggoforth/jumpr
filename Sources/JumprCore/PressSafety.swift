@@ -11,9 +11,11 @@ public enum PressResult: Equatable {
     case clicked
 }
 
-/// Press only if the element still exists and still overlaps where its label was drawn.
-public func pressDecision(drawn: CGRect, current: CGRect?) -> PressDecision {
-    guard let current, current.intersects(drawn) else { return .skip }
+/// Press only if the element still exists and still overlaps where it was when it was
+/// labelled (`scanned`, its visible part at scan time). The label itself is no reference:
+/// it hangs beside a small target rather than on it (see `Labels.frame`).
+public func pressDecision(scanned: CGRect, current: CGRect?) -> PressDecision {
+    guard let current, current.intersects(scanned) else { return .skip }
     return .press
 }
 
@@ -49,12 +51,10 @@ public func afterAXPress(_ axError: Int32) -> AfterAXPress {
 }
 
 /// Where a synthetic click lands: the center of the part of the element that was visible
-/// when scanned, as it is now (design §7.6 step 4). If the element has moved off that
-/// spot but is still under its label, the center of the part under the label.
-/// Only called after `pressDecision` said `.press`, so `drawn ∩ current` is not empty.
-public func clickPoint(visible: CGRect, drawn: CGRect, current: CGRect) -> CGPoint {
-    var r = visible.intersection(current)
-    if r.isEmpty { r = drawn.intersection(current) }
+/// when scanned, as it is now (design §7.6 step 4).
+/// Only called after `pressDecision` said `.press`, so `visible ∩ current` is not empty.
+public func clickPoint(visible: CGRect, current: CGRect) -> CGPoint {
+    let r = visible.intersection(current)
     return CGPoint(x: r.midX, y: r.midY)
 }
 

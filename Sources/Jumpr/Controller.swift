@@ -10,7 +10,7 @@ import JumprCore
 /// session is active (`isCurrent`). Scans already queued for a stale generation stop
 /// early through `isStale`, which reads `sharedGeneration`.
 final class Controller {
-    var onMatched: (Target, CGRect) -> Void = { _, _ in }
+    var onMatched: (Target) -> Void = { _ in }
     let readout = Readout()
     private(set) var isActive = false
     /// Identifies the current session; changes on every trigger and cancel.
@@ -284,7 +284,7 @@ final class Controller {
         case .matched(let label):
             let hit = placed[label]
             cancel()
-            if let hit { onMatched(hit.target, hit.rect) }
+            if let hit { onMatched(hit.target) }
             return true
         }
     }

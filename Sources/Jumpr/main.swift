@@ -81,9 +81,9 @@ keyTap.onDisabled = {
     }
 }
 let presser = Presser(scanner: scanner)
-controller.onMatched = { target, drawn in
+controller.onMatched = { target in
     let t0 = now()
-    presser.press(target, drawn: drawn) { result, axError in
+    presser.press(target) { result, axError in
         // The raw AXPress error whenever it was not success (e.g. on a click fallback).
         let ax = axError.map { $0 == 0 ? "" : " (axpress=\($0))" } ?? ""
         let app = NSRunningApplication(processIdentifier: target.pid)?.localizedName ?? "pid \(target.pid)"
