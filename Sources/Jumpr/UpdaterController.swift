@@ -51,13 +51,39 @@ final class UpdaterController: NSObject, ObservableObject, SPUStandardUserDriver
     }
 
     // MARK: SPUStandardUserDriverDelegate
+    // Gentle reminders, as Sparkle documents for background apps
+    // (sparkle-project.org/documentation/gentle-reminders). Jumpr has no Dock icon, so a
+    // scheduled alert Sparkle opened behind other apps could go unseen; instead Jumpr marks
+    // its menu bar icon and the user brings the alert forward from the menu.
 
-    /// Sparkle's guidance for background apps. Scheduled alerts may appear behind other
-    /// windows rather than steal focus mid-typing; "Check for Updates…" brings them forward.
+    /// Called with true while a scheduled update waits for the user, false once it has had
+    /// their attention or the session is over.
+    var onUpdatePending: (Bool) -> Void = { _ in }
+
     var supportsGentleScheduledUpdateReminders: Bool { true }
+
+    /// Sparkle shows a scheduled update itself only when it would be in utmost focus (just
+    /// after launch, or after the user was idle); otherwise Jumpr shows the reminder.
+    func standardUserDriverShouldHandleShowingScheduledUpdate(_ update: SUAppcastItem,
+                                                              andInImmediateFocus immediateFocus: Bool) -> Bool {
+        immediateFocus
+    }
 
     func standardUserDriverWillHandleShowingUpdate(_ handleShowingUpdate: Bool, forUpdate update: SUAppcastItem,
                                                    state: SPUUserUpdateState) {
-        if state.userInitiated { NSApp.activate() }
+        if state.userInitiated {
+            NSApp.activate()
+        } else if !handleShowingUpdate {
+            log("updates: \(update.displayVersionString) available, reminder shown in the menu bar")
+            onUpdatePending(true)
+        }
+    }
+
+    func standardUserDriverDidReceiveUserAttention(forUpdate update: SUAppcastItem) {
+        onUpdatePending(false)
+    }
+
+    func standardUserDriverWillFinishUpdateSession() {
+        onUpdatePending(false)
     }
 }

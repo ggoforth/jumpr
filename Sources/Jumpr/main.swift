@@ -64,6 +64,7 @@ let settingsWindow = SettingsWindow(
 statusItem.onSettings = { settingsWindow.show() }
 statusItem.onCheckForUpdates = { updaterController.checkForUpdates() }
 statusItem.canCheckForUpdates = { updaterController.canCheckForUpdates }
+updaterController.onUpdatePending = { statusItem.setUpdatePending($0) }
 // The tap callback must return at once: the trigger runs on main's next turn.
 // A real hotkey press proves the displays are awake and no screen saver runs.
 keyTap.onHotkey = {
