@@ -41,3 +41,13 @@ private func s(battery: Bool = false, low: Bool = false, locked: Bool = false, p
     c.screenSaver = false
     #expect(!c.locked)
 }
+
+@Test func userActivityClearsSleepAndScreenSaverButNotTheSessionLock() {
+    var c = LockCauses(sessionLocked: false, displaysAsleep: true, screenSaver: true)
+    c.noteUserActivity()
+    #expect(c == LockCauses())
+    var l = LockCauses(sessionLocked: true, displaysAsleep: true, screenSaver: true)
+    l.noteUserActivity()
+    #expect(l == LockCauses(sessionLocked: true))
+    #expect(l.locked)
+}

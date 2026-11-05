@@ -58,6 +58,15 @@ final class PowerSource {
         logState()
     }
 
+    /// The user pressed the hotkey: clears the display-asleep and screen-saver causes,
+    /// so a missed wake or stop notification is stale at most until the next press.
+    func noteUserActivity() {
+        dispatchPrecondition(condition: .onQueue(.main))
+        guard started else { return }
+        lock.noteUserActivity()
+        refresh()
+    }
+
     deinit {
         for (center, token) in observers { center.removeObserver(token) }
         if let batterySource { CFRunLoopRemoveSource(CFRunLoopGetMain(), batterySource, .defaultMode) }

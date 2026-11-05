@@ -10,8 +10,20 @@ let keyTap = KeyTap()
 let controller = Controller(scanner: scanner, registry: treeRegistry, tap: keyTap)
 let onboarding = Onboarding()
 let loginItem = LoginItem()
+
+// Power: battery, Low Power Mode, lock and pause (pause is only reflected; `applyPaused` acts on it).
+// The rest of `onChange` belongs to the watcher (Task 13).
+let powerSource = PowerSource()
+powerSource.onChange = { state in
+    // A capturing key listener must never be live at a lock screen.
+    if state.locked && controller.isActive {
+        controller.cancel()
+        log("cancelled: locked")
+    }
+}
 log("launch")
 log("trusted: \(AXIsProcessTrusted())")
+powerSource.start()
 
 let defaults = UserDefaults.standard
 keyTap.hotkey = defaults.string(forKey: Keys.hotkey).flatMap { Hotkey(stored: $0) } ?? .default
@@ -35,7 +47,13 @@ let settingsWindow = SettingsWindow(
     })
 statusItem.onSettings = { settingsWindow.show() }
 // The tap callback must return at once: the trigger runs on main's next turn.
-keyTap.onHotkey = { DispatchQueue.main.async { controller.trigger() } }
+// A real hotkey press proves the displays are awake and no screen saver runs.
+keyTap.onHotkey = {
+    DispatchQueue.main.async {
+        powerSource.noteUserActivity()
+        controller.trigger()
+    }
+}
 keyTap.onKey = { controller.handle($0) }
 keyTap.onDisabled = {
     // Off the tap's callback: losing trust stops (invalidates) the tap itself.
@@ -83,13 +101,6 @@ func applyPaused() {
 statusItem.onTogglePause = { defaults.set(!defaults.bool(forKey: Keys.paused), forKey: Keys.paused) }
 let pausedWatcher = DefaultsWatcher(Keys.paused) { applyPaused() }
 applyPaused()
-
-// Power: battery, Low Power Mode, lock and pause (pause is only reflected; `applyPaused` acts on it).
-let powerSource = PowerSource()
-powerSource.onChange = { _ in }  // the watcher (Task 13) consumes this
-powerSource.start()
-// Both the hotkey and the SIGUSR1 debug trigger go through `trigger`, so both are refused.
-controller.isLocked = { powerSource.state.locked }
 
 onboarding.start(
     onTrusted: {

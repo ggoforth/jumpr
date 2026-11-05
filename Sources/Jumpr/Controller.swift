@@ -10,9 +10,6 @@ import JumprCore
 /// session is active (`isCurrent`).
 final class Controller {
     var onMatched: (Target, CGRect) -> Void = { _, _ in }
-    /// True while the screen is locked (or the displays sleep, or the screen saver runs).
-    /// Nothing can be read then, and the key listener must not capture at a lock screen.
-    var isLocked: () -> Bool = { false }
     let readout = Readout()
     private(set) var isActive = false
     /// Identifies the current session; changes on every trigger and cancel.
@@ -69,7 +66,10 @@ final class Controller {
     func trigger(capture: Bool = true) {
         if isActive { cancel(); return }
         if tap.paused { log("trigger ignored: paused"); return }
-        if isLocked() { log("trigger ignored: locked"); return }
+        // Live query, not the notification-tracked state: a stale flag must never make the
+        // hotkey dead. Nothing can be read while locked, and the key listener must not
+        // capture at a lock screen.
+        if screenIsLocked() { log("trigger ignored: locked"); return }
         generation += 1
         let gen = generation
         isActive = true

@@ -45,4 +45,11 @@ public struct LockCauses: Equatable {
 
     /// Locked while any cause holds.
     public var locked: Bool { sessionLocked || displaysAsleep || screenSaver }
+
+    /// The user just pressed a key: the displays are awake and no screen saver runs,
+    /// whatever the notifications last said. The session lock is left alone.
+    public mutating func noteUserActivity() {
+        displaysAsleep = false
+        screenSaver = false
+    }
 }
