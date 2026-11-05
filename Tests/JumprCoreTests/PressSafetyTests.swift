@@ -47,3 +47,21 @@ import CoreGraphics
     #expect(!relabelsAfterPress(role: "AXMenuBarItem", result: .skipped, selected: true))
     #expect(!relabelsAfterPress(role: "AXButton", result: .pressed, selected: true))
 }
+
+@Test func axPressSuccessCountsAsPressed() {
+    #expect(afterAXPress(0) == .pressed)
+}
+
+@Test func axPressCannotCompleteCountsAsPressed() {   // the app is busy tracking a menu it opened
+    #expect(afterAXPress(-25204) == .pressed)
+}
+
+@Test func axPressOnADeadElementSkips() {
+    #expect(afterAXPress(-25202) == .skip)
+}
+
+@Test func axPressOtherFailuresFallBackToAClick() {
+    #expect(afterAXPress(-25206) == .click)   // actionUnsupported
+    #expect(afterAXPress(-25200) == .click)   // failure
+    #expect(afterAXPress(-25205) == .click)   // attributeUnsupported / anything else
+}

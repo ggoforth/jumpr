@@ -17,6 +17,25 @@ public func pressDecision(drawn: CGRect, current: CGRect?) -> PressDecision {
     return .press
 }
 
+/// What to do after `AXPress` returned `axError` (the raw `AXError` value).
+public enum AfterAXPress: Equatable {
+    /// Count it as pressed.
+    case pressed
+    /// The element is gone; do nothing.
+    case skip
+    /// Fall back to a synthetic click, after re-checking the element (design §7.6).
+    case click
+}
+
+public func afterAXPress(_ axError: Int32) -> AfterAXPress {
+    switch axError {
+    case 0, -25204: return .pressed       // .success; .cannotComplete = the app is busy tracking
+                                          // what we just opened (menus do this)
+    case -25202: return .skip             // .invalidUIElement
+    default: return .click
+    }
+}
+
 /// Where a synthetic click lands: the center of the part of the element that was visible
 /// when scanned, as it is now (design §7.6 step 4). If the element has moved off that
 /// spot but is still under its label, the center of the part under the label.

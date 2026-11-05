@@ -40,8 +40,7 @@ final class Presser {
 
     /// Runs on the app's queue.
     private static func run(_ t: Target, element el: AXUIElement, drawn: CGRect, scanner: Scanner) -> PressResult {
-        let current = axFrame(el)
-        guard pressDecision(drawn: drawn, current: current) == .press, let current else { return .skipped }
+        guard pressDecision(drawn: drawn, current: axFrame(el)) == .press else { return .skipped }
 
         if let wid = t.window {  // bring the owning app + window forward first
             AXUIElementSetAttributeValue(axApp(t.pid), kAXFrontmostAttribute as CFString, kCFBooleanTrue)
@@ -51,15 +50,19 @@ final class Presser {
         }
 
         if !Roles.text.contains(t.role) {
-            let r = AXUIElementPerformAction(el, kAXPressAction as CFString)
-            // .cannotComplete = the app is busy tracking what we just opened (menus do this).
-            if r == .success || r == .cannotComplete { return .pressed }
-            usleep(40_000)  // let the raise land
+            switch afterAXPress(AXUIElementPerformAction(el, kAXPressAction as CFString).rawValue) {
+            case .pressed: return .pressed
+            case .skip: return .skipped
+            case .click: usleep(40_000)  // let the raise land
+            }
         } else if t.window != nil {
             usleep(40_000)  // let the raise land
         }
 
-        click(at: clickPoint(visible: t.rect, drawn: drawn, current: current))
+        // The raise (and a failed press) may have moved or closed it: check again, from now.
+        let fresh = axFrame(el)
+        guard pressDecision(drawn: drawn, current: fresh) == .press, let fresh else { return .skipped }
+        click(at: clickPoint(visible: t.rect, drawn: drawn, current: fresh))
         return .clicked
     }
 
