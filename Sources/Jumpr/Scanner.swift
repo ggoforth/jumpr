@@ -18,6 +18,18 @@ struct WindowScan {
     let startedAt: Double
     let ms: Double
     let timedOut: Bool
+
+    /// Nothing scanned: the window is hidden, gone, or (`timedOut`) the app did not answer.
+    static func empty(pid: Int32, window: WindowID?, startedAt: Double, ms: Double = 0,
+                      timedOut: Bool = false) -> WindowScan {
+        WindowScan(pid: pid, window: window, targets: [], nodes: 0, startedAt: startedAt, ms: ms, timedOut: timedOut)
+    }
+}
+
+/// `.cannotComplete` after the full request timeout = the app did not answer.
+/// (Processes with no accessibility at all fail the same way, but at once.)
+private func didNotAnswer(_ err: AXError, after elapsed: Double) -> Bool {
+    err == .cannotComplete && elapsed >= Double(axRequestTimeout) * 0.9
 }
 
 /// Reads live accessibility trees. Every AX call runs on the target app's own serial
@@ -71,12 +83,18 @@ final class Scanner {
             let result: WindowScan
             if let wid = req.window {
                 if stack.win(wid) == nil || !stack.anyVisible(wid) {
-                    result = WindowScan(pid: req.pid, window: wid, targets: [], nodes: 0, startedAt: t0, ms: 0, timedOut: false)
+                    result = .empty(pid: req.pid, window: wid, startedAt: t0)
                 } else {
-                    let wins = appWindows(pid: req.pid)
-                    let element = req.element ?? wins.first { $0.id == wid }?.element
-                    result = scanWindow(pid: req.pid, id: wid, element: element, appWindows: Set(wins.map(\.id)),
-                                        stack: stack, deadline: deadline)
+                    let (values, err) = axMultiResult(axApp(req.pid), windowsAttr)
+                    if values == nil, didNotAnswer(err, after: now() - t0) {
+                        result = .empty(pid: req.pid, window: wid, startedAt: t0, ms: (now() - t0) * 1000, timedOut: true)
+                    } else {
+                        var wins: [(id: WindowID, element: AXUIElement)] = []
+                        if let a = values, a.count == 1 { wins = resolveWindows(axElements(a[0]), pid: req.pid, stack: nil) }
+                        let element = req.element ?? wins.first { $0.id == wid }?.element
+                        result = scanWindow(pid: req.pid, id: wid, element: element, appWindows: Set(wins.map(\.id)),
+                                            stack: stack, deadline: deadline)
+                    }
                 }
             } else {
                 let isDock = NSRunningApplication(processIdentifier: req.pid)?.bundleIdentifier == "com.apple.dock"
@@ -106,12 +124,9 @@ final class Scanner {
 
             let (values, err) = axMultiResult(app, appAttrs)
             guard let a = values, a.count == 3 else {
-                // `.cannotComplete` after the full request timeout = the app did not answer.
-                // (Processes with no accessibility at all fail the same way, but at once.)
                 let elapsed = now() - t0
-                if err == .cannotComplete && elapsed >= Double(axRequestTimeout) * 0.9 {
-                    deliver(WindowScan(pid: pid, window: nil, targets: [], nodes: 0, startedAt: t0,
-                                       ms: elapsed * 1000, timedOut: true))
+                if didNotAnswer(err, after: elapsed) {
+                    deliver(.empty(pid: pid, window: nil, startedAt: t0, ms: elapsed * 1000, timedOut: true))
                 }
                 return
             }
@@ -120,7 +135,7 @@ final class Scanner {
             let ids = Set(wins.map(\.id))
             for w in wins {
                 if stack.win(w.id) == nil || !stack.anyVisible(w.id) {
-                    deliver(WindowScan(pid: pid, window: w.id, targets: [], nodes: 0, startedAt: now(), ms: 0, timedOut: false))
+                    deliver(.empty(pid: pid, window: w.id, startedAt: now()))
                 } else {
                     deliver(scanWindow(pid: pid, id: w.id, element: w.element, appWindows: ids,
                                        stack: stack, deadline: deadline))
@@ -138,7 +153,7 @@ final class Scanner {
     private let appAttrs = ["AXWindows", "AXMenuBar", "AXExtrasMenuBar"] as CFArray
 
     /// Window IDs from `_AXUIElementGetWindow`; on error, the same app's on-screen window
-    /// whose bounds equal the element's frame.
+    /// whose bounds match the element's frame (within 1 pt per edge).
     private func resolveWindows(_ elements: [AXUIElement], pid: Int32,
                                 stack: WindowStack?) -> [(id: WindowID, element: AXUIElement)] {
         var fallback = stack
@@ -148,7 +163,7 @@ final class Scanner {
             if _AXUIElementGetWindow(el, &id) == .success, id != 0 { return (id, el) }
             let s = fallback ?? WindowServer.snapshot()
             fallback = s
-            guard let f = axFrame(el), let w = s.wins.first(where: { $0.pid == pid && $0.bounds == f }) else { return nil }
+            guard let f = axFrame(el), let w = s.wins.first(where: { $0.pid == pid && sameWindowFrame($0.bounds, f) }) else { return nil }
             return (w.id, el)
         }
     }
@@ -157,7 +172,7 @@ final class Scanner {
                             stack: WindowStack, deadline: Double) -> WindowScan {
         let t0 = now()
         guard let element, let bounds = stack.win(id)?.bounds else {
-            return WindowScan(pid: pid, window: id, targets: [], nodes: 0, startedAt: t0, ms: 0, timedOut: false)
+            return .empty(pid: pid, window: id, startedAt: t0)
         }
         let r = walk(root: AXElementNode(element), pid: pid,
                      scope: .window(id: id, bounds: bounds, appWindows: appWindows),

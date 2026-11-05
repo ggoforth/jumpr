@@ -38,3 +38,18 @@ private let b = w(2, 20, CGRect(x: 50, y: 0, width: 100, height: 100))
     #expect(WindowStack([a, b]).anyVisible(2))
     #expect(!WindowStack([a]).anyVisible(2))   // not on screen at all
 }
+
+@Test func windowFramesMatchWithinOnePoint() {
+    let f = CGRect(x: 100, y: 200, width: 800, height: 600)
+    #expect(sameWindowFrame(f, f))
+    // AX rounds differently from the window server: each edge may be off by up to 1 pt.
+    #expect(sameWindowFrame(f, CGRect(x: 101, y: 199, width: 798, height: 602)))
+    #expect(sameWindowFrame(f, CGRect(x: 99.5, y: 200.5, width: 801, height: 599)))
+}
+
+@Test func windowFramesDoNotMatchBeyondOnePoint() {
+    let f = CGRect(x: 100, y: 200, width: 800, height: 600)
+    #expect(!sameWindowFrame(f, CGRect(x: 102, y: 200, width: 800, height: 600)))       // left + right edge off by 2
+    #expect(!sameWindowFrame(f, CGRect(x: 100, y: 200, width: 802, height: 600)))       // right edge off by 2
+    #expect(!sameWindowFrame(f, CGRect(x: 100, y: 200, width: 800, height: 601.5)))     // bottom edge off by 1.5
+}

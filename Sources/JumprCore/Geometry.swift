@@ -60,3 +60,10 @@ public struct WindowStack {
         return false
     }
 }
+
+/// Whether an accessibility window frame and a window-server bounds describe the same
+/// window: every edge within 1 pt (the two round differently).
+public func sameWindowFrame(_ a: CGRect, _ b: CGRect) -> Bool {
+    abs(a.minX - b.minX) <= 1 && abs(a.maxX - b.maxX) <= 1
+        && abs(a.minY - b.minY) <= 1 && abs(a.maxY - b.maxY) <= 1
+}

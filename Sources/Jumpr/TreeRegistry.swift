@@ -25,6 +25,8 @@ final class TreeRegistry {
     /// False from `disableAll` until `allowEnabling`: work queued before a pause
     /// must not switch a tree back on after it.
     private var enabling = true
+    /// Set once the locked-screen skip in `noteScan` has been logged, until the screen unlocks.
+    private var loggedLockedSkip = false
 
     var enabledPids: Set<Int32> { lock.withLock { manual } }
 
@@ -53,7 +55,7 @@ final class TreeRegistry {
 
     /// Records one finished scan of the app. A Chromium browser whose windows gave zero
     /// nodes on its second scan or later also gets `AXEnhancedUserInterface`, unless it
-    /// is already on.
+    /// is already on. Skipped while the screen is locked: every window scan is empty then.
     func noteScan(pid: Int32, bundleID: String?, windowNodes: Int) {
         let count: Int = lock.withLock {
             scans[pid, default: 0] += 1
@@ -62,6 +64,13 @@ final class TreeRegistry {
         guard count >= 2, windowNodes == 0, let bundleID, Self.chromiumIDs.contains(bundleID),
               lock.withLock({ enabling && !enhanced.contains(pid) && !enhancedByOthers.contains(pid) })
         else { return }
+        let locked = screenIsLocked()
+        let logSkip: Bool = lock.withLock {
+            defer { loggedLockedSkip = locked }
+            return locked && !loggedLockedSkip
+        }
+        if logSkip { log("tree: AXEnhancedUserInterface not considered while the screen is locked") }
+        if locked { return }
         let app = axApp(pid)
         if Self.isOn(app, Self.enhancedAttr) {
             lock.withLock { _ = enhancedByOthers.insert(pid) }
@@ -114,4 +123,10 @@ final class TreeRegistry {
     private static func isOn(_ app: AXUIElement, _ attr: String) -> Bool {
         (axCopy(app, attr) as? Bool) == true
     }
+}
+
+/// True while the login session's screen is locked. Not an accessibility call.
+func screenIsLocked() -> Bool {
+    guard let d = CGSessionCopyCurrentDictionary() as? [String: Any] else { return false }
+    return (d["CGSSessionScreenIsLocked"] as? Bool) == true
 }
