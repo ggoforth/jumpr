@@ -10,6 +10,8 @@ final class PowerSource {
     /// Fires on every lock event (session lock, screen saver start, display sleep), whether
     /// or not the combined state changed: a stale cause must not hide a real lock.
     var onLockEvent: () -> Void = {}
+    /// Fires when the combined state goes from locked to unlocked.
+    var onUnlock: () -> Void = {}
     private(set) var state = PowerState(onBattery: false, lowPower: false, locked: false, paused: false)
 
     private var lock = LockCauses()
@@ -106,9 +108,11 @@ final class PowerSource {
         dispatchPrecondition(condition: .onQueue(.main))
         let next = read()
         guard next != state else { return }
+        let wasLocked = state.locked
         state = next
         logState()
         onChange(next)
+        if wasLocked && !next.locked { onUnlock() }
     }
 
     private func read() -> PowerState {

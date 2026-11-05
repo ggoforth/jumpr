@@ -53,3 +53,40 @@ private let b = w(2, 20, CGRect(x: 50, y: 0, width: 100, height: 100))
     #expect(!sameWindowFrame(f, CGRect(x: 100, y: 200, width: 802, height: 600)))       // right edge off by 2
     #expect(!sameWindowFrame(f, CGRect(x: 100, y: 200, width: 800, height: 601.5)))     // bottom edge off by 1.5
 }
+
+// Jumpr's own windows stay in the snapshot: Settings (layer 0) hides what is behind it,
+// the label overlays (layer 1000) do not.
+private let me: Int32 = 77
+@Test func ownNormalWindowOccludesTheAppBehind() {
+    let settings = w(5, me, CGRect(x: 60, y: 10, width: 40, height: 40))
+    let s = WindowStack([settings, b])
+    #expect(!s.isVisible(CGPoint(x: 80, y: 30), window: 2, pid: 20, appWindows: [2]))
+    #expect(s.isVisible(CGPoint(x: 120, y: 80), window: 2, pid: 20, appWindows: [2]))
+}
+@Test func ownOverlayDoesNotOcclude() {
+    let overlay = w(6, me, CGRect(x: 0, y: 0, width: 1000, height: 1000), layer: 1000)
+    let s = WindowStack([overlay, b])
+    #expect(s.isVisible(CGPoint(x: 80, y: 30), window: 2, pid: 20, appWindows: [2]))
+}
+
+@Test func appsToScanAreUniqueFrontToBackWithoutJumpr() {
+    let settings = w(5, me, CGRect(x: 60, y: 10, width: 40, height: 40))
+    let b2 = w(11, 20, CGRect(x: 0, y: 0, width: 10, height: 10))
+    let s = WindowStack([settings, b, a, b2])
+    #expect(s.appsToScan(excluding: me, front: 20) == [20, 10])
+}
+@Test func frontAppWithoutWindowsIsStillScanned() {   // its menu bar
+    let s = WindowStack([a, b])
+    #expect(s.appsToScan(excluding: me, front: 40) == [10, 20, 40])
+    #expect(s.appsToScan(excluding: me, front: me) == [10, 20])
+    #expect(s.appsToScan(excluding: me, front: nil) == [10, 20])
+}
+
+@Test func appsWithVisibleWindowSkipJumprHiddenAndNonNormalLayers() {
+    let settings = w(5, me, CGRect(x: 0, y: 0, width: 400, height: 400))
+    let panel = w(12, 50, CGRect(x: 500, y: 0, width: 50, height: 50), layer: 3)
+    let c = w(13, 60, CGRect(x: 700, y: 0, width: 50, height: 50))
+    // a and b are fully under Jumpr's Settings window; c is visible; 50 has only a panel.
+    #expect(WindowStack([settings, a, b, panel, c]).appsWithVisibleWindow(excluding: me) == [60])
+    #expect(WindowStack([a, b, c]).appsWithVisibleWindow(excluding: me) == [10, 20, 60])
+}

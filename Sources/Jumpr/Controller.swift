@@ -57,9 +57,61 @@ final class Controller {
         ) { [unowned self] _ in
             if isActive { cancel() }
         }
+        // A one-shot delay per launch (not a timer): the app needs a moment to open a window.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main
+        ) { [unowned self] note in
+            guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
+            let pid = app.processIdentifier
+            let name = app.localizedName ?? "pid \(pid)"
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [unowned self] in
+                enableTrees("launch of \(name)", only: pid)
+            }
+        }
     }
 
     private func isCurrent(_ gen: Int) -> Bool { gen == generation && isActive }
+
+    private static let dockID = "com.apple.dock"
+
+    /// One lookup table per call instead of an `NSRunningApplication` lookup per app.
+    private static func runningApps() -> [Int32: NSRunningApplication] {
+        Dictionary(NSWorkspace.shared.runningApplications.map { ($0.processIdentifier, $0) },
+                   uniquingKeysWith: { a, _ in a })
+    }
+
+    /// The apps whose web tree is worth switching on: regular apps (not the Dock, not
+    /// Jumpr) with a visible normal window. The single selection every enabling moment uses.
+    private func treeCandidates(_ stack: WindowStack, _ running: [Int32: NSRunningApplication]) -> [Int32] {
+        stack.appsWithVisibleWindow(excluding: getpid()).filter {
+            guard let app = running[$0] else { return false }
+            return app.activationPolicy == .regular && app.bundleIdentifier != Self.dockID
+        }
+    }
+
+    // MARK: - Trees ahead of the first trigger
+
+    /// Switches web trees on now, so the first trigger already finds them built (design
+    /// §7.3: Chromium/Electron build the tree some time after being asked). Called when
+    /// Jumpr becomes trusted, on resume, 2 s after an app launches (`only` that app) and
+    /// when the screen unlocks. Never while paused or locked; the AX work runs on each
+    /// app's scan queue. The trigger's own enabling stays as the catch-all.
+    func enableTrees(_ reason: String, only: Int32? = nil) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        if tap.paused { log("trees: enable on \(reason) skipped: paused"); return }
+        if screenIsLocked() { log("trees: enable on \(reason) skipped: screen locked"); return }
+        guard AXIsProcessTrusted() else { log("trees: enable on \(reason) skipped: not trusted"); return }
+        let running = Self.runningApps()
+        var pids = treeCandidates(WindowServer.snapshot(), running)
+        if let only { pids = pids.filter { $0 == only } }
+        if only == nil || !pids.isEmpty { log("trees: enable on \(reason): \(pids.count) apps") }
+        for pid in pids {
+            let bundle = running[pid]?.bundleIdentifier
+            scanner.perform(pid: pid, background: true) { [registry] in
+                registry.enableIfNeeded(pid: pid, bundleID: bundle)
+            }
+        }
+    }
 
     // MARK: - Trigger
 
@@ -84,24 +136,25 @@ final class Controller {
         let stack = WindowServer.snapshot()
         let lockedAtStart = screenIsLocked()  // for noteScan: locked scans see no windows
         screens = overlays.map(\.frame)
+        let running = Self.runningApps()
         let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
-        var pids: [Int32] = []
+        let pids = stack.appsToScan(excluding: getpid(), front: front)
         var names: [Int32: String] = [:]
-        for w in stack.wins where names[w.pid] == nil {
-            pids.append(w.pid)
-            names[w.pid] = NSRunningApplication(processIdentifier: w.pid)?.localizedName ?? w.name
-        }
+        for w in stack.wins where names[w.pid] == nil { names[w.pid] = w.name }
+        // Catch-all for apps the earlier moments missed (see `enableTrees`).
+        let wake = Set(treeCandidates(stack, running))
+        let visible = Set(stack.appsWithVisibleWindow(excluding: getpid()))
         pool = LabelPool(length: Labels.length(forEstimate: lastTotal ?? 200))
         pendingApps = pids.count
         readout.listed(apps: pids.count)
 
         if pids.isEmpty { finish(); return }
         for pid in pids {
-            let name = names[pid] ?? "?"
-            let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
-            let isDock = bundle == "com.apple.dock"
-            let hasVisibleWindow = stack.wins.contains { $0.pid == pid && $0.layer == 0 && stack.anyVisible($0.id) }
-            if hasVisibleWindow && !isDock {
+            let name = running[pid]?.localizedName ?? names[pid] ?? "?"
+            let bundle = running[pid]?.bundleIdentifier
+            let isDock = bundle == Self.dockID
+            let hasVisibleWindow = visible.contains(pid) && !isDock
+            if wake.contains(pid) {
                 scanner.perform(pid: pid, background: false) { [registry] in
                     registry.enableIfNeeded(pid: pid, bundleID: bundle)
                 }

@@ -21,6 +21,8 @@ powerSource.onLockEvent = {
     controller.cancel()
     log("cancelled: locked")
 }
+// Web trees skipped while locked (e.g. at launch) are switched on once it unlocks.
+powerSource.onUnlock = { controller.enableTrees("unlock") }
 log("launch")
 log("trusted: \(AXIsProcessTrusted())")
 powerSource.start()
@@ -68,8 +70,10 @@ keyTap.onDisabled = {
 let presser = Presser(scanner: scanner)
 controller.onMatched = { target, drawn in
     let t0 = now()
-    presser.press(target, drawn: drawn) { result in
-        log(String(format: "→ %@ %@ %.0f ms", target.role, "\(result)", (now() - t0) * 1000))
+    presser.press(target, drawn: drawn) { result, axError in
+        // The raw AXPress error whenever it was not success (e.g. on a click fallback).
+        let ax = axError.map { $0 == 0 ? "" : " (axpress=\($0))" } ?? ""
+        log(String(format: "→ %@ %@ %.0f ms%@", target.role, "\(result)", (now() - t0) * 1000, ax))
         presser.openedMenu(target, result: result) { opened in
             guard opened else { return }
             // Label the menu the press just opened, unless a session started meanwhile.
@@ -93,9 +97,10 @@ func applyPaused() {
         treeRegistry.disableAll { pid, work in scanner.perform(pid: pid, background: true, work) }
     } else {
         keyTap.paused = false
-        treeRegistry.allowEnabling()  // trees come back on the next trigger
+        treeRegistry.allowEnabling()
         statusItem.setPaused(false)
         log("resumed")
+        controller.enableTrees("resume")
     }
 }
 statusItem.onTogglePause = { defaults.set(!defaults.bool(forKey: Keys.paused), forKey: Keys.paused) }
@@ -106,6 +111,7 @@ onboarding.start(
     onTrusted: {
         let ok = keyTap.start()
         log("key tap: \(ok)")
+        controller.enableTrees("trusted")
         loginItem.autoRegisterIfFirstLaunch()
         return ok
     },

@@ -11,15 +11,16 @@ final class Presser {
         self.scanner = scanner
     }
 
-    /// `drawn` is where the element's label was painted, global top-left.
-    func press(_ t: Target, drawn: CGRect, completion: @escaping (PressResult) -> Void) {
+    /// `drawn` is where the element's label was painted, global top-left. The completion
+    /// also gets the raw `AXError` that `AXPress` returned, or nil if it was not called.
+    func press(_ t: Target, drawn: CGRect, completion: @escaping (PressResult, Int32?) -> Void) {
         guard let el = axElement(t.id) else {
-            DispatchQueue.main.async { completion(.skipped) }
+            DispatchQueue.main.async { completion(.skipped, nil) }
             return
         }
         scanner.perform(pid: t.pid, background: false) { [scanner] in
-            let result = Presser.run(t, element: el, drawn: drawn, scanner: scanner)
-            DispatchQueue.main.async { completion(result) }
+            let (result, axError) = Presser.run(t, element: el, drawn: drawn, scanner: scanner)
+            DispatchQueue.main.async { completion(result, axError) }
         }
     }
 
@@ -39,8 +40,9 @@ final class Presser {
     }
 
     /// Runs on the app's queue.
-    private static func run(_ t: Target, element el: AXUIElement, drawn: CGRect, scanner: Scanner) -> PressResult {
-        guard pressDecision(drawn: drawn, current: axFrame(el)) == .press else { return .skipped }
+    private static func run(_ t: Target, element el: AXUIElement, drawn: CGRect,
+                            scanner: Scanner) -> (PressResult, axError: Int32?) {
+        guard pressDecision(drawn: drawn, current: axFrame(el)) == .press else { return (.skipped, nil) }
 
         if let wid = t.window {  // bring the owning app + window forward first
             AXUIElementSetAttributeValue(axApp(t.pid), kAXFrontmostAttribute as CFString, kCFBooleanTrue)
@@ -49,10 +51,13 @@ final class Presser {
             }
         }
 
+        var axError: Int32?
         if !Roles.text.contains(t.role) {
-            switch afterAXPress(AXUIElementPerformAction(el, kAXPressAction as CFString).rawValue) {
-            case .pressed: return .pressed
-            case .skip: return .skipped
+            let err = AXUIElementPerformAction(el, kAXPressAction as CFString).rawValue
+            axError = err
+            switch afterAXPress(err) {
+            case .pressed: return (.pressed, err)
+            case .skip: return (.skipped, err)
             case .click: usleep(40_000)  // let the raise land
             }
         } else if t.window != nil {
@@ -61,9 +66,9 @@ final class Presser {
 
         // The raise (and a failed press) may have moved or closed it: check again, from now.
         let fresh = axFrame(el)
-        guard pressDecision(drawn: drawn, current: fresh) == .press, let fresh else { return .skipped }
+        guard pressDecision(drawn: drawn, current: fresh) == .press, let fresh else { return (.skipped, axError) }
         click(at: clickPoint(visible: t.rect, drawn: drawn, current: fresh))
-        return .clicked
+        return (.clicked, axError)
     }
 
     private static func click(at p: CGPoint) {

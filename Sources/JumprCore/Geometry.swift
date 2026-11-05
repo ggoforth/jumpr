@@ -59,6 +59,24 @@ public struct WindowStack {
         }
         return false
     }
+
+    /// The apps one trigger scans: each window owner once, front to back, never `me`
+    /// (Jumpr, whose own windows stay in the stack so they occlude). The front app is
+    /// added last if it has no on-screen window, so its menu bar is still labelled.
+    public func appsToScan(excluding me: Int32, front: Int32?) -> [Int32] {
+        var seen: Set<Int32> = [me]
+        var pids = wins.map(\.pid).filter { seen.insert($0).inserted }
+        if let front, seen.insert(front).inserted { pids.append(front) }
+        return pids
+    }
+
+    /// Apps with at least one visible normal-layer window, front to back, never `me`:
+    /// the ones whose accessibility tree is worth switching on.
+    public func appsWithVisibleWindow(excluding me: Int32) -> [Int32] {
+        var seen: Set<Int32> = [me]
+        return wins.filter { $0.layer == 0 && $0.pid != me && !seen.contains($0.pid) && anyVisible($0.id) }
+            .map(\.pid).filter { seen.insert($0).inserted }
+    }
 }
 
 /// Whether an accessibility window frame and a window-server bounds describe the same
