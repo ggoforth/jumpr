@@ -15,13 +15,12 @@ log("trusted: \(trusted)")
 let defaults = UserDefaults.standard
 keyTap.hotkey = defaults.string(forKey: Keys.hotkey).flatMap { Hotkey(stored: $0) } ?? .default
 controller.readout.enabled = defaults.bool(forKey: Keys.showReadout)
-keyTap.onHotkey = { controller.trigger() }
+// The tap callback must return at once: the trigger runs on main's next turn.
+keyTap.onHotkey = { DispatchQueue.main.async { controller.trigger() } }
 keyTap.onKey = { controller.handle($0) }
 keyTap.onDisabled = { log("key tap: re-enabled after the system switched it off") }
 controller.onMatched = { target, _ in log("matched \(target.role)") }
-if trusted {
-    log("key tap: \(keyTap.start())")
-}
+log("key tap: \(trusted ? keyTap.start() : false)")
 
 // Debug: `kill -USR1 <pid>` = scan + paint without the keyboard, cancelled after 2 s.
 signal(SIGUSR1, SIG_IGN)

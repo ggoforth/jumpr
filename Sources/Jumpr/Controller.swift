@@ -146,12 +146,18 @@ final class Controller {
         CATransaction.flush()
         lastTotal = placed.count + overflow
         readout.painted(labels: placed.count, overflow: overflow, on: overlays.first)
-        guard debugLabels else { return }
-        for (label, p) in placed.sorted(by: { $0.key < $1.key }) {
-            let r = p.target.rect
-            let win = p.target.window.map { "\($0)" } ?? "-"
-            log("label \(label) \(p.target.role) pid=\(p.target.pid) win=\(win) "
-                + "rect=\(Int(r.minX)),\(Int(r.minY)),\(Int(r.width)),\(Int(r.height))")
+        if debugLabels {
+            for (label, p) in placed.sorted(by: { $0.key < $1.key }) {
+                let r = p.target.rect
+                let win = p.target.window.map { "\($0)" } ?? "-"
+                log("label \(label) \(p.target.role) pid=\(p.target.pid) win=\(win) "
+                    + "rect=\(Int(r.minX)),\(Int(r.minY)),\(Int(r.width)),\(Int(r.height))")
+            }
+        }
+        // Nothing to type at: a capturing session would only swallow keys.
+        if tap.capturing && placed.isEmpty {
+            log("cancelled: no labels")
+            cancel()
         }
     }
 
