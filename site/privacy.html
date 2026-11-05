@@ -39,9 +39,11 @@
     <ul>
       <li>Everything Jumpr reads through the macOS Accessibility permission: the buttons, links, icons and menus on your displays, and where they are. Jumpr uses it to place labels and to click the one you choose.</li>
       <li>What you type while labels are showing.</li>
-      <li>Your settings, your trial start date, and your license key, kept in <code>~/Library/Application&nbsp;Support/Jumpr/</code>.</li>
+      <li>Your settings (label size and colours, hotkey, switches), kept in the app’s preferences at <code>~/Library/Preferences/com.greggoforth.jumpr.plist</code>.</li>
+      <li>Your license key and your trial start date, kept in <code>~/Library/Application&nbsp;Support/Jumpr/</code>. The trial start date is also kept in the preferences.</li>
+      <li>A small log of Jumpr’s own activity, at <code>~/Library/Logs/Jumpr.log</code>: when it showed labels, how long that took, and for each press the kind of control and the name of the app it was in. It does not log window contents, text on screen, or what you type. The log stays on your Mac and is capped in size.</li>
     </ul>
-    <p>Your license key is checked on your Mac, offline. Removing the app and that folder removes everything related to Jumpr from your Mac.</p>
+    <p>Your license key is checked on your Mac, offline. Removing the app, the preferences file, the <code>Jumpr</code> folder in Application Support and the log removes everything related to Jumpr from your Mac.</p>
 
     <h2>4. What leaves your Mac, and why</h2>
     <p>Each item below is one thing that leaves your Mac. “Basis” is the legal ground we rely on under the GDPR and similar laws: <em>contract</em> means we need it to provide something you asked for; <em>legitimate interest</em> means we need it to run the service in a way you would reasonably expect.</p>
