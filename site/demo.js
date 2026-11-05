@@ -272,8 +272,11 @@
     updatePrompt();
   }
 
-  // Positions a label the way the app does (Labels.frame): centered on small
-  // targets, at the left edge of wide ones, vertically centered, kept on screen.
+  // Positions a label the way the app does (Labels.frame, build/v1), so it never
+  // hides what it points at. A target under four label widths gets its label
+  // hanging off its bottom-right corner, flipping left or above at the display
+  // edge. A wider target (a row) keeps its label inside, at the right end.
+  // Finally the label is kept inside the display.
   function place(entry, delay) {
     var screen = entry.el.closest('.screen');
     var layer = screen.querySelector('.labels');
@@ -284,8 +287,20 @@
     if (delay) node.style.animationDelay = delay + 'ms';
     layer.appendChild(node);
     var w = node.offsetWidth, h = node.offsetHeight;
-    var x = r.width < s.width * 0.1 ? r.left - s.left + r.width / 2 - w / 2 : r.left - s.left + 2;
-    var y = r.top - s.top + r.height / 2 - h / 2;
+    var fs = parseFloat(getComputedStyle(node).fontSize);
+    var minX = r.left - s.left, maxX = r.right - s.left, minY = r.top - s.top, maxY = r.bottom - s.top;
+    var x, y;
+    if (r.width >= 4 * w) {
+      x = maxX - w - 2;
+      y = r.height >= 2 * h ? maxY - h - 2 : minY + r.height / 2 - h / 2;
+    } else {
+      var ox = Math.min(Math.round(fs * 0.75), r.width / 2);
+      var oy = Math.min(fs * 0.4, r.height / 4);
+      x = maxX - ox;
+      y = maxY - oy;
+      if (x + w > s.width) x = minX - w + ox;
+      if (y + h > s.height) y = minY - h + oy;
+    }
     x = Math.max(0, Math.min(x, s.width - w));
     y = Math.max(0, Math.min(y, s.height - h));
     node.style.left = (x / s.width * 100) + '%';
