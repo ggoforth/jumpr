@@ -24,6 +24,8 @@ final class TreeRegistry {
     /// Apps whose `AXEnhancedUserInterface` was already on: never touched again.
     private var enhancedByOthers = Set<Int32>()
     private var scans: [Int32: Int] = [:]
+    /// When each app's `AXManualAccessibility` was accepted (`now()`), for `sinceEnabled`.
+    private var enabledAt: [Int32: Double] = [:]
     /// False from `disableAll` until `allowEnabling`: work queued before a pause
     /// must not switch a tree back on after it.
     private var enabling = true
@@ -31,6 +33,12 @@ final class TreeRegistry {
     private var loggedLockedSkip = false
 
     var enabledPids: Set<Int32> { lock.withLock { manual } }
+
+    /// Seconds since Jumpr switched this app's web tree on, or nil if it never did. The tree
+    /// arrives some time after (see `treeMayStillBeBuilding`). Safe from any thread.
+    func sinceEnabled(_ pid: Int32) -> Double? {
+        lock.withLock { enabledAt[pid].map { now() - $0 } }
+    }
 
     /// Whether `enableIfNeeded` already ran for `pid` (cheap; safe from any thread).
     func hasSeen(_ pid: Int32) -> Bool { lock.withLock { seen.contains(pid) } }
@@ -49,6 +57,7 @@ final class TreeRegistry {
         let err = AXUIElementSetAttributeValue(app, Self.manualAttr as CFString, kCFBooleanTrue)
         switch err {
         case .success:
+            lock.withLock { enabledAt[pid] = now() }
             log("tree on: AXManualAccessibility \(bundleID ?? "pid \(pid)")")
         case .cannotComplete:
             // Did not answer in time: try again next sight.
@@ -101,7 +110,7 @@ final class TreeRegistry {
             defer {
                 enabling = false
                 seen.removeAll(); manual.removeAll(); enhanced.removeAll()
-                enhancedByOthers.removeAll(); scans.removeAll()
+                enhancedByOthers.removeAll(); scans.removeAll(); enabledAt.removeAll()
             }
             return (manual, enhanced)
         }

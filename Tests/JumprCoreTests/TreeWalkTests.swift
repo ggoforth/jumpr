@@ -131,3 +131,12 @@ private func buttonAt(depth: Int) -> Fake {
     #expect(res.targets.map(\.role) == ["AXButton", "AXLink"])
     #expect(res.targets.map(\.inWeb) == [false, true])
 }
+
+@Test func aTreeSwitchedOnMomentsAgoMayStillBeBuilding() {
+    #expect(treeMayStillBeBuilding(sinceSwitchedOn: 0))
+    #expect(treeMayStillBeBuilding(sinceSwitchedOn: 1.5))    // 1Password: still empty containers
+    #expect(!treeMayStillBeBuilding(sinceSwitchedOn: 3))
+    #expect(!treeMayStillBeBuilding(sinceSwitchedOn: 600))
+    #expect(!treeMayStillBeBuilding(sinceSwitchedOn: nil))   // native app: nothing to wait for
+    #expect(treeMayStillBeBuilding(sinceSwitchedOn: 4, allow: 5))
+}

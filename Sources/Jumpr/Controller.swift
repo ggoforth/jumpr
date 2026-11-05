@@ -34,6 +34,8 @@ final class Controller {
     private var session = LabelSession()
     private var pool = LabelPool(length: 1)
     private var placed: [String: Placed] = [:]
+    /// Elements labelled in this session, so a repeated scan of an app adds only what is new.
+    private var placedIDs = Set<ElementID>()
     private var overflow = 0
     private var pendingApps = 0
     private var screens: [CGRect] = []
@@ -156,6 +158,7 @@ final class Controller {
 
         session = LabelSession()
         placed = [:]
+        placedIDs = []
         overflow = 0
         style = LabelStyle.current()
         readout.begin()
@@ -213,18 +216,56 @@ final class Controller {
                                 guard let self, isCurrent(gen) else { return }  // stale: drop
                                 pendingApps -= 1
                                 if pendingApps == 0 { finish() }
+                                rescanWhileTreeBuilds(pid: pid, name: name, isDock: isDock, stack: stack,
+                                                      front: front, gen: gen)
                             })
         }
     }
 
-    /// Paints one scan's targets. Only called for the current generation.
-    private func receive(_ s: WindowScan, name: String) {
+    /// A web tree switched on moments ago is still being built (1Password takes 1 to 2 s),
+    /// so the scan just finished found an empty window. While these labels are up, look at
+    /// that app again every 0.4 s until its tree has had time to arrive, and add the labels
+    /// that were missing. Only apps whose tree Jumpr switched on within the last few seconds.
+    private func rescanWhileTreeBuilds(pid: Int32, name: String, isDock: Bool, stack: WindowStack,
+                                       front: Int32?, gen: Int) {
+        guard treeMayStillBeBuilding(sinceSwitchedOn: registry.sinceEnabled(pid)) else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            guard let self, isCurrent(gen) else { return }
+            var added = 0
+            scanner.scanApp(pid: pid, stack: stack, screens: screens, frontPid: front, isDock: isDock, background: false,
+                            isStale: { [sharedGeneration] in sharedGeneration.value != gen },
+                            each: { [weak self] s in
+                                guard let self, isCurrent(gen) else { return }
+                                added += receive(s, name: name, late: true)
+                            },
+                            done: { [weak self] _ in
+                                guard let self, isCurrent(gen) else { return }
+                                if added > 0 {
+                                    CATransaction.flush()
+                                    lastTotal = placed.count + overflow
+                                    log("late labels: \(added) more in \(name), its tree was still building")
+                                }
+                                rescanWhileTreeBuilds(pid: pid, name: name, isDock: isDock, stack: stack,
+                                                      front: front, gen: gen)
+                            })
+        }
+    }
+
+    /// Paints one scan's targets and returns how many labels it added. Only called for the
+    /// current generation. `late`: a repeated scan of an app (`rescanWhileTreeBuilds`); what
+    /// is already labelled is skipped either way, and the readout is left alone.
+    @discardableResult
+    private func receive(_ s: WindowScan, name: String, late: Bool = false) -> Int {
         let t0 = now()
+        var added = 0
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         for t in s.targets {
             guard let i = Labels.screenIndex(for: CGPoint(x: t.rect.midX, y: t.rect.midY), screens: screens) else { continue }
+            guard !placedIDs.contains(t.id) else { continue }
             guard let label = pool.next() else { overflow += 1; continue }
+            placedIDs.insert(t.id)
+            added += 1
             let rect = Labels.frame(length: pool.length, target: t.rect, screen: screens[i],
                                     fontSize: style.size, advance: style.advance)
             let layer = overlays[i].add(label: label, at: rect, style: style)
@@ -233,7 +274,8 @@ final class Controller {
             session.labels.insert(label)
         }
         CATransaction.commit()
-        readout.note(s, name: name, paint: now() - t0)
+        if !late { readout.note(s, name: name, paint: now() - t0) }
+        return added
     }
 
     /// Every app has answered for the current generation.

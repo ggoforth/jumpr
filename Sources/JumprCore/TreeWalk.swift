@@ -140,6 +140,15 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
 /// Whether a web browser's windows came back empty: the walk counts each window's root,
 /// so `windowNodes` no larger than the number of windows walked means nothing under them.
 /// Undecided (false) when no window was walked.
+/// Whether a web tree switched on `sinceSwitchedOn` seconds ago may still be arriving, so a
+/// scan of its app is worth repeating. Electron apps build the tree some time after being
+/// asked: 1Password answered with empty containers at 0.5 s and the full tree by 2 s.
+/// `nil`: Jumpr never switched this app's tree on (a native app, or one that refused).
+public func treeMayStillBeBuilding(sinceSwitchedOn: Double?, allow: Double = 3.0) -> Bool {
+    guard let sinceSwitchedOn else { return false }
+    return sinceSwitchedOn < allow
+}
+
 public func webTreeLooksEmpty(windowsScanned: Int, windowNodes: Int) -> Bool {
     windowsScanned > 0 && windowNodes <= windowsScanned
 }
