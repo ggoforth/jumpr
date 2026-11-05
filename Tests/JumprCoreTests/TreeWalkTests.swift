@@ -98,3 +98,14 @@ private func r(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat = 40, _ h: CGFloat = 20)
     for _ in 0..<100 { node = Fake("AXGroup", nil, [node]) }
     #expect(run(node).targets.isEmpty)
 }
+
+/// A button under `depth` groups: the root group is depth 0, so the button is at `depth`.
+private func buttonAt(depth: Int) -> Fake {
+    var node = Fake("AXButton", r(10, 10))
+    for _ in 0..<depth { node = Fake("AXGroup", nil, [node]) }
+    return node
+}
+@Test func depthCapBoundary() {   // the walk stops at depth 80
+    #expect(run(buttonAt(depth: 79)).targets.count == 1)
+    #expect(run(buttonAt(depth: 80)).targets.isEmpty)
+}

@@ -35,6 +35,7 @@ public struct LabelPool {
     private let total: Int
 
     public init(length: Int) {
+        precondition(length > 0, "a label needs at least one letter")
         self.length = length
         var t = 1
         for _ in 0..<length { t *= Labels.alphabet.count }

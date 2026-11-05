@@ -19,13 +19,14 @@ public struct Hotkey: Equatable {
         self.modifiers = modifiers
     }
 
-    /// Parses the `"<keyCode>:<modifiers>"` format produced by `stored`.
+    /// Parses the `"<keyCode>:<modifiers>"` format produced by `stored`. Modifier bits
+    /// other than command, shift, control and option are dropped.
     public init?(stored: String) {
         let parts = stored.split(separator: ":", omittingEmptySubsequences: false)
         guard parts.count == 2,
               let code = Int64(parts[0]),
               let mods = UInt64(parts[1]) else { return nil }
-        self.init(keyCode: code, modifiers: mods)
+        self.init(keyCode: code, modifiers: mods & Modifiers.mask)
     }
 
     public var stored: String { "\(keyCode):\(modifiers)" }
@@ -95,11 +96,11 @@ public struct RGB: Equatable {
         self.b = b
     }
 
-    /// Parses six hex digits, with or without a leading `#`.
+    /// Parses exactly six hex digits, with or without a leading `#`.
     public init?(hex: String) {
         var s = hex.trimmingCharacters(in: .whitespaces)
         if s.hasPrefix("#") { s.removeFirst() }
-        guard s.count == 6, let v = UInt32(s, radix: 16) else { return nil }
+        guard s.count == 6, s.allSatisfy(\.isHexDigit), let v = UInt32(s, radix: 16) else { return nil }
         r = Double((v >> 16) & 0xFF) / 255
         g = Double((v >> 8) & 0xFF) / 255
         b = Double(v & 0xFF) / 255
@@ -115,9 +116,9 @@ public enum BatteryMode: String, CaseIterable {
     case full, frontApp, onDemand
 }
 
-/// Clamps to 10...32 pt; an unset value (0 or less) falls back to the 15 pt default.
+/// Clamps to 10...32 pt; an unset (0 or less) or non-finite value falls back to the 15 pt default.
 public func clampLabelSize(_ v: Double) -> Double {
-    if v <= 0 { return 15 }
+    if !v.isFinite || v <= 0 { return 15 }
     return min(max(v, 10), 32)
 }
 

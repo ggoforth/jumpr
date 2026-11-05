@@ -70,15 +70,17 @@ final class RecorderButton: NSButton {
 
     deinit {
         observers.forEach(NotificationCenter.default.removeObserver)
-        if let monitor { NSEvent.removeMonitor(monitor) }
+        stop()  // never leave the key listener suspended
     }
 
     @objc private func clicked() {
         isRecording ? stop() : start()
     }
 
+    /// Records only while this window is key: otherwise the keys would not reach the
+    /// monitor and the key listener would stay suspended for nothing.
     private func start() {
-        guard !isRecording else { return }
+        guard !isRecording, window?.isKeyWindow == true else { return }
         onRecording(true)
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             self?.record(event)

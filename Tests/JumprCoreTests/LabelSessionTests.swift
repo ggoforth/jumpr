@@ -31,3 +31,11 @@ import Testing
     #expect(s.handle(.character("S")) == .narrowed("S"))
     #expect(s.handle(.character("D")) == .matched("SD"))
 }
+
+@Test func backspaceFromTwoLettersNarrowsToOne() {
+    var s = LabelSession(); s.labels = ["AAA", "ASD"]
+    _ = s.handle(.character("A"))
+    #expect(s.handle(.character("S")) == .narrowed("AS"))
+    #expect(s.handle(.backspace) == .narrowed("A"))
+    #expect(s.typed == "A")
+}

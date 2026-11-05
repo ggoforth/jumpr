@@ -61,3 +61,23 @@ private let noLookup: (Int64) -> String? = { _ in nil }
 @Test func hotkeyDisplayUnknownKeyFallsBackToCode() {
     #expect(Hotkey(keyCode: 200, modifiers: Modifiers.command).display(keyName: noLookup) == "⌘Key 200")
 }
+
+@Test func hexRejectsAnythingButSixHexDigits() {
+    #expect(RGB(hex: "+FFD60") == nil)     // UInt32(radix:) alone would take the sign
+    #expect(RGB(hex: "-FFD60") == nil)
+    #expect(RGB(hex: "##FFD60") == nil)
+    #expect(RGB(hex: "FFD60G") == nil)
+    #expect(RGB(hex: "#ffd60a") == RGB(hex: "FFD60A"))
+}
+
+@Test func storedHotkeyKeepsOnlyKnownModifiers() {
+    let capsLockAndNumericPad: UInt64 = 0x10000 | 0x200000
+    let h = Hotkey(stored: "49:\(Modifiers.command | Modifiers.shift | capsLockAndNumericPad)")
+    #expect(h == Hotkey.default)
+}
+
+@Test func nonFiniteLabelSizeFallsBackToDefault() {
+    #expect(clampLabelSize(.nan) == 15)
+    #expect(clampLabelSize(.infinity) == 15)
+    #expect(clampLabelSize(-.infinity) == 15)
+}
