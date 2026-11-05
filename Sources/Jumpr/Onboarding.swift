@@ -4,8 +4,9 @@ import JumprCore
 import ServiceManagement
 
 /// Tracks the Accessibility permission. Trust changes are learned from the system's
-/// `com.apple.accessibility.api` distributed notification, re-checked 0.5 s after it
-/// fires (the answer lags the notification). No polling. Main thread only.
+/// `com.apple.accessibility.api` distributed notification, re-checked 0.5 s and again 2 s
+/// after it fires (the answer lags the notification, sometimes by more than 0.5 s). Two
+/// one-shot checks per notification; no polling. Main thread only.
 final class Onboarding: ObservableObject {
     @Published private(set) var trusted = false
     /// The grant arrived but the key listener still could not start.
@@ -33,7 +34,9 @@ final class Onboarding: ObservableObject {
         observer = DistributedNotificationCenter.default().addObserver(
             forName: NSNotification.Name("com.apple.accessibility.api"), object: nil, queue: .main
         ) { [weak self] _ in
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self?.recheck() }
+            for delay in [0.5, 2.0] {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { self?.recheck() }
+            }
         }
     }
 
@@ -55,17 +58,20 @@ final class Onboarding: ObservableObject {
         NSWorkspace.shared.open(Self.accessibilityPane)
     }
 
-    /// Starts a new instance of this bundle, then quits this one.
+    /// Starts a new instance of this bundle, then quits this one — only once the new
+    /// instance is running. If it could not start, this one stays.
     func relaunch() {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        p.arguments = ["-n", Bundle.main.bundlePath]
-        do {
-            try p.run()
-            log("relaunch: started a new instance")
-            NSApp.terminate(nil)
-        } catch {
-            log("relaunch: failed (\(error.localizedDescription))")
+        let config = NSWorkspace.OpenConfiguration()
+        config.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: config) { app, error in
+            DispatchQueue.main.async {
+                if let error {
+                    log("relaunch: failed (\(error.localizedDescription)), staying")
+                    return
+                }
+                log("relaunch: new instance running (pid \(app.map { String($0.processIdentifier) } ?? "?"))")
+                NSApp.terminate(nil)
+            }
         }
     }
 }
@@ -75,6 +81,8 @@ final class Onboarding: ObservableObject {
 final class LoginItem: ObservableObject {
     @Published private(set) var enabled = false
     @Published private(set) var needsApproval = false
+    /// The "not registering" line is logged once per launch, however often trust returns.
+    private var loggedNotInApplications = false
 
     init() { refresh() }
 
@@ -96,7 +104,10 @@ final class LoginItem: ObservableObject {
         let path = Bundle.main.bundlePath
         let setUp = UserDefaults.standard.bool(forKey: Keys.loginItemSetUp)
         guard LoginItemPolicy.shouldAutoRegister(bundlePath: path, alreadySetUp: setUp) else {
-            if !setUp { log("login item: not registering automatically, bundle is not in /Applications (\(path))") }
+            if !setUp && !loggedNotInApplications {
+                loggedNotInApplications = true
+                log("login item: not registering automatically, bundle is not in /Applications (\(path))")
+            }
             return
         }
         UserDefaults.standard.set(true, forKey: Keys.loginItemSetUp)

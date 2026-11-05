@@ -41,15 +41,18 @@ final class TreeRegistry {
             log("tree already on: AXManualAccessibility \(bundleID ?? "pid \(pid)"), left alone")
             return
         }
+        // Record the pid before switching the tree on, so a `disableAll` that starts during
+        // the call still switches it off (its work queues behind this on the pid's queue).
+        guard record(pid, in: \.manual) else { return }
         let err = AXUIElementSetAttributeValue(app, Self.manualAttr as CFString, kCFBooleanTrue)
         switch err {
         case .success:
-            lock.withLock { _ = manual.insert(pid) }
             log("tree on: AXManualAccessibility \(bundleID ?? "pid \(pid)")")
         case .cannotComplete:
-            lock.withLock { _ = seen.remove(pid) }  // did not answer in time: try again next sight
+            // Did not answer in time: try again next sight.
+            lock.withLock { _ = manual.remove(pid); _ = seen.remove(pid) }
         default:
-            break  // native apps don't support it; their tree is always on
+            lock.withLock { _ = manual.remove(pid) }  // native apps don't support it; their tree is always on
         }
     }
 
@@ -77,9 +80,11 @@ final class TreeRegistry {
             log("tree already on: AXEnhancedUserInterface \(bundleID), left alone")
             return
         }
+        guard record(pid, in: \.enhanced) else { return }  // before the call, as in `enableIfNeeded`
         if AXUIElementSetAttributeValue(app, Self.enhancedAttr as CFString, kCFBooleanTrue) == .success {
-            lock.withLock { _ = enhanced.insert(pid) }
             log("tree on: AXEnhancedUserInterface \(bundleID)")
+        } else {
+            lock.withLock { _ = enhanced.remove(pid) }
         }
     }
 
@@ -118,6 +123,15 @@ final class TreeRegistry {
     /// Lets trees be switched on again (after a resume); they come back on the next trigger.
     func allowEnabling() {
         lock.withLock { enabling = true }
+    }
+
+    /// Adds `pid` to a record set unless disabling has begun. False: do not switch anything on.
+    private func record(_ pid: Int32, in set: ReferenceWritableKeyPath<TreeRegistry, Set<Int32>>) -> Bool {
+        lock.withLock {
+            guard enabling else { return false }
+            self[keyPath: set].insert(pid)
+            return true
+        }
     }
 
     private static func isOn(_ app: AXUIElement, _ attr: String) -> Bool {
