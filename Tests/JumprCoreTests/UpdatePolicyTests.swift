@@ -27,3 +27,21 @@ private let wellFormedKey = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
         #expect(!UpdatePolicy.isConfigured(feedURL: feed, publicKey: key), "\(key ?? "nil")")
     }
 }
+
+@Test func keyOfAnyOtherLengthIsRejected() {
+    let lengths = [
+        "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHg==",      // 31 bytes
+        "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8g",      // 33 bytes
+        "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+Pw==",  // 64 bytes
+    ]
+    for key in lengths { #expect(!UpdatePolicy.isRealPublicKey(key), "\(key)") }
+    #expect(UpdatePolicy.isRealPublicKey(wellFormedKey))
+}
+
+@Test func surroundingWhitespaceIsIgnoredInnerWhitespaceIsNot() {
+    #expect(UpdatePolicy.isRealPublicKey("  \(wellFormedKey)\n"))
+    #expect(UpdatePolicy.isConfigured(feedURL: " https://example.com/appcast.xml\n", publicKey: "\t\(wellFormedKey) "))
+    #expect(!UpdatePolicy.isRealPublicKey("AAECAwQFBgcICQoLDA0ODxAR EhMUFRYXGBkaGxwdHh8="))
+    #expect(!UpdatePolicy.isRealPublicKey("AAECAwQFBgcICQoLDA0ODxAR\nEhMUFRYXGBkaGxwdHh8="))
+    #expect(!UpdatePolicy.isRealPublicKey("  \(UpdatePolicy.placeholderPublicKey) "))
+}
