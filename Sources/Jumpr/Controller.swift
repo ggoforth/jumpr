@@ -21,6 +21,7 @@ final class Controller {
     private let scanner: Scanner
     private let registry: TreeRegistry
     private let tap: KeyTap
+    private let extras = ExtrasOwners()
     private var overlays: [Overlay] = []
 
     private struct Placed {
@@ -71,6 +72,27 @@ final class Controller {
                 enableTrees("launch of \(name)", only: pid)
             }
         }
+        // An app coming to the front shows a window: switch its tree on then, for apps that
+        // were hidden or covered at the earlier moments. Once per app (`hasSeen`), a
+        // one-shot delay so its window is in front by the time the window list is read.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+        ) { [unowned self] note in
+            guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
+            let pid = app.processIdentifier
+            guard pid != getpid(), !tap.paused, !registry.hasSeen(pid) else { return }
+            let name = app.localizedName ?? "pid \(pid)"
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [unowned self] in
+                guard !registry.hasSeen(pid) else { return }
+                enableTrees("activation of \(name)", only: pid)
+            }
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main
+        ) { [unowned self] note in
+            guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
+            extras.forget(pid: app.processIdentifier)
+        }
     }
 
     private func isCurrent(_ gen: Int) -> Bool { gen == generation && isActive }
@@ -96,14 +118,16 @@ final class Controller {
 
     /// Switches web trees on now, so the first trigger already finds them built (design
     /// §7.3: Chromium/Electron build the tree some time after being asked). Called when
-    /// Jumpr becomes trusted, on resume, 2 s after an app launches (`only` that app) and
-    /// when the screen unlocks. Never while paused or locked; the AX work runs on each
+    /// Jumpr becomes trusted, on resume, 2 s after an app launches and the first time an
+    /// app comes to the front (`only` that app), and when the screen unlocks. Never while paused or locked; the AX work runs on each
     /// app's scan queue. The trigger's own enabling stays as the catch-all.
     func enableTrees(_ reason: String, only: Int32? = nil) {
         dispatchPrecondition(condition: .onQueue(.main))
         if tap.paused { log("trees: enable on \(reason) skipped: paused"); return }
         if screenIsLocked() { log("trees: enable on \(reason) skipped: screen locked"); return }
         guard AXIsProcessTrusted() else { log("trees: enable on \(reason) skipped: not trusted"); return }
+        // The same moments are when the owners of menu bar extras are looked up.
+        if let only { extras.check(pid: only) } else { extras.refreshAll() }
         let running = Self.runningApps()
         var pids = treeCandidates(WindowServer.snapshot(), running)
         if let only { pids = pids.filter { $0 == only } }
@@ -141,7 +165,9 @@ final class Controller {
         screens = overlays.map(\.frame)
         let running = Self.runningApps()
         let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
-        let pids = stack.appsToScan(excluding: getpid(), front: front)
+        var pids = stack.appsToScan(excluding: getpid(), front: front)
+        // Menu bar extras belong to apps the window list does not name (see `ExtrasOwners`).
+        pids += extras.current.subtracting(pids).sorted()
         var names: [Int32: String] = [:]
         for w in stack.wins where names[w.pid] == nil { names[w.pid] = w.name }
         // Catch-all for apps the earlier moments missed (see `enableTrees`).

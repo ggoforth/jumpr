@@ -32,6 +32,9 @@ final class TreeRegistry {
 
     var enabledPids: Set<Int32> { lock.withLock { manual } }
 
+    /// Whether `enableIfNeeded` already ran for `pid` (cheap; safe from any thread).
+    func hasSeen(_ pid: Int32) -> Bool { lock.withLock { seen.contains(pid) } }
+
     /// The caller has seen a visible window for `pid`. On first sight of a regular app,
     /// sets `AXManualAccessibility`, and records the pid only if the app accepted it.
     func enableIfNeeded(pid: Int32, bundleID: String?) {

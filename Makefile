@@ -6,12 +6,15 @@ test:
 app:
 	scripts/build-app.sh
 
+# Both listen for the same hotkey: the throwaway spike is stopped first.
 run: app
+	-pkill -x jumpr-spike
 	-pkill -x Jumpr
 	open build/Jumpr.app
 
 # Started as a child of the shell so it inherits that shell's Accessibility access.
 run-direct: app
+	-pkill -x jumpr-spike
 	-pkill -x Jumpr
 	nohup build/Jumpr.app/Contents/MacOS/Jumpr >/dev/null 2>&1 &
 

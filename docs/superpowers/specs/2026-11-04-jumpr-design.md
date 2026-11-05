@@ -464,6 +464,8 @@ app visible, read from the readout:
 - `AXManualAccessibility` cannot be read back, so Jumpr cannot tell whether another tool already had an app's tree on. On Pause and Quit it switches off every tree it set, including one another tool had on.
 - If Jumpr loses the Accessibility permission while running, it can no longer switch trees off: they stay on until those apps quit.
 - While a password field has keyboard focus (secure input), the hotkey and Esc do not reach Jumpr.
+- Menu bar icons belong to apps the window list does not name, so Jumpr remembers which apps own one (asked at trust, resume, unlock, and when an app launches or first comes to the front). An app that adds its icon later is not labelled until the next of those moments.
+- A web-based app whose window was covered when Jumpr started gets its tree switched on when the app first comes to the front. If its window is uncovered without the app coming to the front, the first trigger shows few labels for it and the next one is complete.
 
 ---
 
