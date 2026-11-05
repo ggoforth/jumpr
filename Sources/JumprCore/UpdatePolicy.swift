@@ -10,11 +10,20 @@ public enum UpdatePolicy {
     /// so such a build never starts it. scripts/build-app.sh applies the same rule to refuse a
     /// release build without a real feed and key.
     public static func isConfigured(feedURL: String?, publicKey: String?) -> Bool {
-        guard let feedURL = feedURL?.trimmingCharacters(in: .whitespacesAndNewlines),
-              let url = URL(string: feedURL),
-              url.scheme?.lowercased() == "https", let host = url.host, !host.isEmpty else { return false }
-        guard let publicKey else { return false }
-        return isRealPublicKey(publicKey)
+        guard let feedURL, let publicKey else { return false }
+        return isRealFeedURL(feedURL) && isRealPublicKey(publicKey)
+    }
+
+    /// A release feed: https, a dotted host, an optional port, a path of plain URL characters.
+    /// scripts/build-app.sh uses this exact pattern; keep the two identical.
+    public static let feedPattern = #"^https://[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+(:[0-9]+)?(/[A-Za-z0-9._~%!$&'()*+,;=:/-]*)?$"#
+
+    /// Surrounding whitespace is ignored, as the build script trims it.
+    public static func isRealFeedURL(_ feed: String) -> Bool {
+        let trimmed = feed.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.range(of: feedPattern, options: .regularExpression) != nil,
+              let url = URL(string: trimmed), url.host?.isEmpty == false else { return false }
+        return true
     }
 
     /// A Sparkle EdDSA public key: base64 that decodes to exactly 32 bytes. Surrounding

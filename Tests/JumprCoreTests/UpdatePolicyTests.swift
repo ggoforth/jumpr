@@ -18,7 +18,21 @@ private let wellFormedKey = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
     for feed in ["http://example.com/appcast.xml", "https://", "https:///appcast.xml", "example.com/appcast.xml", "", nil] {
         #expect(!UpdatePolicy.isConfigured(feedURL: feed, publicKey: wellFormedKey), "\(feed ?? "nil")")
     }
-    #expect(UpdatePolicy.isConfigured(feedURL: "HTTPS://example.com/appcast.xml", publicKey: wellFormedKey))
+    // The build script's rule is lowercase https only; the app matches it.
+    #expect(!UpdatePolicy.isConfigured(feedURL: "HTTPS://example.com/appcast.xml", publicKey: wellFormedKey))
+}
+
+/// The same examples scripts/build-app.sh is checked against: the two rules must agree.
+@Test func feedRuleMatchesTheBuildScript() {
+    for feed in ["https://ex{ample.com/x", "https://exa|mple.com", "https://[::1/x", "https://:80/x", "https://@/x",
+                 "file:///dev/null"] {
+        #expect(!UpdatePolicy.isRealFeedURL(feed), "\(feed)")
+    }
+    for feed in ["https://jumpr.example/appcast.xml", "https://jumpr.example:8443/a/appcast.xml"] {
+        #expect(UpdatePolicy.isRealFeedURL(feed), "\(feed)")
+        #expect(UpdatePolicy.isConfigured(feedURL: feed, publicKey: wellFormedKey), "\(feed)")
+    }
+    #expect(!UpdatePolicy.isConfigured(feedURL: "file:///dev/null", publicKey: wellFormedKey))
 }
 
 @Test func keyMustBe32BytesOfBase64() {

@@ -42,7 +42,9 @@ if [[ "$JUMPR_VERSION" =~ [[:space:]] ]]; then
 fi
 if [[ "$CODESIGN_IDENTITY" == "Developer ID"* ]]; then
     # Release: never ship with updates silently off or a build number Sparkle cannot compare.
-    [[ "$JUMPR_FEED_URL" =~ ^https://[^/[:space:]]+(/[^[:space:]]*)?$ ]] \
+    # UpdatePolicy.feedPattern, character for character: dotted host, optional port, plain path.
+    FEED_RE='^https://[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+(:[0-9]+)?(/[A-Za-z0-9._~%!$&'"'"'()*+,;=:/-]*)?$'
+    [[ "$JUMPR_FEED_URL" =~ $FEED_RE ]] \
         || fail "release build: JUMPR_FEED_URL must be an https URL, got '$JUMPR_FEED_URL'"
     # Exactly the base64 strings that decode to 32 bytes: 43 characters, then one '='.
     [[ "$JUMPR_SPARKLE_PUBLIC_KEY" =~ ^[A-Za-z0-9+/]{43}=$ ]] \
