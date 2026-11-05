@@ -6,6 +6,7 @@ import Testing
     #expect(RGB(hex: "ffd60a")?.hex == "FFD60A")
     #expect(RGB(hex: "zzz") == nil)
     #expect(RGB(hex: "FFF") == nil)
+    #expect(RGB(r: 1, g: 214.0 / 255, b: 10.0 / 255).hex == "FFD60A")
 }
 @Test func labelSizeClamps() {
     #expect(clampLabelSize(0) == 15)   // unset
@@ -30,4 +31,33 @@ import Testing
 @Test func hotkeyStoredRoundTrip() {
     #expect(Hotkey(stored: Hotkey.default.stored) == .default)
     #expect(Hotkey(stored: "garbage") == nil)
+}
+
+// Display: modifiers ⌃⌥⇧⌘, then the key. The character lookup stands in for the keyboard layout.
+private let noLookup: (Int64) -> String? = { _ in nil }
+@Test func hotkeyDisplayDefault() {
+    #expect(Hotkey.default.display(keyName: noLookup) == "⇧⌘Space")
+}
+@Test func hotkeyDisplayControlOptionLetterUsesLookupUppercased() {
+    let h = Hotkey(keyCode: 38, modifiers: Modifiers.option | Modifiers.control)
+    #expect(h.display(keyName: { $0 == 38 ? "j" : nil }) == "⌃⌥J")
+}
+@Test func hotkeyDisplayFunctionKeys() {
+    #expect(Hotkey(keyCode: 122, modifiers: Modifiers.command).display(keyName: noLookup) == "⌘F1")
+    #expect(Hotkey(keyCode: 111, modifiers: Modifiers.control).display(keyName: noLookup) == "⌃F12")
+}
+@Test func hotkeyDisplaySpecialKeysWinOverLookup() {
+    let all = Modifiers.control | Modifiers.option | Modifiers.shift | Modifiers.command
+    #expect(Hotkey(keyCode: 36, modifiers: all).display(keyName: { _ in "x" }) == "⌃⌥⇧⌘Return")
+    #expect(Hotkey.keyName(48) == "Tab")
+    #expect(Hotkey.keyName(51) == "Delete")
+    #expect(Hotkey.keyName(53) == "Esc")
+    #expect(Hotkey.keyName(123) == "←")
+    #expect(Hotkey.keyName(124) == "→")
+    #expect(Hotkey.keyName(125) == "↓")
+    #expect(Hotkey.keyName(126) == "↑")
+    #expect(Hotkey.keyName(38) == nil)
+}
+@Test func hotkeyDisplayUnknownKeyFallsBackToCode() {
+    #expect(Hotkey(keyCode: 200, modifiers: Modifiers.command).display(keyName: noLookup) == "⌘Key 200")
 }

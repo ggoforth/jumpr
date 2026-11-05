@@ -149,9 +149,11 @@ final class Controller {
         if debugLabels {
             for (label, p) in placed.sorted(by: { $0.key < $1.key }) {
                 let r = p.target.rect
+                let l = p.rect
                 let win = p.target.window.map { "\($0)" } ?? "-"
                 log("label \(label) \(p.target.role) pid=\(p.target.pid) win=\(win) "
-                    + "rect=\(Int(r.minX)),\(Int(r.minY)),\(Int(r.width)),\(Int(r.height))")
+                    + "rect=\(Int(r.minX)),\(Int(r.minY)),\(Int(r.width)),\(Int(r.height)) "
+                    + "label=\(Int(l.minX)),\(Int(l.minY)),\(Int(l.width)),\(Int(l.height))")
             }
         }
         // Nothing to type at: a capturing session would only swallow keys.

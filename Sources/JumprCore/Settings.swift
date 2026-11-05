@@ -38,12 +38,62 @@ public struct Hotkey: Equatable {
     public func matches(keyCode: Int64, flags: UInt64) -> Bool {
         keyCode == self.keyCode && (flags & Modifiers.mask) == modifiers
     }
+
+    /// Names for keys that produce no useful character. Nil for every other key.
+    public static func keyName(_ code: Int64) -> String? {
+        switch code {
+        case 49: return "Space"
+        case 36: return "Return"
+        case 48: return "Tab"
+        case 51: return "Delete"
+        case 53: return "Esc"
+        case 123: return "←"
+        case 124: return "→"
+        case 125: return "↓"
+        case 126: return "↑"
+        case 122: return "F1"
+        case 120: return "F2"
+        case 99: return "F3"
+        case 118: return "F4"
+        case 96: return "F5"
+        case 97: return "F6"
+        case 98: return "F7"
+        case 100: return "F8"
+        case 101: return "F9"
+        case 109: return "F10"
+        case 103: return "F11"
+        case 111: return "F12"
+        default: return nil
+        }
+    }
+
+    /// The combination as symbols, modifiers in the order ⌃⌥⇧⌘, e.g. `⇧⌘Space`.
+    /// `keyName` returns the character a key produces without modifiers (from the
+    /// keyboard layout); it is used only for keys `Hotkey.keyName` does not name.
+    public func display(keyName lookup: (Int64) -> String?) -> String {
+        var s = ""
+        if modifiers & Modifiers.control != 0 { s += "⌃" }
+        if modifiers & Modifiers.option != 0 { s += "⌥" }
+        if modifiers & Modifiers.shift != 0 { s += "⇧" }
+        if modifiers & Modifiers.command != 0 { s += "⌘" }
+        let key = Hotkey.keyName(keyCode)
+            ?? lookup(keyCode).map { $0.uppercased() }.flatMap { $0.isEmpty ? nil : $0 }
+            ?? "Key \(keyCode)"
+        return s + key
+    }
 }
 
 public struct RGB: Equatable {
     public var r: Double
     public var g: Double
     public var b: Double
+
+    /// Components in 0...1 (sRGB).
+    public init(r: Double, g: Double, b: Double) {
+        self.r = r
+        self.g = g
+        self.b = b
+    }
 
     /// Parses six hex digits, with or without a leading `#`.
     public init?(hex: String) {

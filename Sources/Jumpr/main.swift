@@ -15,6 +15,23 @@ log("trusted: \(trusted)")
 let defaults = UserDefaults.standard
 keyTap.hotkey = defaults.string(forKey: Keys.hotkey).flatMap { Hotkey(stored: $0) } ?? .default
 controller.readout.enabled = defaults.bool(forKey: Keys.showReadout)
+let readoutWatcher = DefaultsWatcher(Keys.showReadout) {
+    let on = defaults.bool(forKey: Keys.showReadout)
+    guard on != controller.readout.enabled else { return }
+    controller.readout.enabled = on
+    log("readout: \(on ? "enabled" : "disabled")")
+}
+
+let settingsWindow = SettingsWindow(
+    onRecording: { recording in
+        keyTap.suspended = recording
+        log("hotkey recorder: \(recording ? "recording, key listener suspended" : "done, key listener resumed")")
+    },
+    onHotkey: { hotkey in
+        keyTap.hotkey = hotkey
+        log("hotkey: \(hotkey.display(keyName: characterForKey)) (\(hotkey.stored))")
+    })
+statusItem.onSettings = { settingsWindow.show() }
 // The tap callback must return at once: the trigger runs on main's next turn.
 keyTap.onHotkey = { DispatchQueue.main.async { controller.trigger() } }
 keyTap.onKey = { controller.handle($0) }
@@ -47,5 +64,14 @@ debugSignal.setEventHandler {
     }
 }
 debugSignal.resume()
+
+// Debug: `kill -USR2 <pid>` = open Settings, the same path as the menu item.
+signal(SIGUSR2, SIG_IGN)
+let settingsSignal = DispatchSource.makeSignalSource(signal: SIGUSR2, queue: .main)
+settingsSignal.setEventHandler {
+    log("settings: opened by SIGUSR2")
+    statusItem.onSettings()
+}
+settingsSignal.resume()
 
 app.run()
