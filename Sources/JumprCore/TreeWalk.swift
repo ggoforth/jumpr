@@ -132,3 +132,10 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
     visit(root, clip: startClip, depth: 0)
     return result
 }
+
+/// Whether a web browser's windows came back empty: the walk counts each window's root,
+/// so `windowNodes` no larger than the number of windows walked means nothing under them.
+/// Undecided (false) when no window was walked.
+public func webTreeLooksEmpty(windowsScanned: Int, windowNodes: Int) -> Bool {
+    windowsScanned > 0 && windowNodes <= windowsScanned
+}

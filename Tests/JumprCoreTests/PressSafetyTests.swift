@@ -33,13 +33,14 @@ import CoreGraphics
     #expect(clickPoint(visible: visible, drawn: drawn, current: current) == CGPoint(x: 25, y: 5))
 }
 
-@Test func menuBarItemPressRelabels() {
-    #expect(relabelsAfterPress(role: "AXMenuBarItem", result: .pressed, selected: false))
-}
-
 @Test func menuItemRelabelsOnlyWhenLeftSelected() {
     #expect(relabelsAfterPress(role: "AXMenuItem", result: .pressed, selected: true))
     #expect(!relabelsAfterPress(role: "AXMenuItem", result: .pressed, selected: false))
+}
+
+@Test func menuBarItemRelabelsOnlyWhenLeftSelected() {   // extras open panels, not menus
+    #expect(relabelsAfterPress(role: "AXMenuBarItem", result: .pressed, selected: true))
+    #expect(!relabelsAfterPress(role: "AXMenuBarItem", result: .pressed, selected: false))
 }
 
 @Test func onlyAPressRelabels() {

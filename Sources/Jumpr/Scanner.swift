@@ -118,14 +118,19 @@ final class Scanner {
     }
 
     /// Every window of the app plus its system pieces, under one per-app budget.
-    /// Each result reaches `each` on the main queue as it finishes; `done` follows on main.
+    /// Each result reaches `each` on the main queue as it finishes; `done` follows on main,
+    /// with false if the scan stopped early because `isStale` (called on this app's queue,
+    /// before the first AX call and between windows) said its trigger is gone.
     func scanApp(pid: Int32, stack: WindowStack, screens: [CGRect], frontPid: Int32?, isDock: Bool,
-                 background: Bool, each: @escaping (WindowScan) -> Void, done: @escaping () -> Void) {
+                 background: Bool, isStale: @escaping () -> Bool,
+                 each: @escaping (WindowScan) -> Void, done: @escaping (_ complete: Bool) -> Void) {
         perform(pid: pid, background: background) { [self] in
             let t0 = now()
             let deadline = t0 + Scanner.budget
             let deliver = { (s: WindowScan) in DispatchQueue.main.async { each(s) } }
-            defer { DispatchQueue.main.async { done() } }
+            var cut = false  // stopped early: the trigger went stale
+            defer { DispatchQueue.main.async { [cut] in done(!cut) } }
+            if isStale() { cut = true; return }
             let app = axApp(pid)
 
             if isDock {
@@ -146,6 +151,7 @@ final class Scanner {
             let wins = resolveWindows(axElements(a[0]), pid: pid, stack: stack)
             let ids = Set(wins.map(\.id))
             for w in wins {
+                if isStale() { cut = true; return }
                 if stack.win(w.id) == nil || !stack.anyVisible(w.id) {
                     deliver(.empty(pid: pid, window: w.id, startedAt: now()))
                 } else {
@@ -153,6 +159,7 @@ final class Scanner {
                                        stack: stack, deadline: deadline))
                 }
             }
+            if isStale() { cut = true; return }
             deliver(scanSystem(pid: pid, app: app, isDock: false, isFront: pid == frontPid,
                                pieces: (axElementValue(a[1]), axElementValue(a[2])),
                                screens: screens, stack: stack, deadline: deadline))

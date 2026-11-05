@@ -46,13 +46,13 @@ public func clickPoint(visible: CGRect, drawn: CGRect, current: CGRect) -> CGPoi
     return CGPoint(x: r.midX, y: r.midY)
 }
 
-/// A press that opened a menu labels it right away: any menu bar item, or a menu item
-/// the press left selected (its submenu opened).
+/// A press that opened a menu labels it right away: a menu bar item or menu item the
+/// press left selected (its menu or submenu opened). Menu-bar extras share the
+/// `AXMenuBarItem` role but open panels, not menus, so they are not relabelled unless selected.
 public func relabelsAfterPress(role: String, result: PressResult, selected: Bool) -> Bool {
     guard result == .pressed else { return false }
     switch role {
-    case "AXMenuBarItem": return true
-    case "AXMenuItem": return selected
+    case "AXMenuBarItem", "AXMenuItem": return selected
     default: return false
     }
 }

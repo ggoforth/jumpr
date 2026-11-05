@@ -7,13 +7,16 @@ import JumprCore
 /// Generation rule: every trigger and every cancel bumps `generation`. Each scan
 /// callback captures the generation it was issued under and is dropped, before it
 /// touches overlays, the session or the readout, unless it still matches and the
-/// session is active (`isCurrent`).
+/// session is active (`isCurrent`). Scans already queued for a stale generation stop
+/// early through `isStale`, which reads `sharedGeneration`.
 final class Controller {
     var onMatched: (Target, CGRect) -> Void = { _, _ in }
     let readout = Readout()
     private(set) var isActive = false
     /// Identifies the current session; changes on every trigger and cancel.
-    private(set) var generation = 0
+    private(set) var generation = 0 { didSet { sharedGeneration.value = generation } }
+    /// A copy of `generation` that the scan queues may read; written only here, on main.
+    private let sharedGeneration = SharedGeneration()
 
     private let scanner: Scanner
     private let registry: TreeRegistry
@@ -160,20 +163,25 @@ final class Controller {
                 }
             }
             // Registry bookkeeping for the app, kept even if this trigger goes stale.
+            // A window with no nodes was not walked (hidden, gone, or out of budget).
+            var windowsScanned = 0
             var windowNodes = 0
             scanner.scanApp(pid: pid, stack: stack, screens: screens, frontPid: front, isDock: isDock, background: false,
+                            isStale: { [sharedGeneration] in sharedGeneration.value != gen },
                             each: { [weak self] s in
-                                if s.window != nil { windowNodes += s.nodes }
+                                if s.window != nil && s.nodes > 0 { windowsScanned += 1; windowNodes += s.nodes }
                                 guard let self, isCurrent(gen) else { return }  // stale: drop
                                 receive(s, name: name)
                             },
-                            done: { [weak self, scanner, registry] in
-                                if hasVisibleWindow {
-                                    let n = windowNodes
+                            done: { [weak self, scanner, registry] complete in
+                                // A scan cut short by a newer trigger says nothing about the tree.
+                                if hasVisibleWindow && complete {
+                                    let (w, n) = (windowsScanned, windowNodes)
                                     // Locked at any point while this app was scanned: its zero nodes mean nothing.
                                     let locked = lockedAtStart || screenIsLocked()
                                     scanner.perform(pid: pid, background: true) {
-                                        registry.noteScan(pid: pid, bundleID: bundle, windowNodes: n, screenLocked: locked)
+                                        registry.noteScan(pid: pid, bundleID: bundle, windowsScanned: w, windowNodes: n,
+                                                          screenLocked: locked)
                                     }
                                 }
                                 guard let self, isCurrent(gen) else { return }  // stale: drop
@@ -272,5 +280,15 @@ final class Controller {
         overlays.forEach { $0.close() }
         let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
         overlays = NSScreen.screens.map { Overlay($0, primaryHeight: primaryHeight) }
+    }
+}
+
+/// An `Int` that any thread may read and write under a lock.
+final class SharedGeneration: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored = 0
+    var value: Int {
+        get { lock.withLock { stored } }
+        set { lock.withLock { stored = newValue } }
     }
 }

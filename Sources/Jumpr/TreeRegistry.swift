@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import JumprCore
 
 /// Web-based apps (Electron, Chromium) keep their accessibility tree off until asked.
 /// Records only the trees Jumpr itself switched on, so it can switch exactly those back
@@ -56,16 +57,18 @@ final class TreeRegistry {
         }
     }
 
-    /// Records one finished scan of the app. A Chromium browser whose windows gave zero
-    /// nodes on its second scan or later also gets `AXEnhancedUserInterface`, unless it
-    /// is already on. Skipped when the screen was locked during the scan (`screenLocked`,
-    /// taken by the caller when the scan ran): every window scan is empty then.
-    func noteScan(pid: Int32, bundleID: String?, windowNodes: Int, screenLocked locked: Bool) {
+    /// Records one finished scan of the app. A Chromium browser whose windows came back
+    /// empty (`webTreeLooksEmpty`) on its second scan or later also gets
+    /// `AXEnhancedUserInterface`, unless it is already on. Skipped when the screen was
+    /// locked during the scan (`screenLocked`, taken by the caller when the scan ran):
+    /// every window scan is empty then.
+    func noteScan(pid: Int32, bundleID: String?, windowsScanned: Int, windowNodes: Int, screenLocked locked: Bool) {
         let count: Int = lock.withLock {
             scans[pid, default: 0] += 1
             return scans[pid]!
         }
-        guard count >= 2, windowNodes == 0, let bundleID, Self.chromiumIDs.contains(bundleID),
+        guard count >= 2, webTreeLooksEmpty(windowsScanned: windowsScanned, windowNodes: windowNodes),
+              let bundleID, Self.chromiumIDs.contains(bundleID),
               lock.withLock({ enabling && !enhanced.contains(pid) && !enhancedByOthers.contains(pid) })
         else { return }
         let logSkip: Bool = lock.withLock {

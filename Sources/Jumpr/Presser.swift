@@ -25,9 +25,10 @@ final class Presser {
     }
 
     /// Whether `result` opened a menu that should be labelled at once. Reads `AXSelected`
-    /// on the app's queue for a menu item; answers on main.
+    /// on the app's queue for a menu bar item or menu item; answers on main.
     func openedMenu(_ t: Target, result: PressResult, completion: @escaping (Bool) -> Void) {
-        guard result == .pressed, t.role == "AXMenuItem", let el = axElement(t.id) else {
+        guard result == .pressed, t.role == "AXMenuItem" || t.role == "AXMenuBarItem",
+              let el = axElement(t.id) else {
             let opened = relabelsAfterPress(role: t.role, result: result, selected: false)
             DispatchQueue.main.async { completion(opened) }
             return

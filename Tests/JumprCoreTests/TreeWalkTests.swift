@@ -109,3 +109,17 @@ private func buttonAt(depth: Int) -> Fake {
     #expect(run(buttonAt(depth: 79)).targets.count == 1)
     #expect(run(buttonAt(depth: 80)).targets.isEmpty)
 }
+
+// The walk counts each window's root node, so an empty web tree shows as one node per window.
+@Test func webTreeIsEmptyWhenWindowsGaveOnlyTheirRoots() {
+    #expect(webTreeLooksEmpty(windowsScanned: 1, windowNodes: 1))
+    #expect(webTreeLooksEmpty(windowsScanned: 3, windowNodes: 3))
+    #expect(webTreeLooksEmpty(windowsScanned: 2, windowNodes: 0))
+}
+@Test func webTreeIsNotEmptyWithMoreThanTheRoots() {
+    #expect(!webTreeLooksEmpty(windowsScanned: 1, windowNodes: 2))
+    #expect(!webTreeLooksEmpty(windowsScanned: 2, windowNodes: 40))
+}
+@Test func webTreeIsUndecidedWithNoWindowScanned() {
+    #expect(!webTreeLooksEmpty(windowsScanned: 0, windowNodes: 0))
+}
