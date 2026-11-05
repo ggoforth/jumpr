@@ -459,6 +459,12 @@ app visible, read from the readout:
 | System hotkey API silently not firing | Avoided by design; cause still unknown |
 | Only tested on macOS 27 | Fine for a personal tool; test older versions before any release |
 
+### Known limits
+
+- `AXManualAccessibility` cannot be read back, so Jumpr cannot tell whether another tool already had an app's tree on. On Pause and Quit it switches off every tree it set, including one another tool had on.
+- If Jumpr loses the Accessibility permission while running, it can no longer switch trees off: they stay on until those apps quit.
+- While a password field has keyboard focus (secure input), the hotkey and Esc do not reach Jumpr.
+
 ---
 
 ## 10. Left to the builder
