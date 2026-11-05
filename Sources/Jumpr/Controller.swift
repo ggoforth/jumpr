@@ -65,6 +65,7 @@ final class Controller {
 
     func trigger(capture: Bool = true) {
         if isActive { cancel(); return }
+        if tap.paused { log("trigger ignored: paused"); return }
         generation += 1
         let gen = generation
         isActive = true

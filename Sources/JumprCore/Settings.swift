@@ -129,4 +129,6 @@ public enum Keys {
     public static let batteryMode = "batteryMode"
     public static let showReadout = "showReadout"
     public static let paused = "paused"
+    /// Set once the login item has been registered automatically or toggled by hand.
+    public static let loginItemSetUp = "loginItemSetUp"
 }

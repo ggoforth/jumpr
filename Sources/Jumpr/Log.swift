@@ -4,6 +4,11 @@ private let logQueue = DispatchQueue(label: "jumpr.log")
 private let logURL = FileManager.default.homeDirectoryForCurrentUser
     .appendingPathComponent("Library/Logs/Jumpr.log")
 
+/// Blocks until every line logged so far is written. For use just before the process exits.
+func flushLog() {
+    logQueue.sync {}
+}
+
 /// Appends a timestamped line to ~/Library/Logs/Jumpr.log. Thread-safe.
 func log(_ s: String) {
     let stamp = ISO8601DateFormatter().string(from: Date())

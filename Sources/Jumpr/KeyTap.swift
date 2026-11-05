@@ -8,6 +8,9 @@ final class KeyTap {
     var hotkey: Hotkey = .default
     /// True while something else needs the keyboard untouched (e.g. the hotkey recorder).
     var suspended = false
+    /// True while Jumpr is paused: the hotkey is ignored and nothing is captured.
+    /// Separate from `suspended`, which the hotkey recorder owns.
+    var paused = false
     /// True while labels are up and typing selects them.
     var capturing = false
     var onHotkey: () -> Void = {}
@@ -55,7 +58,7 @@ final class KeyTap {
             onDisabled()
             return Unmanaged.passUnretained(event)
         }
-        guard type == .keyDown, !suspended else { return Unmanaged.passUnretained(event) }
+        guard type == .keyDown, !suspended, !paused else { return Unmanaged.passUnretained(event) }
 
         let code = event.getIntegerValueField(.keyboardEventKeycode)
         let flags = event.flags.rawValue

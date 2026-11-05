@@ -1,4 +1,4 @@
-.PHONY: test app run run-direct install
+.PHONY: test app run run-direct install icon
 
 test:
 	swift test
@@ -18,3 +18,9 @@ run-direct: app
 install: app
 	rm -rf /Applications/Jumpr.app
 	cp -R build/Jumpr.app /Applications/Jumpr.app
+
+# Redraws the placeholder icon. Resources/AppIcon.icns is committed; the iconset is scratch.
+icon:
+	rm -rf build/AppIcon.iconset
+	swift scripts/make-icon.swift build/AppIcon.iconset
+	iconutil -c icns build/AppIcon.iconset -o Resources/AppIcon.icns
