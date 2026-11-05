@@ -123,3 +123,11 @@ private func buttonAt(depth: Int) -> Fake {
 @Test func webTreeIsUndecidedWithNoWindowScanned() {
     #expect(!webTreeLooksEmpty(windowsScanned: 0, windowNodes: 0))
 }
+
+// Web content (browsers, Electron apps) answers "success" to a press and may do nothing.
+@Test func targetsUnderAWebAreaAreMarkedAsWeb() {
+    let web = Fake("AXWebArea", bounds, [Fake("AXGroup", bounds, [Fake("AXLink", r(10, 40))])])
+    let res = run(Fake("AXWindow", bounds, [Fake("AXButton", r(10, 10)), web]))
+    #expect(res.targets.map(\.role) == ["AXButton", "AXLink"])
+    #expect(res.targets.map(\.inWeb) == [false, true])
+}

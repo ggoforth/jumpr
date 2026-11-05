@@ -86,3 +86,10 @@ import CoreGraphics
     #expect(!usesAXPress(role: "AXTextField", actions: ["AXPress"]))
     #expect(!usesAXPress(role: "AXTextArea", actions: nil))
 }
+
+// Linear's sidebar lists AXPress, answers success, and does not navigate.
+@Test func webContentAlwaysGetsAClick() {
+    #expect(!usesAXPress(role: "AXButton", actions: ["AXPress", "AXShowMenu"], inWeb: true))
+    #expect(!usesAXPress(role: "AXLink", actions: nil, inWeb: true))
+    #expect(usesAXPress(role: "AXButton", actions: ["AXPress"], inWeb: false))
+}

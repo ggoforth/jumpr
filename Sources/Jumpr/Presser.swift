@@ -53,7 +53,8 @@ final class Presser {
         }
 
         var axError: Int32?
-        if usesAXPress(role: t.role, actions: axActionNames(el)) {
+        // Web content never needs the action list: it is clicked regardless.
+        if usesAXPress(role: t.role, actions: t.inWeb ? nil : axActionNames(el), inWeb: t.inWeb) {
             let err = AXUIElementPerformAction(el, kAXPressAction as CFString).rawValue
             axError = err
             switch afterAXPress(err) {

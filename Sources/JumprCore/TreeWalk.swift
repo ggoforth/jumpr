@@ -35,13 +35,16 @@ public struct Target: Equatable {
     public let role: String
     public let pid: Int32
     public let window: WindowID?
+    /// Inside web content (under an `AXWebArea`): a browser page or an Electron app's UI.
+    public let inWeb: Bool
 
-    public init(id: ElementID, rect: CGRect, role: String, pid: Int32, window: WindowID?) {
+    public init(id: ElementID, rect: CGRect, role: String, pid: Int32, window: WindowID?, inWeb: Bool = false) {
         self.id = id
         self.rect = rect
         self.role = role
         self.pid = pid
         self.window = window
+        self.inWeb = inWeb
     }
 }
 
@@ -82,7 +85,7 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
     case .system: startClip = .infinite
     }
 
-    func visit(_ node: any AXNode, clip: CGRect, depth: Int) {
+    func visit(_ node: any AXNode, clip: CGRect, depth: Int, inWeb: Bool) {
         if depth >= maxDepth || result.timedOut { return }
         if now() > deadline {
             result.timedOut = true
@@ -91,6 +94,7 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
         result.nodes += 1
         guard let info = node.info() else { return }
         if info.role == "AXColumn" { return }
+        let inWeb = inWeb || info.role == "AXWebArea"
 
         var clip = clip
         var visibleRect: CGRect?
@@ -107,11 +111,11 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
             switch scope {
             case .window(let id, _, let appWindows):
                 if stack.isVisible(c, window: id, pid: pid, appWindows: appWindows) {
-                    result.targets.append(Target(id: node.id, rect: r, role: info.role, pid: pid, window: id))
+                    result.targets.append(Target(id: node.id, rect: r, role: info.role, pid: pid, window: id, inWeb: inWeb))
                 }
             case .system(let screens):
                 if screens.contains(where: { $0.contains(c) }) {
-                    result.targets.append(Target(id: node.id, rect: r, role: info.role, pid: pid, window: nil))
+                    result.targets.append(Target(id: node.id, rect: r, role: info.role, pid: pid, window: nil, inWeb: inWeb))
                 }
             }
         }
@@ -125,11 +129,11 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
             children = rows
         }
         for child in children {
-            visit(child, clip: clip, depth: depth + 1)
+            visit(child, clip: clip, depth: depth + 1, inWeb: inWeb)
         }
     }
 
-    visit(root, clip: startClip, depth: 0)
+    visit(root, clip: startClip, depth: 0, inWeb: false)
     return result
 }
 
