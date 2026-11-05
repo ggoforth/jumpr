@@ -35,7 +35,7 @@ final class Overlay {
 
     init(_ screen: NSScreen, primaryHeight: CGFloat) {
         let f = screen.frame
-        frame = CGRect(x: f.minX, y: primaryHeight - f.maxY, width: f.width, height: f.height)
+        frame = displayFrameTopLeft(appKit: f, primaryHeight: primaryHeight)
         scale = screen.backingScaleFactor
         window = NSWindow(contentRect: f, styleMask: .borderless, backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
@@ -101,9 +101,7 @@ final class Overlay {
 
     /// Global top-left → this window's bottom-left layer space.
     private func local(_ r: CGRect) -> CGRect {
-        CGRect(x: (r.minX - frame.minX).rounded(),
-               y: (frame.height - (r.minY - frame.minY) - r.height).rounded(),
-               width: r.width, height: r.height)
+        overlayLocalRect(r, display: frame)
     }
 
     private func quietly(_ change: () -> Void) {
