@@ -49,6 +49,7 @@ final class Presser {
         if let wid = t.window {  // bring the owning app + window forward first
             let err = AXUIElementSetAttributeValue(axApp(t.pid), kAXFrontmostAttribute as CFString, kCFBooleanTrue)
             if err != .success { log("press: asking pid \(t.pid) forward failed (ax=\(err.rawValue))") }
+            Activation.activate(t.pid)  // macOS 27 ignores the accessibility request; ask publicly too
             if let w = scanner.appWindows(pid: t.pid).first(where: { $0.id == wid })?.element {
                 AXUIElementPerformAction(w, kAXRaiseAction as CFString)
                 raised = w
@@ -79,29 +80,44 @@ final class Presser {
     /// Blocks until the target's app is in front and its window is the main one, so the
     /// click lands as a click rather than only bringing the window forward (see
     /// `clickReadiness`). Something with no window (a menu bar icon) gets a short fixed pause.
+    ///
+    /// The app has already been asked forward through accessibility and `Activation.activate`.
+    /// If it has not come by the end of a step, the next, stronger request is made (see
+    /// `Activation`). The log names the step that worked.
     private static func waitUntilForward(_ t: Target, window: AXUIElement?) {
-        guard t.window != nil else { usleep(40_000); return }
+        guard let wid = t.window else { usleep(40_000); return }
         let app = axApp(t.pid)
         let t0 = now()
-        var waited = false
-        while true {
-            let front = axCopy(app, kAXFrontmostAttribute as String) as? Bool
-            let main = window.flatMap { axCopy($0, kAXMainAttribute as String) as? Bool }
-            switch clickReadiness(appFrontmost: front, windowMain: main, waited: now() - t0) {
-            case .ready:
-                guard waited else { return }  // it was already in front
-                usleep(50_000)  // the app says it is active; let the window server catch up
-                log(String(format: "press: pid %d came forward in %.0f ms", t.pid, (now() - t0) * 1000))
-                return
-            case .giveUp:
-                log(String(format: "press: pid %d not in front after %.0f ms (frontmost=%@ main=%@), clicking anyway",
-                           t.pid, (now() - t0) * 1000, "\(front as Any)", "\(main as Any)"))
-                return
-            case .wait:
-                waited = true
-                usleep(10_000)
+
+        /// True once the app is in front, false once `limit` seconds have passed.
+        func inFront(within limit: Double) -> Bool {
+            let start = now()
+            while true {
+                let front = axCopy(app, kAXFrontmostAttribute as String) as? Bool
+                let main = window.flatMap { axCopy($0, kAXMainAttribute as String) as? Bool }
+                switch clickReadiness(appFrontmost: front, windowMain: main, waited: now() - start, limit: limit) {
+                case .ready: return true
+                case .giveUp: return false
+                case .wait: usleep(10_000)
+                }
             }
         }
+
+        if inFront(within: 0) { return }  // it was already in front: click at once
+        let steps: [(name: String, limit: Double, ask: () -> Void)] = [
+            ("activate", 0.15, {}),  // already asked, before the press
+            ("open", 0.35, { Activation.open(t.pid) }),
+            ("window server", 0.3, { Activation.windowServer(t.pid, window: CGWindowID(wid)) }),
+        ]
+        for step in steps {
+            step.ask()
+            guard inFront(within: step.limit) else { continue }
+            if let window { AXUIElementPerformAction(window, kAXRaiseAction as CFString) }
+            usleep(50_000)  // the app says it is active; let the window server catch up
+            log(String(format: "press: pid %d came forward in %.0f ms (%@)", t.pid, (now() - t0) * 1000, step.name))
+            return
+        }
+        log(String(format: "press: pid %d not in front after %.0f ms, clicking anyway", t.pid, (now() - t0) * 1000))
     }
 
     private static func click(at p: CGPoint) {

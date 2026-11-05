@@ -61,6 +61,13 @@ import CoreGraphics
     #expect(clickReadiness(appFrontmost: false, windowMain: true, waited: 0.2, limit: 0.2) == .giveUp)
 }
 
+@Test func aFirstLookWithNoTimeToWaitNeverWaits() {
+    // The presser first looks once (limit 0): in front means click now, anything else means escalate.
+    #expect(clickReadiness(appFrontmost: true, windowMain: true, waited: 0, limit: 0) == .ready)
+    #expect(clickReadiness(appFrontmost: false, windowMain: true, waited: 0, limit: 0) == .giveUp)
+    #expect(clickReadiness(appFrontmost: nil, windowMain: nil, waited: 0, limit: 0) == .giveUp)
+}
+
 @Test func anAppThatDoesNotAnswerGetsTheOldFixedPause() {
     #expect(clickReadiness(appFrontmost: nil, windowMain: nil, waited: 0) == .wait)
     #expect(clickReadiness(appFrontmost: nil, windowMain: nil, waited: 0.04) == .ready)
