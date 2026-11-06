@@ -165,3 +165,30 @@ private func buttonAt(depth: Int) -> Fake {
     #expect(!treeMayStillBeBuilding(sinceSwitchedOn: nil))   // native app: nothing to wait for
     #expect(treeMayStillBeBuilding(sinceSwitchedOn: 4, allow: 5))
 }
+
+// System Settings' sidebar: a row and the button filling it got two labels 17 pt apart.
+@Test func aRowFilledByAButtonIsLabeledOnceOnTheButton() {
+    let button = Fake("AXButton", r(0, 0, 400, 24))
+    let row = Fake("AXRow", r(0, 0, 400, 24), [Fake("AXCell", r(0, 0, 400, 24), [button])])
+    #expect(run(Fake("AXWindow", bounds, [row])).targets.map(\.id) == [button.id])
+}
+@Test func aRowKeepsItsLabelBesideASmallControlAtItsEdge() {
+    let check = Fake("AXCheckBox", r(4, 4, 16, 16))
+    let row = Fake("AXRow", r(0, 0, 400, 24), [check])
+    #expect(run(Fake("AXWindow", bounds, [row])).targets.map(\.id) == [row.id, check.id])
+}
+@Test func aRowWithNothingClickableInsideKeepsItsLabel() {
+    let row = Fake("AXRow", r(0, 0, 400, 24), [Fake("AXCell", r(0, 0, 400, 24), [Fake("AXStaticText", r(0, 0, 400, 24))])])
+    #expect(run(Fake("AXWindow", bounds, [row])).targets.map(\.id) == [row.id])
+}
+@Test func theInnerControlWinsFromHalfTheRowsArea() {
+    let half = Fake("AXButton", r(0, 0, 200, 24)), less = Fake("AXButton", r(0, 24, 199, 24))
+    let rows = [Fake("AXRow", r(0, 0, 400, 24), [half]), Fake("AXRow", r(0, 24, 400, 24), [less])]
+    #expect(run(Fake("AXWindow", bounds, rows)).targets.map(\.id) == [half.id, rows[1].id, less.id])
+}
+@Test func nestedRowsCollapseToTheInnermostControl() {
+    let button = Fake("AXButton", r(20, 0, 380, 24))
+    let inner = Fake("AXRow", r(20, 0, 380, 24), [button])
+    let outer = Fake("AXRow", r(0, 0, 400, 24), [Fake("AXDisclosureTriangle", r(2, 4, 16, 16)), inner])
+    #expect(run(Fake("AXWindow", bounds, [outer])).targets.map(\.role) == ["AXDisclosureTriangle", "AXButton"])
+}
