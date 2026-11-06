@@ -108,6 +108,7 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
             if info.role == "AXScrollArea" { clip = r }
         }
 
+        let before = result.targets.count
         if Roles.clickable.contains(info.role), info.enabled != false,
            let r = visibleRect, r.width >= 4, r.height >= 4 {
             let c = CGPoint(x: r.midX, y: r.midY)
@@ -122,6 +123,7 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
                 }
             }
         }
+        let mine: Int? = result.targets.count > before ? before : nil
 
         if Roles.leaf.contains(info.role) { return }
         if (info.role == "AXMenuBarItem" || info.role == "AXMenuItem") && !node.isSelected() { return }
@@ -134,10 +136,29 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
         for child in children {
             visit(child, clip: clip, depth: depth + 1, inWeb: inWeb)
         }
+
+        // A clickable element (a row) with a clickable element inside it that covers at
+        // least half its area gets no label of its own: both labels would sit at the same
+        // right end (`Labels.frame`), and a press on the row mostly lands on the inner one
+        // anyway. A smaller control inside (a checkbox at the edge of a wide row) is a
+        // different action, so both keep their labels.
+        if let mine {
+            let outer = result.targets[mine].rect
+            if result.targets[(mine + 1)...].contains(where: { coversHalf($0.rect, of: outer) }) {
+                result.targets.remove(at: mine)
+            }
+        }
     }
 
     visit(root, clip: startClip, depth: 0, inWeb: false)
     return result
+}
+
+/// Whether `inner` covers at least half of `outer`'s area.
+func coversHalf(_ inner: CGRect, of outer: CGRect) -> Bool {
+    let i = inner.intersection(outer)
+    guard !i.isNull else { return false }
+    return 2 * i.width * i.height >= outer.width * outer.height
 }
 
 /// Whether a web tree switched on `sinceSwitchedOn` seconds ago may still be arriving, so a

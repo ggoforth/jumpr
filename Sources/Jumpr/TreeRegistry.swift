@@ -139,6 +139,15 @@ final class TreeRegistry {
         return group
     }
 
+    /// The app quit: drop everything recorded for it. Run it on the pid's scan queue, after
+    /// any work still queued there, so that work cannot record the pid again afterwards.
+    func forget(pid: Int32) {
+        lock.withLock {
+            seen.remove(pid); manual.remove(pid); enhanced.remove(pid); enhancedByOthers.remove(pid)
+            scans[pid] = nil; enabledAt[pid] = nil
+        }
+    }
+
     /// Lets trees be switched on again (after a resume); they come back on the next trigger.
     func allowEnabling() {
         lock.withLock { enabling = true }

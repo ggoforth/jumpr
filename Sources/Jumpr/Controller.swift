@@ -108,7 +108,11 @@ final class Controller {
             forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main
         ) { [unowned self] note in
             guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
-            extras.forget(pid: app.processIdentifier)
+            let pid = app.processIdentifier
+            extras.forget(pid: pid)
+            // Queued behind any scan of the app still running, then the queue itself goes.
+            scanner.perform(pid: pid, background: true) { [registry] in registry.forget(pid: pid) }
+            scanner.forget(pid: pid)
         }
     }
 
