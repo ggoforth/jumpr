@@ -18,6 +18,8 @@ struct WindowScan {
     let startedAt: Double
     let ms: Double
     let timedOut: Bool
+    /// Web areas the walk met in this window, empty ones included.
+    var webAreas = 0
 
     /// Nothing scanned: the window is hidden, gone, or (`timedOut`) the app did not answer.
     static func empty(pid: Int32, window: WindowID?, startedAt: Double, ms: Double = 0,
@@ -198,7 +200,7 @@ final class Scanner {
                      scope: .window(id: id, bounds: bounds, appWindows: appWindows),
                      stack: stack, deadline: deadline, now: now)
         return WindowScan(pid: pid, window: id, targets: r.targets, nodes: r.nodes, startedAt: t0,
-                          ms: (now() - t0) * 1000, timedOut: r.timedOut)
+                          ms: (now() - t0) * 1000, timedOut: r.timedOut, webAreas: r.webAreas)
     }
 
     /// Dock: the whole application tree. Otherwise the menu bar (front app only) and extras.

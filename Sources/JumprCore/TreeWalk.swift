@@ -66,6 +66,8 @@ public struct WalkResult {
     public var targets: [Target]
     public var nodes: Int
     public var timedOut: Bool
+    /// `AXWebArea` nodes visited, empty ones included (see `webViewMayStillBeBuilding`).
+    public var webAreas = 0
 
     public init(targets: [Target], nodes: Int, timedOut: Bool) {
         self.targets = targets
@@ -94,6 +96,7 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
         result.nodes += 1
         guard let info = node.info() else { return }
         if info.role == "AXColumn" { return }
+        if info.role == "AXWebArea" { result.webAreas += 1 }
         let inWeb = inWeb || info.role == "AXWebArea"
 
         var clip = clip
@@ -147,6 +150,17 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
 public func treeMayStillBeBuilding(sinceSwitchedOn: Double?, allow: Double = 3.0) -> Bool {
     guard let sinceSwitchedOn else { return false }
     return sinceSwitchedOn < allow
+}
+
+/// Whether a web view may still be building its tree, so a scan of its app is worth
+/// repeating. A WebKit view builds its tree only once something has asked for it: the first
+/// scan of an email open in Mail found no links, the next found ten.
+/// `hostsWeb`: the app has shown a web area, in this scan or an earlier one.
+/// `webTargets`: what this scan found to click inside web areas.
+/// `sinceTrigger`: seconds since the labels went up.
+public func webViewMayStillBeBuilding(hostsWeb: Bool, webTargets: Int, sinceTrigger: Double,
+                                      allow: Double = 1.3) -> Bool {
+    hostsWeb && webTargets == 0 && sinceTrigger < allow
 }
 
 public func webTreeLooksEmpty(windowsScanned: Int, windowNodes: Int) -> Bool {

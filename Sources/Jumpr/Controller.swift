@@ -42,6 +42,8 @@ final class Controller {
     private var style = LabelStyle.current()
     /// Labels needed by the previous complete trigger, for sizing the next one's labels.
     private var lastTotal: Int?
+    /// Apps that have shown a web area in some scan (see `rescanWhileTreeBuilds`).
+    private var webHosts = Set<Int32>()
 
     private let debugLabels = ProcessInfo.processInfo.environment["JUMPR_DEBUG_LABELS"] != nil
     private var colorWatchers: [DefaultsWatcher] = []
@@ -157,6 +159,7 @@ final class Controller {
         if screenIsLocked() { log("trigger ignored: locked"); return }
         generation += 1
         let gen = generation
+        let started = now()
         isActive = true
         tap.capturing = capture
 
@@ -199,10 +202,12 @@ final class Controller {
             // A window with no nodes was not walked (hidden, gone, or out of budget).
             var windowsScanned = 0
             var windowNodes = 0
+            var web = WebFound()
             scanner.scanApp(pid: pid, stack: stack, screens: screens, frontPid: front, isDock: isDock, background: false,
                             isStale: { [sharedGeneration] in sharedGeneration.value != gen },
                             each: { [weak self] s in
                                 if s.window != nil && s.nodes > 0 { windowsScanned += 1; windowNodes += s.nodes }
+                                web.add(s)
                                 guard let self, isCurrent(gen) else { return }  // stale: drop
                                 receive(s, name: name)
                             },
@@ -221,25 +226,51 @@ final class Controller {
                                 pendingApps -= 1
                                 if pendingApps == 0 { finish() }
                                 rescanWhileTreeBuilds(pid: pid, name: name, isDock: isDock, stack: stack,
-                                                      front: front, gen: gen)
+                                                      front: front, gen: gen, web: web, started: started)
                             })
         }
     }
 
-    /// A web tree switched on moments ago is still being built (1Password takes 1 to 2 s),
-    /// so the scan just finished found an empty window. While these labels are up, look at
-    /// that app again every 0.4 s until its tree has had time to arrive, and add the labels
-    /// that were missing. Only apps whose tree Jumpr switched on within the last few seconds.
+    /// What one scan of an app met of web content: its web areas, and what there was to
+    /// click inside them. `walkedWindow`: some window was on screen to look in at all.
+    private struct WebFound {
+        var areas = 0
+        var targets = 0
+        var walkedWindow = false
+        mutating func add(_ s: WindowScan) {
+            if s.window != nil && s.nodes > 0 { walkedWindow = true }
+            areas += s.webAreas
+            targets += s.targets.lazy.filter(\.inWeb).count
+        }
+    }
+
+    /// The scan just finished may have come too early for the app's tree. While these
+    /// labels are up, look at the app again every 0.4 s and add the labels that were missing.
+    /// Two cases. A web tree Jumpr switched on moments ago is still being built (1Password
+    /// takes 1 to 2 s), so the scan found an empty window. And a WebKit view (an email open
+    /// in Mail) builds its tree only once asked: the scan that asked found nothing to click
+    /// in it (`web`), so repeat until something is there or `started` is too long ago.
     private func rescanWhileTreeBuilds(pid: Int32, name: String, isDock: Bool, stack: WindowStack,
-                                       front: Int32?, gen: Int) {
-        guard treeMayStillBeBuilding(sinceSwitchedOn: registry.sinceEnabled(pid)) else { return }
+                                       front: Int32?, gen: Int, web: WebFound, started: Double,
+                                       isRepeat: Bool = false) {
+        if web.areas > 0 { webHosts.insert(pid) }
+        let switchedOn = treeMayStillBeBuilding(sinceSwitchedOn: registry.sinceEnabled(pid))
+        // An app with no window on screen (hidden, or on another Space) has no web view to wait for.
+        let webView = webViewMayStillBeBuilding(hostsWeb: webHosts.contains(pid) && web.walkedWindow,
+                                                webTargets: web.targets, sinceTrigger: now() - started)
+        guard switchedOn || webView else { return }
+        if webView && !switchedOn && !isRepeat {
+            log("nothing to click in \(name)'s web view (\(web.areas) web areas): looking again")
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
             guard let self, isCurrent(gen) else { return }
             var added = 0
+            var web = WebFound()
             scanner.scanApp(pid: pid, stack: stack, screens: screens, frontPid: front, isDock: isDock, background: false,
                             isStale: { [sharedGeneration] in sharedGeneration.value != gen },
                             each: { [weak self] s in
                                 guard let self, isCurrent(gen) else { return }
+                                web.add(s)
                                 added += receive(s, name: name, late: true)
                             },
                             done: { [weak self] _ in
@@ -250,7 +281,8 @@ final class Controller {
                                     log("late labels: \(added) more in \(name), its tree was still building")
                                 }
                                 rescanWhileTreeBuilds(pid: pid, name: name, isDock: isDock, stack: stack,
-                                                      front: front, gen: gen)
+                                                      front: front, gen: gen, web: web, started: started,
+                                                      isRepeat: true)
                             })
         }
     }

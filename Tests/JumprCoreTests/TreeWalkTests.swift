@@ -132,6 +132,23 @@ private func buttonAt(depth: Int) -> Fake {
     #expect(res.targets.map(\.inWeb) == [false, true])
 }
 
+@Test func countsWebAreas() {
+    let web = Fake("AXWebArea", bounds, [Fake("AXLink", r(10, 40))])
+    #expect(run(Fake("AXWindow", bounds, [Fake("AXButton", r(10, 10)), web])).webAreas == 1)
+    #expect(run(Fake("AXWindow", bounds, [Fake("AXButton", r(10, 10))])).webAreas == 0)
+    #expect(run(Fake("AXWindow", bounds, [Fake("AXWebArea", bounds)])).webAreas == 1)   // empty: still counted
+}
+
+// Mail's message body: the first scan found no links, the next found ten.
+@Test func aWebViewWithNothingToClickMayStillBeBuilding() {
+    #expect(webViewMayStillBeBuilding(hostsWeb: true, webTargets: 0, sinceTrigger: 0))
+    #expect(webViewMayStillBeBuilding(hostsWeb: true, webTargets: 0, sinceTrigger: 1.2))
+    #expect(!webViewMayStillBeBuilding(hostsWeb: true, webTargets: 0, sinceTrigger: 1.3))   // waited long enough
+    #expect(!webViewMayStillBeBuilding(hostsWeb: true, webTargets: 10, sinceTrigger: 0))    // already built
+    #expect(!webViewMayStillBeBuilding(hostsWeb: false, webTargets: 0, sinceTrigger: 0))    // no web view: nothing to wait for
+    #expect(webViewMayStillBeBuilding(hostsWeb: true, webTargets: 0, sinceTrigger: 2, allow: 3))
+}
+
 @Test func aTreeSwitchedOnMomentsAgoMayStillBeBuilding() {
     #expect(treeMayStillBeBuilding(sinceSwitchedOn: 0))
     #expect(treeMayStillBeBuilding(sinceSwitchedOn: 1.5))    // 1Password: still empty containers
