@@ -40,6 +40,19 @@ public enum Labels {
         return CGRect(x: cx, y: cy, width: w, height: h)
     }
 
+    /// A box for `characters` letters in scroll mode, at the top-left corner inside an area
+    /// (clear of its 2 pt outline), or just right of `after` (the outlined area's tag), kept
+    /// inside `screen`. In the corner it covers the least of what the area shows.
+    public static func insideTopLeft(characters: Int, of area: CGRect, after: CGRect?, screen: CGRect,
+                                     fontSize: CGFloat, advance: CGFloat) -> CGRect {
+        let w = ceil(CGFloat(characters) * advance + fontSize * 0.6)
+        let h = ceil(fontSize * 1.3)
+        let x = (after?.maxX ?? area.minX) + 4
+        let y = area.minY + 4
+        return CGRect(x: max(screen.minX, min(x, screen.maxX - w)),
+                      y: max(screen.minY, min(y, screen.maxY - h)), width: w, height: h)
+    }
+
     /// Index of the first screen containing `p`, or nil when it is on none.
     public static func screenIndex(for p: CGPoint, screens: [CGRect]) -> Int? {
         screens.firstIndex { $0.contains(p) }
