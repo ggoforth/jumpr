@@ -9,8 +9,24 @@ final class StatusItem: NSObject, NSMenuItemValidation {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let pauseItem = NSMenuItem(title: "Pause", action: #selector(togglePause), keyEquivalent: "")
     private let updatesItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
-    private let plainImage = NSImage(systemSymbolName: "character.textbox", accessibilityDescription: "Jumpr")
+    private let plainImage: NSImage? = StatusItem.letterImage()
     private lazy var badgedImage = plainImage.map(Self.badged)
+
+    /// The menu bar icon: a heavy italic J with no box. Template, so the menu bar draws it
+    /// white on a dark bar and black on a light one.
+    private static func letterImage() -> NSImage {
+        let heavy = NSFont.systemFont(ofSize: 17, weight: .black)
+        let font = NSFontManager.shared.convert(heavy, toHaveTrait: .italicFontMask)
+        let letter = NSAttributedString(string: "J", attributes: [.font: font, .foregroundColor: NSColor.black])
+        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { rect in
+            let size = letter.size()
+            letter.draw(at: NSPoint(x: (rect.width - size.width) / 2, y: (rect.height - size.height) / 2))
+            return true
+        }
+        image.isTemplate = true
+        image.accessibilityDescription = "Jumpr"
+        return image
+    }
 
     override init() {
         super.init()
