@@ -59,8 +59,6 @@ public struct LabelPool {
         self.total = t
     }
 
-    public var remaining: Int { total - index }
-
     /// Next unused label, or nil once every label of this length is handed out.
     public mutating func next() -> String? {
         guard index < total else { return nil }

@@ -15,7 +15,6 @@ struct SettingsView: View {
     @AppStorage(Keys.labelColor) private var labelHex = "FFD60A"
     @AppStorage(Keys.labelTextColor) private var textHex = "000000"
     @AppStorage(Keys.hotkey) private var hotkeyStored = Hotkey.default.stored
-    @AppStorage(Keys.batteryMode) private var battery = BatteryMode.frontApp.rawValue
     @AppStorage(Keys.showReadout) private var showReadout = false
     @AppStorage(Keys.showAdvancedSettings) private var showAdvanced = false
 
@@ -34,20 +33,10 @@ struct SettingsView: View {
             Section("Hotkey") {
                 HotkeyRecorder(hotkey: hotkeyBinding, onRecording: onRecording)
             }
-            // Hidden from strangers; both still work when set by hand, and the third key
-            // shows them again:
-            //   defaults write com.greggoforth.jumpr batteryMode -string full|frontApp|onDemand
+            // Hidden from strangers; the readout still works when set by hand, and the
+            // second key shows its toggle again:
             //   defaults write com.greggoforth.jumpr showReadout -bool true
             //   defaults write com.greggoforth.jumpr showAdvancedSettings -bool true
-            if showAdvanced {
-                Section("On battery") {
-                    Picker("On battery", selection: $battery) {
-                        Text("Full speed").tag(BatteryMode.full.rawValue)
-                        Text("Front app only").tag(BatteryMode.frontApp.rawValue)
-                        Text("Scan on demand").tag(BatteryMode.onDemand.rawValue)
-                    }
-                }
-            }
             Section("General") {
                 Toggle("Start at login", isOn: Binding(get: { loginItem.enabled }, set: { loginItem.set($0) }))
                 if loginItem.needsApproval {

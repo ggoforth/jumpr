@@ -83,14 +83,6 @@ final class Overlay {
         }
     }
 
-    func remove(_ layer: CALayer) {
-        quietly { layer.removeFromSuperlayer() }
-    }
-
-    func move(_ layer: CALayer, to rect: CGRect) {
-        quietly { layer.frame = local(rect) }
-    }
-
     func clear() {
         quietly { root.sublayers?.forEach { $0.removeFromSuperlayer() } }
     }

@@ -84,8 +84,6 @@ private let noLookup: (Int64) -> String? = { _ in nil }
 
 // Hidden settings are set by hand with `defaults write`, so their names must not drift.
 @Test func handSetKeysKeepTheirNames() {
-    #expect(Keys.batteryMode == "batteryMode")
     #expect(Keys.showReadout == "showReadout")
     #expect(Keys.showAdvancedSettings == "showAdvancedSettings")
-    #expect(BatteryMode.allCases.map(\.rawValue) == ["full", "frontApp", "onDemand"])
 }
