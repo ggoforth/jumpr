@@ -1,12 +1,13 @@
 public enum Key: Equatable {
-    case character(Character), backspace, escape, hotkey, modified, other
+    case character(Character), backspace, escape, modified, other
 }
 
 public enum Outcome: Equatable {
     case passThrough, swallow, narrowed(String), cancelled, matched(String)
 }
 
-/// What each key does while labels are on screen.
+/// What each key does while labels are on screen. The hotkey is not one of them: the key
+/// listener takes it before this and cancels the session itself.
 public struct LabelSession {
     public private(set) var typed: String = ""
     public var labels: Set<String> = []
@@ -17,7 +18,7 @@ public struct LabelSession {
         switch key {
         case .modified:
             return .passThrough
-        case .escape, .hotkey:
+        case .escape:
             return .cancelled
         case .other:
             return .swallow

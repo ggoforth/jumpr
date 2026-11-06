@@ -15,19 +15,24 @@ release:
 	@test -n "$(VERSION)" || { echo "usage: make release VERSION=x.y.z [ARGS=--skip-notarize]" >&2; exit 1; }
 	scripts/release.sh $(VERSION) $(ARGS)
 
-# Both listen for the same hotkey: the throwaway spike is stopped first.
+# Two copies would listen for the same hotkey: any running Jumpr is stopped first.
 run: app
-	-pkill -x jumpr-spike
 	-pkill -x Jumpr
 	open build/Jumpr.app
 
 # Started as a child of the shell so it inherits that shell's Accessibility access.
 run-direct: app
-	-pkill -x jumpr-spike
 	-pkill -x Jumpr
 	nohup build/Jumpr.app/Contents/MacOS/Jumpr >/dev/null 2>&1 &
 
+# Puts the development build in /Applications. A development build never updates itself
+# and is signed differently from a release, so macOS asks for the Accessibility permission
+# again. Replacing a copy that is already there needs FORCE=1.
 install: app
+	@if [ -e /Applications/Jumpr.app ] && [ "$(FORCE)" != 1 ]; then \
+		echo "/Applications/Jumpr.app exists. This would replace it with a development build," >&2; \
+		echo "which does not update itself and needs the Accessibility permission granted again." >&2; \
+		echo "To go ahead: make install FORCE=1" >&2; exit 1; fi
 	rm -rf /Applications/Jumpr.app
 	cp -R build/Jumpr.app /Applications/Jumpr.app
 

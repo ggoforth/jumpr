@@ -8,8 +8,8 @@ There is a live demo on the website: [getjumpr.app](https://getjumpr.app).
 
 ## What it does
 
-- Press ⌘⇧Space and Jumpr puts a two-letter label on every clickable element on every display: buttons, links, Dock icons, menu bar icons and menus.
-- Type the two letters and Jumpr clicks that element.
+- Press ⌘⇧Space and Jumpr puts a short label, usually two letters, on every clickable element on every display: buttons, links, Dock icons, menu bar icons and menus.
+- Type the letters and Jumpr clicks that element.
 - Labels take about a tenth of a second to appear.
 - It is free and open source, from BaggaDonuts LLC. It needs macOS 15 or later and works with one display or several.
 
@@ -30,7 +30,7 @@ What Jumpr does with it:
 
 - It reads the screen on your Mac to place labels. What it reads is not recorded, stored or sent anywhere.
 - It does not record your screen.
-- It keeps a small activity log on your Mac (`~/Library/Logs/Jumpr.log`). The log has timings and the kind of control and app for each press. It has no window contents, no on-screen text and nothing you type.
+- It keeps a small activity log on your Mac (`~/Library/Logs/Jumpr.log`). The log has timings, the names of the apps Jumpr looked at, and the kind of control and app for each press. It has no window contents, no on-screen text and nothing you type. If you attach it to an issue, it shows which apps you had open.
 
 ## Using it
 
@@ -79,17 +79,22 @@ make test
 make run
 ```
 
-`make run` builds `build/Jumpr.app` and opens it. It stops any running copy of Jumpr first.
+`make run` builds `build/Jumpr.app` and opens it. It stops any running copy of Jumpr first. The first build downloads one dependency, [Sparkle](https://sparkle-project.org) (the updater), pinned to an exact version in `Package.swift`.
 
-`make run` signs the app with an "Apple Development" identity (`scripts/build-app.sh`). A stable identity is what keeps the Accessibility permission across rebuilds. If you have no such identity in your keychain, signing fails. Skip it and sign ad hoc instead:
+`make run` signs the app with an "Apple Development" identity (`scripts/build-app.sh`). A stable identity is what keeps the Accessibility permission across rebuilds. If you have no such identity in your keychain, sign ad hoc instead:
 
 ```bash
-JUMPR_NO_SIGN=1 make app
-codesign --force --sign - build/Jumpr.app
-open build/Jumpr.app
+CODESIGN_IDENTITY=- make run
 ```
 
 An ad-hoc build has no stable identity, so you have to grant Accessibility again after each rebuild.
+
+Things to know when you work on it:
+
+- A build from source is a development build. It shows version 0.1.0, never updates itself, and shares the bundle ID, preferences and log of an installed Jumpr. `make run` stops the installed copy; reopen it from Applications when you are done.
+- macOS ties the Accessibility permission to the signature. If you also have the released Jumpr installed, its entry in System Settings does not cover your build: remove the entry and add your build, or run `tccutil reset Accessibility com.greggoforth.jumpr` and grant it again.
+- The logic lives in `Sources/JumprCore` and is covered by `make test`. `Sources/Jumpr` is the app around it (windows, the key listener, accessibility calls) and has no unit tests.
+- Start Jumpr with `JUMPR_DEBUG_LABELS=1` in its environment to log every label's position. That also logs the label letters you type, so leave it off otherwise.
 
 `make release` and `scripts/release.sh` exist for maintainers who build the signed, notarized download.
 
@@ -108,6 +113,8 @@ Open an issue on [GitHub](https://github.com/ggoforth/jumpr/issues). Contributio
 ## License
 
 [MIT](LICENSE). Copyright (c) 2026 BaggaDonuts LLC.
+
+Jumpr includes [Sparkle](https://github.com/sparkle-project/Sparkle) for updates, under its own MIT-style license. That license ships inside the app as `Sparkle-LICENSE.txt`.
 
 ## More from BaggaDonuts
 
