@@ -110,6 +110,8 @@ Things to know when you work on it:
 
 Open an issue on [GitHub](https://github.com/ggoforth/jumpr/issues). Contributions are welcome. There is no promise about how fast anyone replies.
 
+For a security problem, please report it privately instead: see [SECURITY.md](SECURITY.md).
+
 ## License
 
 [MIT](LICENSE). Copyright (c) 2026 BaggaDonuts LLC.
