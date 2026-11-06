@@ -12,6 +12,8 @@ struct WindowScan {
     let timedOut: Bool
     /// Web areas the walk met in this window, empty ones included.
     var webAreas = 0
+    /// Areas to scroll, from a scan for scroll mode (`Scanner.scanAreas`).
+    var areas: [Area] = []
 
     /// Nothing scanned: the window is hidden, gone, or (`timedOut`) the app did not answer.
     static func empty(pid: Int32, window: WindowID?, startedAt: Double, ms: Double = 0,
@@ -126,6 +128,47 @@ final class Scanner {
         }
     }
 
+    /// The areas to scroll in every visible window of the app, for scroll mode: the same
+    /// queue, budget, timeout and staleness check as `scanApp`, without the menu bar and
+    /// extras, which hold nothing to scroll. Each window's result reaches `each` on main;
+    /// `done` follows on main, false if the scan stopped early because it went stale.
+    func scanAreas(pid: Int32, stack: WindowStack, isStale: @escaping () -> Bool,
+                   each: @escaping (WindowScan) -> Void, done: @escaping (_ complete: Bool) -> Void) {
+        perform(pid: pid, background: false) { [self] in
+            let t0 = now()
+            let deadline = t0 + Scanner.budget
+            let deliver = { (s: WindowScan) in DispatchQueue.main.async { each(s) } }
+            var cut = false
+            defer { DispatchQueue.main.async { [cut] in done(!cut) } }
+            if isStale() { cut = true; return }
+            let (values, err) = axMultiResult(axApp(pid), windowsAttr)
+            guard let a = values, a.count == 1 else {
+                let elapsed = now() - t0
+                if didNotAnswer(err, after: elapsed) {
+                    deliver(.empty(pid: pid, window: nil, startedAt: t0, ms: elapsed * 1000, timedOut: true))
+                }
+                return
+            }
+            let wins = resolveWindows(axElements(a[0]), pid: pid, stack: stack)
+            let ids = Set(wins.map(\.id))
+            for w in wins {
+                if isStale() { cut = true; return }
+                guard stack.win(w.id) != nil, stack.anyVisible(w.id) else { continue }
+                deliver(scanWindow(pid: pid, id: w.id, element: w.element, appWindows: ids,
+                                   stack: stack, deadline: deadline, finding: .areas))
+            }
+        }
+    }
+
+    /// The frame of the element holding the app's keyboard focus, or nil if it reports none
+    /// (some web-based apps do not while they are not in front). Two requests, once per
+    /// scroll mode: only call it from `pid`'s queue (inside `perform`).
+    func focusFrame(pid: Int32) -> CGRect? {
+        guard let focused = axCopy(axApp(pid), kAXFocusedUIElementAttribute as String).flatMap(axElementValue)
+        else { return nil }
+        return axFrame(axTimed(focused))
+    }
+
     // MARK: - Private (all run on the pid's queue)
 
     private let windowsAttr = ["AXWindows"] as CFArray
@@ -148,16 +191,16 @@ final class Scanner {
     }
 
     private func scanWindow(pid: Int32, id: WindowID, element: AXUIElement?, appWindows: Set<WindowID>,
-                            stack: WindowStack, deadline: Double) -> WindowScan {
+                            stack: WindowStack, deadline: Double, finding: Finding = .targets) -> WindowScan {
         let t0 = now()
         guard let element, let bounds = stack.win(id)?.bounds else {
             return .empty(pid: pid, window: id, startedAt: t0)
         }
         let r = walk(root: AXElementNode(element), pid: pid,
                      scope: .window(id: id, bounds: bounds, appWindows: appWindows),
-                     stack: stack, deadline: deadline, now: now)
+                     stack: stack, deadline: deadline, now: now, finding: finding)
         return WindowScan(pid: pid, window: id, targets: r.targets, nodes: r.nodes, startedAt: t0,
-                          ms: (now() - t0) * 1000, timedOut: r.timedOut, webAreas: r.webAreas)
+                          ms: (now() - t0) * 1000, timedOut: r.timedOut, webAreas: r.webAreas, areas: r.areas)
     }
 
     /// Dock: the whole application tree. Otherwise the menu bar (front app only) and extras.

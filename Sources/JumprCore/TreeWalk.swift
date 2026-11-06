@@ -54,6 +54,27 @@ public struct Target: Equatable {
     }
 }
 
+/// Somewhere scroll mode can scroll: a scroll area, a page, or a scrolling region of web
+/// content. Its rectangle is the visible part, global top-left.
+public struct Area: Equatable {
+    public let id: ElementID
+    public let rect: CGRect
+    public let pid: Int32
+    public let window: WindowID
+
+    public init(id: ElementID, rect: CGRect, pid: Int32, window: WindowID) {
+        self.id = id
+        self.rect = rect
+        self.pid = pid
+        self.window = window
+    }
+}
+
+/// What a walk collects: targets to label, or areas to scroll.
+public enum Finding {
+    case targets, areas
+}
+
 public enum Roles {
     public static let text: Set<String> = ["AXTextField", "AXTextArea", "AXComboBox"]
     public static let leaf: Set<String> = text.union([
@@ -75,6 +96,23 @@ public enum Roles {
     /// presents each folder as an `AXUnknown` child of its list, with no children and no
     /// actions: its place in the list is the only sign that it is something to click.
     public static let clickableAsListItem: Set<String> = ["AXUnknown"]
+    /// Areas to scroll: a scroll area, a page.
+    public static let scrollable: Set<String> = ["AXScrollArea", "AXWebArea"]
+    /// Areas to scroll in web content only, if the element itself can take keyboard focus.
+    /// Chromium and Electron expose a scrolling region as a plain group with no scroll role;
+    /// being focusable is what sets it apart from the groups around it.
+    public static let scrollableIfFocusable: Set<String> = ["AXGroup"]
+}
+
+/// The smallest area worth scrolling, per side of its visible part. Smaller ones are a
+/// toolbar's strip or a row of tags, not something a person reads by scrolling.
+public let minAreaSide: CGFloat = 80
+
+/// Whether two nested areas are one to a person: every edge within 6 pt. Safari wraps its
+/// page in a scroll area of the same size.
+public func nearlySameRect(_ a: CGRect, _ b: CGRect) -> Bool {
+    abs(a.minX - b.minX) <= 6 && abs(a.maxX - b.maxX) <= 6
+        && abs(a.minY - b.minY) <= 6 && abs(a.maxY - b.maxY) <= 6
 }
 
 public enum WalkScope {
@@ -88,6 +126,8 @@ public struct WalkResult {
     public var timedOut: Bool
     /// `AXWebArea` nodes visited, empty ones included (see `webViewMayStillBeBuilding`).
     public var webAreas = 0
+    /// Areas to scroll, when the walk looks for them (`Finding.areas`).
+    public var areas: [Area] = []
 
     public init(targets: [Target], nodes: Int, timedOut: Bool) {
         self.targets = targets
@@ -98,8 +138,11 @@ public struct WalkResult {
 
 private let maxDepth = 80
 
+/// `finding`: targets to label, or areas to scroll. Both share the clip, the on-top rule and
+/// the descent. Looking for areas labels nothing and never asks whether text offers a press;
+/// areas are found in windows only, never in the menu bar or the Dock.
 public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowStack,
-                 deadline: Double, now: () -> Double) -> WalkResult {
+                 deadline: Double, now: () -> Double, finding: Finding = .targets) -> WalkResult {
     var result = WalkResult(targets: [], nodes: 0, timedOut: false)
     let startClip: CGRect
     switch scope {
@@ -107,8 +150,30 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
     case .system: startClip = .infinite
     }
 
+    /// Records the node as an area if it is one, and returns the nearest area around its
+    /// children. Kept out of `visit`, whose frame is on the stack once per level of the tree.
+    func noteArea(_ id: ElementID, role: String, focusable: Bool, visible r: CGRect, inWeb: Bool,
+                  inArea: Int?) -> Int? {
+        guard case .window(let window, _, let appWindows) = scope,
+              r.width >= minAreaSide, r.height >= minAreaSide,
+              Roles.scrollable.contains(role) || (inWeb && focusable && Roles.scrollableIfFocusable.contains(role)),
+              stack.isVisible(CGPoint(x: r.midX, y: r.midY), window: window, pid: pid, appWindows: appWindows)
+        else { return inArea }
+        let area = Area(id: id, rect: r, pid: pid, window: window)
+        // Nested areas of one size are one area to a person: keep the innermost, the one
+        // that holds the content.
+        if let outer = inArea, nearlySameRect(result.areas[outer].rect, r) {
+            result.areas[outer] = area
+            return outer
+        }
+        result.areas.append(area)
+        return result.areas.count - 1
+    }
+
     /// `inTarget`: under an element that got a label. `inList`: a list's own item.
-    func visit(_ node: any AXNode, clip: CGRect, depth: Int, inWeb: Bool, inTarget: Bool, inList: Bool) {
+    /// `inArea`: the index in `result.areas` of the nearest area around this node.
+    func visit(_ node: any AXNode, clip: CGRect, depth: Int, inWeb: Bool, inTarget: Bool, inList: Bool,
+               inArea: Int?) {
         if depth >= maxDepth || result.timedOut { return }
         if now() > deadline {
             result.timedOut = true
@@ -129,12 +194,18 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
             if info.role == "AXScrollArea" { clip = r }
         }
 
+        var inArea = inArea
+        if finding == .areas, let r = visibleRect {
+            inArea = noteArea(node.id, role: info.role, focusable: info.focusable, visible: r, inWeb: inWeb,
+                              inArea: inArea)
+        }
+
         let before = result.targets.count
         // Asking whether text offers a press is one more request per element, so it comes
         // last and is skipped where the answer cannot matter: in web content (a long page
         // holds thousands of text nodes, and its links and buttons have roles of their own)
         // and under an element that already has a label (the text in a table's rows).
-        if info.enabled != false, let r = visibleRect, r.width >= 4, r.height >= 4,
+        if finding == .targets, info.enabled != false, let r = visibleRect, r.width >= 4, r.height >= 4,
            Roles.clickable.contains(info.role)
             || (inList && Roles.clickableAsListItem.contains(info.role))
             || (inWeb && info.focusable && Roles.clickableIfFocusable.contains(info.role))
@@ -166,7 +237,8 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
         let isList = info.role == "AXList" && !inWeb
         let firstInList = result.targets.count
         for child in children {
-            visit(child, clip: clip, depth: depth + 1, inWeb: inWeb, inTarget: inTarget || mine != nil, inList: isList)
+            visit(child, clip: clip, depth: depth + 1, inWeb: inWeb, inTarget: inTarget || mine != nil, inList: isList,
+                  inArea: inArea)
         }
 
         // An item with no role can span more than its own line: an open folder in Dia also
@@ -201,7 +273,7 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
         }
     }
 
-    visit(root, clip: startClip, depth: 0, inWeb: false, inTarget: false, inList: false)
+    visit(root, clip: startClip, depth: 0, inWeb: false, inTarget: false, inList: false, inArea: nil)
     return result
 }
 
