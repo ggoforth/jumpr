@@ -44,15 +44,14 @@ What Jumpr does with it:
 | Esc | Cancels |
 | The hotkey again | Cancels |
 
-The menu bar icon has Settings…, Pause (Resume when paused) and Quit.
+The menu bar icon has Settings…, Check for Updates…, Pause (Resume when paused) and Quit.
 
 Settings lets you change:
 
 - The hotkey
 - Label size, label color and text color
-- How much Jumpr scans while on battery: full speed, front app only (the default), or scan on demand
-- Start at login
-- A timing readout, off by default
+- Start at login (off until you turn it on)
+- Whether Jumpr checks for updates on its own
 
 ## Updates
 
