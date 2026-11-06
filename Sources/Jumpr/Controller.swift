@@ -42,8 +42,10 @@ final class Controller {
     private var style = LabelStyle.current()
     /// Labels needed by the previous complete trigger, for sizing the next one's labels.
     private var lastTotal: Int?
-    /// Apps that have shown a web area in some scan (see `rescanWhileTreeBuilds`).
-    private var webHosts = Set<Int32>()
+    /// Apps that have shown a web area in some scan, by bundle ID (see `rescanWhileTreeBuilds`).
+    /// Kept across launches: a web view that is not built yet gives no sign of itself, so
+    /// without this the first email after Jumpr starts would get no labels on its links.
+    private var webHosts = Set(UserDefaults.standard.stringArray(forKey: Keys.webHostApps) ?? [])
 
     private let debugLabels = ProcessInfo.processInfo.environment["JUMPR_DEBUG_LABELS"] != nil
     private var colorWatchers: [DefaultsWatcher] = []
@@ -226,7 +228,8 @@ final class Controller {
                                 pendingApps -= 1
                                 if pendingApps == 0 { finish() }
                                 rescanWhileTreeBuilds(pid: pid, name: name, isDock: isDock, stack: stack,
-                                                      front: front, gen: gen, web: web, started: started)
+                                                      front: front, gen: gen, web: web, started: started,
+                                                      bundle: bundle)
                             })
         }
     }
@@ -252,12 +255,16 @@ final class Controller {
     /// in it (`web`), so repeat until something is there or `started` is too long ago.
     private func rescanWhileTreeBuilds(pid: Int32, name: String, isDock: Bool, stack: WindowStack,
                                        front: Int32?, gen: Int, web: WebFound, started: Double,
-                                       isRepeat: Bool = false) {
-        if web.areas > 0 { webHosts.insert(pid) }
+                                       bundle: String?, isRepeat: Bool = false) {
+        if web.areas > 0, let bundle, webHosts.insert(bundle).inserted {
+            UserDefaults.standard.set(webHosts.sorted(), forKey: Keys.webHostApps)
+        }
         let switchedOn = treeMayStillBeBuilding(sinceSwitchedOn: registry.sinceEnabled(pid))
-        // An app with no window on screen (hidden, or on another Space) has no web view to wait for.
-        let webView = webViewMayStillBeBuilding(hostsWeb: webHosts.contains(pid) && web.walkedWindow,
-                                                webTargets: web.targets, sinceTrigger: now() - started)
+        // An app with no window on screen (hidden, or on another Space) has no web view to
+        // wait for. One with no bundle ID is never remembered, so never waited for.
+        let hostsWeb = bundle.map(webHosts.contains) == true && web.walkedWindow
+        let webView = webViewMayStillBeBuilding(hostsWeb: hostsWeb, webTargets: web.targets,
+                                                sinceTrigger: now() - started)
         guard switchedOn || webView else { return }
         if webView && !switchedOn && !isRepeat {
             log("nothing to click in \(name)'s web view (\(web.areas) web areas): looking again")
@@ -282,7 +289,7 @@ final class Controller {
                                 }
                                 rescanWhileTreeBuilds(pid: pid, name: name, isDock: isDock, stack: stack,
                                                       front: front, gen: gen, web: web, started: started,
-                                                      isRepeat: true)
+                                                      bundle: bundle, isRepeat: true)
                             })
         }
     }
