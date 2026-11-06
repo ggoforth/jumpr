@@ -17,6 +17,10 @@ final class StatusItem: NSObject, NSMenuItemValidation {
         item.button?.image = plainImage
 
         let menu = NSMenu()
+        // "Jumpr 1.0.0", shown greyed out: it has no action, so the menu disables it.
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        menu.addItem(NSMenuItem(title: "Jumpr \(version)", action: nil, keyEquivalent: ""))
+        menu.addItem(.separator())
         let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
         pauseItem.target = self
