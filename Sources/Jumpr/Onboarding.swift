@@ -85,8 +85,6 @@ final class Onboarding: ObservableObject {
 final class LoginItem: ObservableObject {
     @Published private(set) var enabled = false
     @Published private(set) var needsApproval = false
-    /// The "not registering" line is logged once per launch, however often trust returns.
-    private var loggedNotInApplications = false
 
     init() { refresh() }
 
@@ -96,35 +94,16 @@ final class LoginItem: ObservableObject {
         needsApproval = status == .requiresApproval
     }
 
-    /// The user flipped the toggle. Also counts as setting the login item up, so Jumpr
-    /// never registers itself on top of the user's choice.
+    /// The user flipped the toggle: the only way Jumpr ever registers a login item.
     func set(_ on: Bool) {
-        UserDefaults.standard.set(true, forKey: Keys.loginItemSetUp)
-        apply(on)
-    }
-
-    /// Default on: on the first trusted launch from /Applications, register once.
-    func autoRegisterIfFirstLaunch() {
-        let path = Bundle.main.bundlePath
-        let setUp = UserDefaults.standard.bool(forKey: Keys.loginItemSetUp)
-        guard LoginItemPolicy.shouldAutoRegister(bundlePath: path, alreadySetUp: setUp) else {
-            if !setUp && !loggedNotInApplications {
-                loggedNotInApplications = true
-                log("login item: not registering automatically, bundle is not in /Applications (\(path))")
-            }
-            return
-        }
-        UserDefaults.standard.set(true, forKey: Keys.loginItemSetUp)
-        // Off main: registering is an XPC round trip, and the key listener has just started
-        // on the main run loop. The status comes back to main.
-        DispatchQueue.global(qos: .utility).async {
-            Self.register(true)
-            DispatchQueue.main.async { self.refresh() }
-        }
-    }
-
-    private func apply(_ on: Bool) {
         Self.register(on)
+        refresh()
+    }
+
+    /// Called once trust is granted. Start at login is opt-in: a fresh install never adds
+    /// itself (JUM-32), and one the user already turned on is left on. Only re-reads the
+    /// status. Kept under its old name until its call in main.swift can go.
+    func autoRegisterIfFirstLaunch() {
         refresh()
     }
 

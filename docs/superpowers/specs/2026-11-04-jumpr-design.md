@@ -368,10 +368,14 @@ just fewer windows; nothing about the feature set changes.
 | Label color | Color picker | Yellow `#FFD60A` |
 | Text color | Color picker | Black |
 | Preview | Live sample label | — |
-| On battery | Full speed / Front app only / Scan on demand | Front app only |
-| Start at login | Toggle | On |
+| On battery | Full speed / Front app only / Scan on demand (hidden, see below) | Front app only |
+| Start at login | Toggle (changed 2026-11-05, JUM-32: opt-in; was on) | Off |
 | Permission | Status + "Open Accessibility Settings" button | — |
-| Timing readout | Toggle | Off |
+| Timing readout | Toggle (hidden, see below) | Off |
+
+Hidden for the public release (2026-11-05, JUM-32): the "On battery" and timing readout
+controls show only after `defaults write com.greggoforth.jumpr showAdvancedSettings -bool true`.
+`batteryMode` and `showReadout` still work when set by hand.
 
 - Label settings take effect on the next trigger.
 - The hotkey recorder must reject combinations with no modifier, and must not let
