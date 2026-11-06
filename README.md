@@ -30,7 +30,7 @@ What Jumpr does with it:
 
 - It reads the screen on your Mac to place labels. What it reads is not recorded, stored or sent anywhere.
 - It does not record your screen.
-- It keeps a small activity log on your Mac (`~/Library/Logs/Jumpr.log`). The log has timings and the kind of control and app for each press. It has no window contents, no on-screen text and nothing you type.
+- It keeps a small activity log on your Mac (`~/Library/Logs/Jumpr.log`). The log has timings, the names of the apps Jumpr looked at, and the kind of control and app for each press. It has no window contents, no on-screen text and nothing you type. If you attach it to an issue, it shows which apps you had open.
 
 ## Using it
 

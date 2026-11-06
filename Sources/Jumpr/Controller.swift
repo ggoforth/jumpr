@@ -277,7 +277,9 @@ final class Controller {
         let webView = webViewMayStillBeBuilding(hostsWeb: hostsWeb, webTargets: web.targets,
                                                 sinceTrigger: now() - started)
         guard switchedOn || webView else { return }
-        if webView && !switchedOn && !isRepeat {
+        // Debug only: an app that simply shows no page (Mail with no message open) would
+        // write this on every press.
+        if debugLabels && webView && !switchedOn && !isRepeat {
             log("nothing to click in \(name)'s web view (\(web.areas) web areas): looking again")
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in

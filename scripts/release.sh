@@ -60,7 +60,28 @@ if [ "$SPARKLE_PUBLIC_KEY" = PLACEHOLDER-NOT-A-REAL-SPARKLE-KEY ]; then
     echo "*****************************************************************************"
 fi
 
+# --- what is being released --------------------------------------------------
+# A release must be exactly a commit: uncommitted or untracked source would ship code that
+# no tag describes, and the public source would no longer match the binary.
+if [ -n "$(git status --porcelain)" ]; then
+    [ "$NOTARIZE" = 0 ] || die "the working tree has uncommitted changes; commit them first (a test build with --skip-notarize is allowed)"
+    echo "warning: this test build includes uncommitted changes" >&2
+fi
+
 BUILD_NUMBER="$(git rev-list --count HEAD)"
+
+# Sparkle offers an update only when its build number is higher than the installed one.
+# The build number is the commit count, so a release built from a shorter history (another
+# branch, a squashed main) would be published and then never offered to anyone.
+if [ "$NOTARIZE" = 1 ]; then
+    PUBLISHED="$({ curl -fsS --max-time 10 "$FEED_URL" 2>/dev/null || true; } \
+        | sed -n 's/.*<sparkle:version>\([0-9][0-9]*\)<.*/\1/p' | sort -n | tail -1)"
+    if [ -z "$PUBLISHED" ]; then
+        echo "warning: could not read the published build number from $FEED_URL; not compared" >&2
+    elif [ "$BUILD_NUMBER" -le "$PUBLISHED" ]; then
+        die "build $BUILD_NUMBER is not higher than the published build $PUBLISHED ($FEED_URL); installed copies would never be offered it. Build from main with new commits."
+    fi
+fi
 
 # --- signing identity --------------------------------------------------------
 # Two certificates share the same name here, so sign by SHA-1 hash, not by name.

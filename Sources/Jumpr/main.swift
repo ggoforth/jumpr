@@ -155,30 +155,36 @@ let quitObserver = NotificationCenter.default.addObserver(
     flushLog()
 }
 
-// Debug: `kill -USR1 <pid>` = scan + paint without the keyboard, cancelled after 2 s.
-signal(SIGUSR1, SIG_IGN)
-let debugSignal = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)
-debugSignal.setEventHandler {
-    controller.trigger(capture: false)
-    guard controller.isActive else { return }  // that signal cancelled a running session
-    let gen = controller.generation
-    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-        if controller.isActive && controller.generation == gen { controller.cancel() }
-    }
-}
-debugSignal.resume()
-
 // Sparkle starts on the first turn of the run loop, once the app is running.
 DispatchQueue.main.async { updaterController.start() }
 
-// Debug: `kill -USR2 <pid>` = open Settings, the same path as the menu item.
+// Debug hooks for checking the app without the keyboard. Both signals are always ignored
+// (their default action would end the process); they do something only when Jumpr is
+// started with JUMPR_DEBUG_SIGNALS set, so a normal copy has no such hook.
+//   kill -USR1 <pid>   scan + paint without capturing keys, cancelled after 2 s
+//   kill -USR2 <pid>   open Settings, the same path as the menu item
+signal(SIGUSR1, SIG_IGN)
 signal(SIGUSR2, SIG_IGN)
-let settingsSignal = DispatchSource.makeSignalSource(signal: SIGUSR2, queue: .main)
-settingsSignal.setEventHandler {
-    log("settings: opened by SIGUSR2")
-    statusItem.onSettings()
+var debugSignals: [DispatchSourceSignal] = []
+if ProcessInfo.processInfo.environment["JUMPR_DEBUG_SIGNALS"] != nil {
+    let scan = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)
+    scan.setEventHandler {
+        controller.trigger(capture: false)
+        guard controller.isActive else { return }  // that signal cancelled a running session
+        let gen = controller.generation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            if controller.isActive && controller.generation == gen { controller.cancel() }
+        }
+    }
+    let settings = DispatchSource.makeSignalSource(signal: SIGUSR2, queue: .main)
+    settings.setEventHandler {
+        log("settings: opened by SIGUSR2")
+        statusItem.onSettings()
+    }
+    debugSignals = [scan, settings]
+    debugSignals.forEach { $0.resume() }
+    log("debug signals: on")
 }
-settingsSignal.resume()
 
 // SIGTERM (`pkill`, logout) and SIGINT take the normal quit path above, so the trees
 // Jumpr switched on are switched off.

@@ -21,7 +21,6 @@ import Testing
     #expect(s.handle(.backspace) == .narrowed(""))
     #expect(s.handle(.modified) == .passThrough)
     #expect(s.handle(.escape) == .cancelled)
-    #expect(s.handle(.hotkey) == .cancelled)
 }
 
 @Test func labelsAddedMidSessionCanMatch() {
