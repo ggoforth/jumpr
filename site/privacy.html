@@ -44,7 +44,7 @@
       <li>A short list of the apps Jumpr has seen show web content (Mail, for example), kept in the same preferences file. Jumpr uses it to look twice at those apps, because a web view can take a moment to list its links. The list holds app identifiers only, nothing from inside the apps.</li>
       <li>A small log of Jumpr’s own activity, at <code>~/Library/Logs/Jumpr.log</code>: when it showed labels, how long that took, the names of the apps it looked at (the ones with a window on screen, and apps as they open or come to the front), and for each press the kind of control and the name of the app it was in. It does not log window contents, text on screen, or what you type. The log stays on your Mac and is kept to about 2 MB. If you attach it to a GitHub issue, it shows which apps you had open.</li>
     </ul>
-    <p>Removing the app, the preferences file and the log removes everything related to Jumpr from your Mac.</p>
+    <p>To remove everything related to Jumpr from your Mac, remove the app, the preferences file, the log and its older copy (<code>Jumpr.log.1</code>, beside it), and the updater’s two cache folders: <code>~/Library/Caches/com.greggoforth.jumpr</code> and <code>~/Library/HTTPStorages/com.greggoforth.jumpr</code>.</p>
 
     <h2>4. What leaves your Mac, and why</h2>
     <p>Each item below is one thing that leaves your Mac. “Basis” is the legal ground we rely on under the GDPR and similar laws: <em>contract</em> means we need it to provide something you asked for; <em>legitimate interest</em> means we need it to run the service in a way you would reasonably expect.</p>

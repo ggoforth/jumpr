@@ -67,6 +67,22 @@ if [ "$RELEASE" = 1 ]; then
     [ -n "$JUMPR_BUILD_NUMBER" ] || fail "release build: JUMPR_BUILD_NUMBER is required"
 fi
 
+# Say so before a long build, and say what to do: codesign's own "no identity found" names
+# neither. "-" is ad-hoc signing and needs no certificate.
+if [ "${JUMPR_NO_SIGN:-0}" != 1 ] && [ "$CODESIGN_IDENTITY" != - ]; then
+    MATCHES="$(security find-identity -v -p codesigning | grep -c -F -- "$CODESIGN_IDENTITY" || true)"
+    if [ "$MATCHES" = 0 ]; then
+        fail "no code-signing identity matching '$CODESIGN_IDENTITY' in your keychain.
+  Without a certificate, sign ad hoc instead:   CODESIGN_IDENTITY=- make app
+  (An ad-hoc build has no stable identity, so macOS asks for the Accessibility
+  permission again after each rebuild.)"
+    elif [ "$MATCHES" -gt 1 ] && ! [[ "$CODESIGN_IDENTITY" =~ ^[0-9A-Fa-f]{40}$ ]]; then
+        fail "'$CODESIGN_IDENTITY' matches $MATCHES identities, and codesign will not choose.
+  Pick one by its 40-character hash from:   security find-identity -v -p codesigning
+  and pass it:                               CODESIGN_IDENTITY=<hash> make app"
+    fi
+fi
+
 read -r -a EXTRA_OPTIONS <<< "$CODESIGN_OPTIONS"
 sign() {
     # The ${a[@]+...} form keeps bash 3.2 (macOS) happy with an empty array under `set -u`.
@@ -100,6 +116,8 @@ fi
 
 # ditto keeps the framework's symlinks and permissions.
 ditto "$BIN_DIR/Sparkle.framework" "$APP/Contents/Frameworks/Sparkle.framework"
+# Sparkle's license asks that its notice travel with every copy of the binary.
+cp .build/artifacts/sparkle/Sparkle/LICENSE "$APP/Contents/Resources/Sparkle-LICENSE.txt"
 
 if [ "${JUMPR_NO_SIGN:-0}" = 1 ]; then
     echo "Built $APP (unsigned)"

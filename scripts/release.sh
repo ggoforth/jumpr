@@ -68,6 +68,9 @@ if [ -n "$(git status --porcelain)" ]; then
     echo "warning: this test build includes uncommitted changes" >&2
 fi
 
+# The build number is the commit count, which a shallow clone gets wrong.
+[ "$(git rev-parse --is-shallow-repository)" = false ] \
+    || die "this is a shallow clone; the build number would be wrong. Run: git fetch --unshallow"
 BUILD_NUMBER="$(git rev-list --count HEAD)"
 
 # Sparkle offers an update only when its build number is higher than the installed one.

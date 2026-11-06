@@ -13,7 +13,7 @@ let loginItem = LoginItem()
 let updaterController = UpdaterController()
 
 // Power: battery, Low Power Mode, lock and pause (pause is only reflected; `applyPaused` acts on it).
-// `onChange` belongs to the watcher (Task 13).
+// Only the lock and unlock events are acted on today; `onChange` has no listener yet.
 let powerSource = PowerSource()
 // A capturing key listener must never be live at a lock screen. Driven by every lock
 // event, not by a change in the combined state, so a stale cause cannot hide a lock.
