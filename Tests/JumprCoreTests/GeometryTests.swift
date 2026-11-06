@@ -20,6 +20,20 @@ private let b = w(2, 20, CGRect(x: 50, y: 0, width: 100, height: 100))
     let widget = w(7, 97, CGRect(x: 0, y: 0, width: 200, height: 200), layer: -5)
     #expect(WindowStack([dock, ghost, widget, b]).top(at: CGPoint(x: 120, y: 50))?.id == 2)
 }
+// Jumpr's own panel, open under its menu bar icon, sits at the status layer (25), not a
+// normal one. Labels for the app behind it were drawn on top of the panel.
+@Test func aMenuBarAppsPanelHidesWhatIsBehindIt() {
+    let panel = w(5, 30, CGRect(x: 60, y: 0, width: 80, height: 90), layer: 25)
+    let s = WindowStack([panel, b])
+    #expect(s.top(at: CGPoint(x: 120, y: 50))?.id == 5)
+    #expect(!s.isVisible(CGPoint(x: 120, y: 50), window: 2, pid: 20, appWindows: [2]))
+    #expect(s.isVisible(CGPoint(x: 145, y: 50), window: 2, pid: 20, appWindows: [2]))   // beside the panel
+}
+@Test func theLayersAroundTheStatusLayerStillDoNotHide() {   // the menu bar (24), anything above
+    let menuBar = w(6, 40, CGRect(x: 0, y: 0, width: 200, height: 200), layer: 24)
+    let above = w(7, 41, CGRect(x: 0, y: 0, width: 200, height: 200), layer: 26)
+    #expect(WindowStack([above, menuBar, b]).top(at: CGPoint(x: 120, y: 50))?.id == 2)
+}
 @Test func visibleOnlyWhereOwnWindowIsOnTop() {
     let s = WindowStack([a, b])
     #expect(s.isVisible(CGPoint(x: 120, y: 50), window: 2, pid: 20, appWindows: [2]))

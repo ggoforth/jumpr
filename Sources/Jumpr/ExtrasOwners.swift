@@ -39,8 +39,10 @@ final class ExtrasOwners {
         lock.withLock { _ = pids.remove(pid) }
     }
 
+    /// Jumpr counts too: its own icon gets a label, and so does its panel while open, since
+    /// the panel's controls sit under the icon in the tree. A request to itself is answered
+    /// by its main thread, so it must come from this queue or a scan queue, never from main.
     private static func hasExtras(_ pid: Int32) -> Bool {
-        guard pid != getpid() else { return false }
-        return axCopy(axApp(pid), "AXExtrasMenuBar") != nil
+        axCopy(axApp(pid), "AXExtrasMenuBar") != nil
     }
 }
