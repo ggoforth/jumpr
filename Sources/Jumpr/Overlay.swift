@@ -14,13 +14,22 @@ struct LabelStyle {
         let d = UserDefaults.standard
         let size = CGFloat(clampLabelSize(d.double(forKey: Keys.labelSize)))
         let font = NSFont.monospacedSystemFont(ofSize: size, weight: .bold)
-        func color(_ key: String, _ fallback: String) -> CGColor {
-            let c = d.string(forKey: key).flatMap { RGB(hex: $0) } ?? RGB(hex: fallback)!
-            return CGColor(srgbRed: c.r, green: c.g, blue: c.b, alpha: 1)  // sRGB, as in the Settings preview
-        }
-        return LabelStyle(font: font, size: size, advance: font.maximumAdvancement.width,
-                          bg: color(Keys.labelColor, "FFD60A"), fg: color(Keys.labelTextColor, "000000"))
+        let bg = storedLabelColor()
+        let fg = storedLetters().color(on: bg)
+        func cg(_ c: RGB) -> CGColor { CGColor(srgbRed: c.r, green: c.g, blue: c.b, alpha: 1) }  // sRGB, as in the panel's preview
+        return LabelStyle(font: font, size: size, advance: font.maximumAdvancement.width, bg: cg(bg), fg: cg(fg))
     }
+}
+
+/// The label colour from user defaults, or the default yellow.
+func storedLabelColor() -> RGB {
+    UserDefaults.standard.string(forKey: Keys.labelColor).flatMap { RGB(hex: $0) } ?? RGB(hex: "FFD60A")!
+}
+
+/// The letter colour setting from user defaults.
+func storedLetters() -> Letters {
+    let d = UserDefaults.standard
+    return Letters(storedMode: d.string(forKey: Keys.labelTextMode), storedTextColor: d.string(forKey: Keys.labelTextColor))
 }
 
 /// One transparent, click-through window per display, always ordered in, so showing

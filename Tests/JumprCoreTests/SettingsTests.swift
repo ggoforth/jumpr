@@ -58,6 +58,12 @@ private let noLookup: (Int64) -> String? = { _ in nil }
     #expect(Hotkey.keyName(126) == "↑")
     #expect(Hotkey.keyName(38) == nil)
 }
+// The panel draws the hotkey as one keycap per key, in the same order as `display`.
+@Test func hotkeyKeycapsAreOnePerKeyInDisplayOrder() {
+    #expect(Hotkey.default.keycaps(keyName: noLookup) == ["⇧", "⌘", "Space"])
+    let h = Hotkey(keyCode: 38, modifiers: Modifiers.option | Modifiers.control)
+    #expect(h.keycaps(keyName: { $0 == 38 ? "j" : nil }) == ["⌃", "⌥", "J"])
+}
 @Test func hotkeyDisplayUnknownKeyFallsBackToCode() {
     #expect(Hotkey(keyCode: 200, modifiers: Modifiers.command).display(keyName: noLookup) == "⌘Key 200")
 }

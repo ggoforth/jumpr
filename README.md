@@ -24,7 +24,7 @@ There is a live demo on the website: [getjumpr.app](https://getjumpr.app).
 
 Jumpr needs it for two things: to find the buttons, links and icons on your screens, and to click the one you pick.
 
-To grant it, open System Settings → Privacy & Security → Accessibility and turn on Jumpr. Jumpr's Settings window also has an Open Accessibility Settings button.
+To grant it, open System Settings → Privacy & Security → Accessibility and turn on Jumpr. Until you do, the panel under Jumpr's menu bar icon has an Open Accessibility Settings button.
 
 What Jumpr does with it:
 
@@ -44,18 +44,18 @@ What Jumpr does with it:
 | Esc | Cancels |
 | The hotkey again | Cancels |
 
-The menu bar icon has Settings…, Check for Updates…, Pause (Resume when paused) and Quit.
+Click the menu bar icon for Jumpr's panel. It has a switch that turns Jumpr on and off (off is a pause: the hotkey does nothing), a preview of the labels, Check for Updates…, Report a Problem and Quit.
 
-Settings lets you change:
+The panel is also where you change:
 
 - The hotkey
-- Label size, label color and text color
+- Label size, label color and letter color (Auto picks black or white, whichever reads better on the label)
 - Start at login (off until you turn it on)
 - Whether Jumpr checks for updates on its own
 
 ## Updates
 
-Once a day, Jumpr checks an update feed on getjumpr.app to see whether a new version is out. When one is, it installs it when you say so. You can turn the check off in Settings. This is the only thing the app uses the internet for.
+Once a day, Jumpr checks an update feed on getjumpr.app to see whether a new version is out. When one is, it installs it when you say so. You can turn the check off in the panel under the menu bar icon. This is the only thing the app uses the internet for.
 
 ## Privacy
 

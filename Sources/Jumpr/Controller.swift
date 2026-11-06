@@ -62,7 +62,7 @@ final class Controller {
         self.registry = registry
         self.tap = tap
         rebuildOverlays()
-        colorWatchers = [Keys.labelColor, Keys.labelTextColor].map { key in
+        colorWatchers = [Keys.labelColor, Keys.labelTextColor, Keys.labelTextMode].map { key in
             DefaultsWatcher(key) { [weak self] in self?.recolor() }
         }
 
@@ -389,7 +389,7 @@ final class Controller {
 
     // MARK: - Colours
 
-    /// A colour changed in Settings while labels are up: repaint the labels on screen now
+    /// A colour changed in the panel while labels are up: repaint the labels on screen now
     /// instead of at the next trigger. Labels added later in this session use the new
     /// colours too. Size is left as the session started (it would move every label).
     private func recolor() {
