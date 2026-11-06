@@ -1,16 +1,14 @@
 import AppKit
 
-final class StatusItem: NSObject, NSMenuItemValidation {
-    var onSettings: () -> Void = {}
-    var onTogglePause: () -> Void = {}
-    var onCheckForUpdates: () -> Void = {}
-    var canCheckForUpdates: () -> Bool = { false }
-
+/// The menu bar icon and the panel it opens. A click shows the panel under the icon; a
+/// second click, or a click anywhere else, closes it.
+final class StatusItem: NSObject, NSPopoverDelegate {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-    private let pauseItem = NSMenuItem(title: "Pause", action: #selector(togglePause), keyEquivalent: "")
-    private let updatesItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+    private let popover = NSPopover()
     private let plainImage: NSImage? = StatusItem.letterImage()
     private lazy var badgedImage = plainImage.map(Self.badged)
+    /// Called just before the panel shows, to refresh state that can change outside Jumpr.
+    var willShow: () -> Void = {}
 
     /// The menu bar icon: the J from the site's logo and from Jumpr's own labels (the bold
     /// monospaced system font), with no box. Template, so the menu bar draws it white on a
@@ -28,36 +26,56 @@ final class StatusItem: NSObject, NSMenuItemValidation {
         return image
     }
 
+    /// Set once at launch; the panel's own buttons call back into this item to close it.
+    var panel: NSViewController? {
+        get { popover.contentViewController }
+        set { popover.contentViewController = newValue }
+    }
+
     override init() {
         super.init()
         item.button?.image = plainImage
-
-        let menu = NSMenu()
-        // "Jumpr 1.0.0", shown greyed out: it has no action, so the menu disables it.
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-        menu.addItem(NSMenuItem(title: "Jumpr \(version)", action: nil, keyEquivalent: ""))
-        menu.addItem(.separator())
-        let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
-        settings.target = self
-        pauseItem.target = self
-        updatesItem.target = self
-        menu.addItem(settings)
-        menu.addItem(pauseItem)
-        menu.addItem(updatesItem)
-        menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit Jumpr", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
-        item.menu = menu
+        item.button?.target = self
+        item.button?.action = #selector(toggle)
+        popover.behavior = .transient
+        popover.delegate = self
     }
 
-    func setPaused(_ paused: Bool) {
-        pauseItem.title = paused ? "Resume" : "Pause"
+    @objc private func toggle() {
+        popover.isShown ? closePanel() : showPanel()
+    }
+
+    func showPanel() {
+        guard let button = item.button, panel != nil, !popover.isShown else { return }
+        willShow()
+        // Jumpr is rarely the active app; without activating, the panel could not take the
+        // keys the "Exact color" field and the shortcut recorder need.
+        NSApp.activate()
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.contentViewController?.view.window?.makeKey()
+        button.highlight(true)
+    }
+
+    func closePanel() {
+        popover.performClose(nil)
+    }
+
+    /// A click on the icon itself is left to `toggle`: if the popover closed itself on that
+    /// mouse down, the same click would open it again at once.
+    func popoverShouldClose(_ popover: NSPopover) -> Bool {
+        guard let event = NSApp.currentEvent, event.type == .leftMouseDown,
+              let button = item.button, event.window === button.window else { return true }
+        return false
+    }
+
+    func popoverDidClose(_ notification: Notification) {
+        item.button?.highlight(false)
     }
 
     /// A gentle reminder for a scheduled update Sparkle did not bring forward: a dot on the
-    /// menu bar icon and "Update Available…" in place of "Check for Updates…".
+    /// menu bar icon (the panel shows its own banner).
     func setUpdatePending(_ pending: Bool) {
         item.button?.image = pending ? badgedImage : plainImage
-        updatesItem.title = pending ? "Update Available…" : "Check for Updates…"
     }
 
     /// The icon with a dot at its top right, cut out from the glyph so it reads at menu bar
@@ -77,14 +95,5 @@ final class StatusItem: NSObject, NSMenuItemValidation {
         image.isTemplate = true
         image.accessibilityDescription = "Jumpr, update available"
         return image
-    }
-
-    @objc private func openSettings() { onSettings() }
-    @objc private func togglePause() { onTogglePause() }
-    @objc private func checkForUpdates() { onCheckForUpdates() }
-
-    /// Asked each time the menu opens: "Check for Updates…" only while Sparkle can check.
-    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        menuItem === updatesItem ? canCheckForUpdates() : true
     }
 }

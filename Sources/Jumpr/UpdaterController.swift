@@ -10,10 +10,14 @@ import Sparkle
 final class UpdaterController: NSObject, ObservableObject, SPUStandardUserDriverDelegate {
     /// Sparkle's own setting, mirrored for SwiftUI; there is no second stored copy.
     @Published private(set) var automaticallyChecks = false
+    /// Sparkle's `canCheckForUpdates`, mirrored so the panel's button follows it while open.
+    @Published private(set) var sparkleCanCheck = false
+    /// A scheduled update waits for the user: the panel shows its banner.
+    @Published private(set) var updatePending = false
     let isConfigured: Bool
 
     private var controller: SPUStandardUpdaterController!
-    private var watch: AnyCancellable?
+    private var watches: [AnyCancellable] = []
 
     override init() {
         let info = Bundle.main.infoDictionary ?? [:]
@@ -21,9 +25,14 @@ final class UpdaterController: NSObject, ObservableObject, SPUStandardUserDriver
                                                  publicKey: info["SUPublicEDKey"] as? String)
         super.init()
         controller = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: nil, userDriverDelegate: self)
-        watch = updater.publisher(for: \.automaticallyChecksForUpdates, options: [.initial, .new])
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] in self?.automaticallyChecks = $0 }
+        watches = [
+            updater.publisher(for: \.automaticallyChecksForUpdates, options: [.initial, .new])
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] in self?.automaticallyChecks = $0 },
+            updater.publisher(for: \.canCheckForUpdates, options: [.initial, .new])
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] in self?.sparkleCanCheck = $0 },
+        ]
     }
 
     var updater: SPUUpdater { controller.updater }
@@ -38,7 +47,7 @@ final class UpdaterController: NSObject, ObservableObject, SPUStandardUserDriver
         log("updates: started, automatic checks \(updater.automaticallyChecksForUpdates ? "on" : "off")")
     }
 
-    var canCheckForUpdates: Bool { isConfigured && updater.canCheckForUpdates }
+    var canCheckForUpdates: Bool { isConfigured && sparkleCanCheck }
 
     func setAutomaticallyChecks(_ on: Bool) { updater.automaticallyChecksForUpdates = on }
 
@@ -54,11 +63,16 @@ final class UpdaterController: NSObject, ObservableObject, SPUStandardUserDriver
     // Gentle reminders, as Sparkle documents for background apps
     // (sparkle-project.org/documentation/gentle-reminders). Jumpr has no Dock icon, so a
     // scheduled alert Sparkle opened behind other apps could go unseen; instead Jumpr marks
-    // its menu bar icon and the user brings the alert forward from the menu.
+    // its menu bar icon and the user brings the alert forward from the panel.
 
     /// Called with true while a scheduled update waits for the user, false once it has had
     /// their attention or the session is over.
     var onUpdatePending: (Bool) -> Void = { _ in }
+
+    private func setPending(_ pending: Bool) {
+        updatePending = pending
+        onUpdatePending(pending)
+    }
 
     var supportsGentleScheduledUpdateReminders: Bool { true }
 
@@ -75,15 +89,15 @@ final class UpdaterController: NSObject, ObservableObject, SPUStandardUserDriver
             NSApp.activate()
         } else if !handleShowingUpdate {
             log("updates: \(update.displayVersionString) available, reminder shown in the menu bar")
-            onUpdatePending(true)
+            setPending(true)
         }
     }
 
     func standardUserDriverDidReceiveUserAttention(forUpdate update: SUAppcastItem) {
-        onUpdatePending(false)
+        setPending(false)
     }
 
     func standardUserDriverWillFinishUpdateSession() {
-        onUpdatePending(false)
+        setPending(false)
     }
 }

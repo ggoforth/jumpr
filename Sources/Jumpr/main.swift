@@ -1,5 +1,6 @@
 import AppKit
 import JumprCore
+import SwiftUI
 
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
@@ -42,7 +43,7 @@ func applyHotkey(_ h: Hotkey) {
     log("hotkey applied: \(h.display(keyName: characterForKey)) (\(h.stored))")
 }
 keyTap.hotkey = storedHotkey() ?? .default
-// Live, like `paused` and `showReadout`: the Settings recorder and `defaults write` both land here.
+// Live, like `paused` and `showReadout`: the panel's recorder and `defaults write` both land here.
 let hotkeyWatcher = DefaultsWatcher(Keys.hotkey) {
     if let h = storedHotkey() { applyHotkey(h) } else { log("hotkey: stored value ignored, not a valid hotkey") }
 }
@@ -54,16 +55,18 @@ let readoutWatcher = DefaultsWatcher(Keys.showReadout) {
     log("readout: \(on ? "enabled" : "disabled")")
 }
 
-let settingsWindow = SettingsWindow(
-    onboarding: onboarding, loginItem: loginItem, updater: updaterController,
+let panel = NSHostingController(rootView: PanelView(
+    close: { statusItem.closePanel() },
     onRecording: { recording in
         keyTap.suspended = recording
         log("hotkey recorder: \(recording ? "recording, key listener suspended" : "done, key listener resumed")")
     },
-    onHotkey: { applyHotkey($0) })  // usually already applied by `hotkeyWatcher`
-statusItem.onSettings = { settingsWindow.show() }
-statusItem.onCheckForUpdates = { updaterController.checkForUpdates() }
-statusItem.canCheckForUpdates = { updaterController.canCheckForUpdates }
+    onHotkey: { applyHotkey($0) },  // usually already applied by `hotkeyWatcher`
+    onboarding: onboarding, loginItem: loginItem, updater: updaterController))
+// The popover follows the panel's size as banners and "More" come and go.
+panel.sizingOptions = [.preferredContentSize]
+statusItem.panel = panel
+statusItem.willShow = { loginItem.refresh() }  // the status can change outside Jumpr
 updaterController.onUpdatePending = { statusItem.setUpdatePending($0) }
 // The tap callback must return at once: the trigger runs on main's next turn.
 // A real hotkey press proves the displays are awake and no screen saver runs.
@@ -102,7 +105,7 @@ controller.onMatched = { target in
     }
 }
 
-// Pause: the `paused` default is the single source of truth. The menu item writes it;
+// Pause: the `paused` default is the single source of truth. The panel's switch writes it;
 // `defaults write com.greggoforth.jumpr paused -bool true|false` works the same way.
 func applyPaused() {
     let paused = defaults.bool(forKey: Keys.paused)
@@ -110,18 +113,15 @@ func applyPaused() {
     if paused {
         if controller.isActive { controller.cancel() }
         keyTap.paused = true
-        statusItem.setPaused(true)
         log("paused")
         treeRegistry.disableAll { pid, work in scanner.perform(pid: pid, background: true, work) }
     } else {
         keyTap.paused = false
         treeRegistry.allowEnabling()
-        statusItem.setPaused(false)
         log("resumed")
         controller.enableTrees("resume")
     }
 }
-statusItem.onTogglePause = { defaults.set(!defaults.bool(forKey: Keys.paused), forKey: Keys.paused) }
 let pausedWatcher = DefaultsWatcher(Keys.paused) { applyPaused() }
 applyPaused()
 
@@ -137,11 +137,13 @@ onboarding.start(
         keyTap.stop()
         if controller.isActive { controller.cancel() }
         log("key tap: stopped")
-        settingsWindow.show()
+        statusItem.showPanel()
     })
 if !onboarding.trusted {
     log("key tap: false")
-    settingsWindow.show()  // the permission step is at the top
+    // The permission banner is at the top. On the run loop's first turn, once the menu bar
+    // has placed the icon the panel hangs from.
+    DispatchQueue.main.async { statusItem.showPanel() }
 }
 
 // Quit: switch off the trees Jumpr switched on, waiting briefly since the process is exiting.
@@ -162,7 +164,7 @@ DispatchQueue.main.async { updaterController.start() }
 // (their default action would end the process); they do something only when Jumpr is
 // started with JUMPR_DEBUG_SIGNALS set, so a normal copy has no such hook.
 //   kill -USR1 <pid>   scan + paint without capturing keys, cancelled after 2 s
-//   kill -USR2 <pid>   open Settings, the same path as the menu item
+//   kill -USR2 <pid>   open the panel, the same path as a click on the menu bar icon
 signal(SIGUSR1, SIG_IGN)
 signal(SIGUSR2, SIG_IGN)
 var debugSignals: [DispatchSourceSignal] = []
@@ -176,12 +178,12 @@ if ProcessInfo.processInfo.environment["JUMPR_DEBUG_SIGNALS"] != nil {
             if controller.isActive && controller.generation == gen { controller.cancel() }
         }
     }
-    let settings = DispatchSource.makeSignalSource(signal: SIGUSR2, queue: .main)
-    settings.setEventHandler {
-        log("settings: opened by SIGUSR2")
-        statusItem.onSettings()
+    let open = DispatchSource.makeSignalSource(signal: SIGUSR2, queue: .main)
+    open.setEventHandler {
+        log("panel: opened by SIGUSR2")
+        statusItem.showPanel()
     }
-    debugSignals = [scan, settings]
+    debugSignals = [scan, open]
     debugSignals.forEach { $0.resume() }
     log("debug signals: on")
 }

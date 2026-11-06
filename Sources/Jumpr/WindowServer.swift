@@ -4,7 +4,7 @@ import JumprCore
 
 enum WindowServer {
     /// Everything on screen, front to back, in global top-left coordinates. Jumpr's own
-    /// windows are included so Settings hides what is behind it (the label overlays sit at
+    /// windows are included so the panel hides what is behind it (the label overlays sit at
     /// layer 1000 and never occlude); callers that list apps to scan leave Jumpr out.
     static func snapshot() -> WindowStack {
         let raw = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)

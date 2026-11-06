@@ -2,22 +2,41 @@ import AppKit
 import JumprCore
 import SwiftUI
 
-/// Click, then press the new combination. While recording, `onRecording(true)` has
-/// suspended Jumpr's own key listener so the keys reach this window.
+/// The panel's Shortcut row: the hotkey as keycaps and "Change"; then press the new
+/// combination. While recording, `onRecording(true)` has suspended Jumpr's own key
+/// listener so the keys reach the panel.
 struct HotkeyRecorder: View {
     @Binding var hotkey: Hotkey
+    var accent: Color
     var onRecording: (Bool) -> Void
 
+    @State private var recording = false
     @State private var message: String?
 
     var body: some View {
-        LabeledContent("Hotkey") {
-            VStack(alignment: .trailing, spacing: 4) {
-                RecorderControl(hotkey: $hotkey, message: $message, onRecording: onRecording)
-                    .fixedSize()
-                if let message {
-                    Text(message).font(.caption).foregroundStyle(.red)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 5) {
+                Text("Shortcut")
+                Spacer()
+                if recording {
+                    Text("Press the new shortcut")
+                        .font(.system(size: 12, weight: .semibold))
+                        .padding(.horizontal, 12)
+                        .frame(height: 26)
+                        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(accent, lineWidth: 1.5))
+                } else {
+                    Keycaps(keys: hotkey.keycaps(keyName: characterForKey), height: 24)
                 }
+                RecorderControl(hotkey: $hotkey, recording: $recording, message: $message, onRecording: onRecording)
+                    .fixedSize()
+                    .padding(.leading, recording ? 3 : 6)
+            }
+            .frame(minHeight: 30)
+            if recording {
+                // Turns red after a press without ⌘, ⌃ or ⌥.
+                Text(RecorderButton.invalidMessage)
+                    .font(.system(size: 12))
+                    .foregroundStyle(message == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(.red))
             }
         }
     }
@@ -25,28 +44,28 @@ struct HotkeyRecorder: View {
 
 private struct RecorderControl: NSViewRepresentable {
     @Binding var hotkey: Hotkey
+    @Binding var recording: Bool
     @Binding var message: String?
     var onRecording: (Bool) -> Void
 
     func makeNSView(context: Context) -> RecorderButton {
         let b = RecorderButton()
-        b.hotkey = hotkey
         b.onChange = { hotkey = $0 }
         b.onMessage = { message = $0 }
-        b.onRecording = onRecording
+        b.onRecording = { on in
+            recording = on
+            onRecording(on)
+        }
         return b
     }
 
-    func updateNSView(_ b: RecorderButton, context: Context) {
-        if !b.isRecording, b.hotkey != hotkey { b.hotkey = hotkey }
-    }
+    func updateNSView(_ b: RecorderButton, context: Context) {}
 }
 
-/// The AppKit side: a push button that captures the next key down through a local
-/// event monitor. Recording always ends, with `onRecording(false)`, when the window
-/// closes or stops being key, so the listener is never left suspended.
+/// The AppKit side: "Change", which captures the next key down through a local event
+/// monitor, and "Cancel" while it does. Recording always ends, with `onRecording(false)`,
+/// when the window closes or stops being key, so the listener is never left suspended.
 final class RecorderButton: NSButton {
-    var hotkey: Hotkey = .default { didSet { refresh() } }
     var onChange: (Hotkey) -> Void = { _ in }
     var onMessage: (String?) -> Void = { _ in }
     var onRecording: (Bool) -> Void = { _ in }
@@ -56,11 +75,12 @@ final class RecorderButton: NSButton {
     var isRecording: Bool { monitor != nil }
 
     private static let escape: UInt16 = 53
-    static let invalidMessage = "Use ⌘, ⌃ or ⌥ with a key"
+    static let invalidMessage = "It needs ⌘, ⌃ or ⌥ in it."
 
     init() {
         super.init(frame: .zero)
         bezelStyle = .push
+        controlSize = .small
         target = self
         action = #selector(clicked)
         refresh()
@@ -100,7 +120,6 @@ final class RecorderButton: NSButton {
             onMessage(Self.invalidMessage)
             return
         }
-        hotkey = candidate
         stop()
         onChange(candidate)
     }
@@ -129,7 +148,7 @@ final class RecorderButton: NSButton {
     }
 
     private func refresh() {
-        title = isRecording ? "Press new shortcut…" : hotkey.display(keyName: characterForKey)
+        title = isRecording ? "Cancel" : "Change"
         invalidateIntrinsicContentSize()
     }
 }

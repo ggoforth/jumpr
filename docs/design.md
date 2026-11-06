@@ -26,6 +26,7 @@ The package has two targets. `JumprCore` is pure logic: no AppKit, no accessibil
 | `LabelSession.swift` | What each key does while labels are up |
 | `PressSafety.swift` | Pressing rules: whether to press at all, `AXPress` or click, where to click, when a click may be sent |
 | `Settings.swift` | `Hotkey`, `RGB`, the label size clamp, and `Keys`, the names of every preference |
+| `LabelColor.swift` | The panel's preset colours, the letter colour (`Letters`, including Auto: black or white by relative luminance) and the exact-colour field's input |
 | `DisplayGeometry.swift` | Conversion between AppKit's bottom-left display frames and the global top-left coordinates used everywhere else |
 | `LogFile.swift` | The log size cap and when to rotate |
 | `UpdatePolicy.swift` | Whether a build carries a real update feed and key |
@@ -43,8 +44,8 @@ The package has two targets. `JumprCore` is pure logic: no AppKit, no accessibil
 | `Activation.swift` | Ways to bring another app forward, mildest first |
 | `Readout.swift` | Per-trigger timing, always logged, optionally drawn on screen |
 | `Onboarding.swift` | The Accessibility permission; `LoginItem` (start at login) |
-| `SettingsView.swift`, `HotkeyRecorder.swift` | The Settings window (the only SwiftUI) and the hotkey recorder |
-| `StatusItem.swift` | The menu bar icon and its menu |
+| `Panel.swift`, `HotkeyRecorder.swift` | The panel under the menu bar icon, which holds every setting (the only SwiftUI), and its hotkey recorder |
+| `StatusItem.swift` | The menu bar icon and the popover that shows the panel |
 | `UpdaterController.swift` | Sparkle |
 | `PowerSource.swift` | Tracks whether the screen is locked, asleep or showing the screen saver |
 | `Log.swift`, `DefaultsWatcher.swift`, `DistributedObserver.swift` | The log file; live reaction to preference changes; distributed notifications delivered immediately |
@@ -127,7 +128,7 @@ An app "hosts web content" if it is on the built-in Chromium list, on the built-
 - **Fixed length.** All labels in one trigger have the same length, so no label is the start of another. The length is chosen before the scans finish, from the previous complete trigger's label count (200 if there is none) with 1.5x headroom: one letter up to 26, two up to 676, three beyond (`Labels.length`).
 - **Overflow.** If the real count exceeds what that length allows, the extras go unlabelled and the readout says `OVERFLOW`. The next trigger sizes from the new count.
 - **Placement** (`Labels.frame`). A label must not hide what it points at. A target narrower than four label widths gets its label hanging off its bottom-right corner, overlapping only a few points. At a display edge the label flips to the other side of the target rather than sliding back over it. A larger target (a row, a wide button) keeps its label inside, at the right end, because outside it would straddle two stacked rows and belong to neither. A label is always kept inside its display, and goes on the display that holds the target's center.
-- **Look.** Bold monospaced system font, size 10–32 pt (15 by default), label color and text color from preferences. `LabelStyle` is re-read on every trigger. If a color changes in Settings while labels are up, the labels on screen are recolored at once (`Controller.recolor`); size is left alone, since it would move every label.
+- **Look.** Bold monospaced system font, size 10–32 pt (15 by default), label color and letter color from preferences. The letter color is either one the user chose or Auto, black or white by the label color's relative luminance (above 0.3, black); an install with no `labelTextMode` keeps any letter color it stored before (`Letters`). `LabelStyle` is re-read on every trigger. If a color changes in the panel while labels are up, the labels on screen are recolored at once (`Controller.recolor`); size is left alone, since it would move every label.
 - **Overlays.** One transparent, click-through window per display, always ordered in, so showing labels is only adding layers. Overlays take global top-left rectangles; the flip to AppKit's bottom-left happens only in `Overlay`.
 
 ## Keys
@@ -143,7 +144,7 @@ An app "hosts web content" if it is on the built-in Chromium list, on the built-
   - keys with ⌘, ⌃ or ⌥ pass through to the system, so shortcuts keep working while labels are up
 - **The handler never blocks**: no accessibility calls, no scans. The hotkey's work runs on the main queue's next turn.
 - **Re-enabled if switched off.** If the system disables the tap (timeout or user input), it is re-enabled at once and trust is checked again.
-- **Hotkey recorder.** While the Settings recorder is recording, the tap is suspended (`suspended`) so the keys reach the recorder. Recording ends whenever the window closes or stops being key, so the tap is never left suspended. A combination without ⌘, ⌃ or ⌥ is rejected (`Hotkey.isValid`). The hotkey is stored as `keyCode:modifiers` and applied live.
+- **Hotkey recorder.** While the panel's recorder is recording, the tap is suspended (`suspended`) so the keys reach the recorder. Recording ends whenever the panel closes or stops being key, so the tap is never left suspended. A combination without ⌘, ⌃ or ⌥ is rejected (`Hotkey.isValid`). The hotkey is stored as `keyCode:modifiers` and applied live.
 - **Secure input.** While a password field has keyboard focus, macOS keeps keystrokes from every event tap, so neither the hotkey nor Esc reaches Jumpr.
 
 ## Pressing
@@ -167,23 +168,23 @@ The log records each press: role, result (`pressed`, `clicked` or `skipped`), ti
 
 ## Permission and lifecycle
 
-**Accessibility permission.** Jumpr needs only this one. At launch without it, Jumpr asks the system once to prompt (which also adds Jumpr to the list) and opens Settings with the permission step at the top. Its button opens the exact System Settings pane (`Onboarding.accessibilityPane`), because the pane is hard to find by hand. A change in trust is learned from the `com.apple.accessibility.api` distributed notification, rechecked 0.5 s and 2 s after it fires, because the answer lags the notification. On gaining trust, Jumpr starts the key tap and switches web trees on; if the tap still cannot start, Settings shows a Relaunch button. On losing it, Jumpr stops the tap, cancels any session and shows Settings. A stable signing identity keeps the grant across rebuilds (see the README).
+**Accessibility permission.** Jumpr needs only this one. At launch without it, Jumpr asks the system once to prompt (which also adds Jumpr to the list) and opens the panel under its menu bar icon, with the permission banner at the top. Its button opens the exact System Settings pane (`Onboarding.accessibilityPane`), because the pane is hard to find by hand. A change in trust is learned from the `com.apple.accessibility.api` distributed notification, rechecked 0.5 s and 2 s after it fires, because the answer lags the notification. On gaining trust, Jumpr starts the key tap and switches web trees on; if the tap still cannot start, the panel shows a Relaunch button. On losing it, Jumpr stops the tap, cancels any session and opens the panel. The panel is an `NSPopover` (transient: a click elsewhere closes it); Jumpr activates itself when it opens, so the exact-colour field and the hotkey recorder get the keys. A stable signing identity keeps the grant across rebuilds (see the README).
 
-**Pause.** The `paused` preference is the single source of truth: the menu item writes it, and `defaults write` works the same way. Pausing cancels any session, makes the tap ignore the hotkey, and switches off every tree Jumpr switched on. Resuming switches trees on again.
+**Pause.** The `paused` preference is the single source of truth: the On/Off switch at the top of the panel writes it (on is not paused), and `defaults write` works the same way. Pausing cancels any session, makes the tap ignore the hotkey, and switches off every tree Jumpr switched on. Resuming switches trees on again.
 
 **Lock.** `PowerSource` tracks three causes apart (session lock, display sleep, screen saver, in `LockCauses`), so that one ending cannot clear another that still holds. Every lock event cancels a running session, since a capturing key listener must never be live at a lock screen. The trigger also checks the lock live and ignores the hotkey while locked, so a missed notification can never make the hotkey dead. A hotkey press resyncs the causes. On unlock, Jumpr switches on trees it skipped while locked.
 
-**Start at login** is opt-in: off until the user turns it on in Settings, backed by `SMAppService.mainApp`, and Jumpr only reads its state otherwise.
+**Start at login** is opt-in: off until the user turns it on in the panel, backed by `SMAppService.mainApp`, and Jumpr only reads its state otherwise.
 
 **The log** is `~/Library/Logs/Jumpr.log`: launch, trust, pause, lock, tree switching, each trigger's readout lines, each press, updates. It names apps and element roles; Jumpr never reads element text. Past about 1 MB (`LogFile.cap`) it moves to `Jumpr.log.1`, replacing the one there, and starts again, so a copy left running for months cannot fill a disk.
 
-**Preferences** (names in `Keys`): `hotkey`, `labelSize`, `labelColor`, `labelTextColor`, `paused`, `showReadout`, `showAdvancedSettings`, and `webHostApps`, which is not a setting but Jumpr's remembered list of web-hosting apps. Sparkle keeps its own settings. Hotkey, readout and pause changes apply live through `DefaultsWatcher`, including changes made with `defaults write`; label settings apply on the next trigger.
+**Preferences** (names in `Keys`): `hotkey`, `labelSize`, `labelColor`, `labelTextColor`, `labelTextMode` (`auto` or `color`), `paused`, `showReadout`, `showAdvancedSettings`, and `webHostApps`, which is not a setting but Jumpr's remembered list of web-hosting apps. Sparkle keeps its own settings. Hotkey, readout and pause changes apply live through `DefaultsWatcher`, including changes made with `defaults write`; label settings apply on the next trigger.
 
 ## Updates
 
-Jumpr updates through Sparkle, its only third-party dependency and its only network use. `scripts/build-app.sh` stamps the feed address and Sparkle public key into `Info.plist` (`SUFeedURL`, `SUPublicEDKey`). A development build gets a feed that goes nowhere and a placeholder key; `UpdatePolicy.isConfigured` sees that, so `UpdaterController` never starts the updater, "Check for Updates…" stays disabled, and Settings says updates are off. The build script applies the same rule to refuse a release build without a real feed and key.
+Jumpr updates through Sparkle, its only third-party dependency and its only network use. `scripts/build-app.sh` stamps the feed address and Sparkle public key into `Info.plist` (`SUFeedURL`, `SUPublicEDKey`). A development build gets a feed that goes nowhere and a placeholder key; `UpdatePolicy.isConfigured` sees that, so `UpdaterController` never starts the updater, "Check for Updates…" stays disabled, and the panel says updates are off. The build script applies the same rule to refuse a release build without a real feed and key.
 
-Jumpr has no Dock icon and is rarely the active app, so a scheduled update alert could open unseen behind other apps. It uses Sparkle's gentle reminders instead: Sparkle shows a scheduled update itself only when it would be in immediate focus; otherwise Jumpr puts a dot on its menu bar icon and the menu item reads "Update Available…" until the user looks.
+Jumpr has no Dock icon and is rarely the active app, so a scheduled update alert could open unseen behind other apps. It uses Sparkle's gentle reminders instead: Sparkle shows a scheduled update itself only when it would be in immediate focus; otherwise Jumpr puts a dot on its menu bar icon and shows an "An update is ready" banner with an Install button in the panel until the user looks.
 
 **Releases.** `scripts/release.sh <version>` builds the downloadable zip: a universal app, Developer ID signed, notarized and stapled, with Sparkle embedded, then a signed appcast for it. It uploads nothing. `--skip-notarize` makes a signed test build with no appcast. The feed address and the public key live in that script; read it for the details rather than this document.
 
@@ -210,8 +211,8 @@ None of these is implemented.
 ## Debugging aids
 
 - **`JUMPR_DEBUG_LABELS`**: set it in Jumpr's environment to log every label's role, process, window and position when a trigger completes, each narrowing as you type, and when the look-again pass finds nothing in a web view. It logs the letters you type, so leave it off otherwise.
-- **`JUMPR_DEBUG_SIGNALS`**: set it to make two signals do something. `kill -USR1 <pid>` runs a trigger that scans and paints without capturing keys, cancelled after 2 s (a second USR1 within that time cancels it). `kill -USR2 <pid>` opens Settings by the same path as the menu item. Without the variable both signals are ignored, so a normal copy has no such hook.
+- **`JUMPR_DEBUG_SIGNALS`**: set it to make two signals do something. `kill -USR1 <pid>` runs a trigger that scans and paints without capturing keys, cancelled after 2 s (a second USR1 within that time cancels it). `kill -USR2 <pid>` opens the panel by the same path as a click on the menu bar icon. Without the variable both signals are ignored, so a normal copy has no such hook.
 - **`showReadout`**: a hidden preference that draws each trigger's timing on the main display: total time split into window list, scan and paint; label and app counts; then per app its time, elements read, labels and any timeout. The same lines are always written to the log.
-- **`showAdvancedSettings`**: a hidden preference that shows the timing readout toggle in Settings.
+- **`showAdvancedSettings`**: a hidden preference that shows the timing readout switch in the panel.
 
 Set the hidden preferences with `defaults write <bundle ID> showReadout -bool true`; the bundle ID is in `Resources/Info.plist`.

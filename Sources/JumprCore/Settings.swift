@@ -72,15 +72,20 @@ public struct Hotkey: Equatable {
     /// `keyName` returns the character a key produces without modifiers (from the
     /// keyboard layout); it is used only for keys `Hotkey.keyName` does not name.
     public func display(keyName lookup: (Int64) -> String?) -> String {
-        var s = ""
-        if modifiers & Modifiers.control != 0 { s += "⌃" }
-        if modifiers & Modifiers.option != 0 { s += "⌥" }
-        if modifiers & Modifiers.shift != 0 { s += "⇧" }
-        if modifiers & Modifiers.command != 0 { s += "⌘" }
+        keycaps(keyName: lookup).joined()
+    }
+
+    /// The same combination as one string per key, for drawing each as a keycap.
+    public func keycaps(keyName lookup: (Int64) -> String?) -> [String] {
+        var caps: [String] = []
+        if modifiers & Modifiers.control != 0 { caps.append("⌃") }
+        if modifiers & Modifiers.option != 0 { caps.append("⌥") }
+        if modifiers & Modifiers.shift != 0 { caps.append("⇧") }
+        if modifiers & Modifiers.command != 0 { caps.append("⌘") }
         let key = Hotkey.keyName(keyCode)
             ?? lookup(keyCode).map { $0.uppercased() }.flatMap { $0.isEmpty ? nil : $0 }
             ?? "Key \(keyCode)"
-        return s + key
+        return caps + [key]
     }
 }
 
@@ -121,11 +126,14 @@ public func clampLabelSize(_ v: Double) -> Double {
 public enum Keys {
     public static let labelSize = "labelSize"
     public static let labelColor = "labelColor"
+    /// The chosen letter colour; used when `labelTextMode` is "color" (see `Letters`).
     public static let labelTextColor = "labelTextColor"
+    /// A `LetterMode` raw value: "auto" or "color".
+    public static let labelTextMode = "labelTextMode"
     public static let hotkey = "hotkey"
     public static let showReadout = "showReadout"
     public static let paused = "paused"
-    /// Shows the timing readout control in Settings (hidden by default).
+    /// Shows the timing readout switch in the panel (hidden by default).
     public static let showAdvancedSettings = "showAdvancedSettings"
     /// Bundle IDs of apps seen showing web content, so a web view of theirs that is not
     /// built yet gets a second look. Not a setting: Jumpr keeps it for itself.
