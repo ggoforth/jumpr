@@ -13,12 +13,16 @@ public struct NodeInfo {
     public var frame: CGRect?
     public var enabled: Bool?
     public var children: [any AXNode]
+    /// The element itself can take keyboard focus (it is its own `AXFocusableAncestor`).
+    /// Web content only: other apps do not have the attribute.
+    public var focusable: Bool
 
-    public init(role: String, frame: CGRect?, enabled: Bool?, children: [any AXNode]) {
+    public init(role: String, frame: CGRect?, enabled: Bool?, children: [any AXNode], focusable: Bool = false) {
         self.role = role
         self.frame = frame
         self.enabled = enabled
         self.children = children
+        self.focusable = focusable
     }
 }
 
@@ -62,6 +66,11 @@ public enum Roles {
     /// sidebar is an `AXStaticText` that offers a press. Text only: there, plain groups
     /// offer a press too.
     public static let clickableIfPressable: Set<String> = ["AXStaticText"]
+    /// Clickable in web content only if the element itself can take keyboard focus. A page
+    /// builds controls out of plain text: each day in a date picker is an `AXStaticText`
+    /// with no press action, and being focusable is what sets it apart from the text
+    /// around it. Text only: scrolling regions, splitters and toolbars take focus too.
+    public static let clickableIfFocusable: Set<String> = ["AXStaticText"]
     /// Clickable only as a list's own item (a direct child of an `AXList`). Dia's sidebar
     /// presents each folder as an `AXUnknown` child of its list, with no children and no
     /// actions: its place in the list is the only sign that it is something to click.
@@ -128,6 +137,7 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
         if info.enabled != false, let r = visibleRect, r.width >= 4, r.height >= 4,
            Roles.clickable.contains(info.role)
             || (inList && Roles.clickableAsListItem.contains(info.role))
+            || (inWeb && info.focusable && Roles.clickableIfFocusable.contains(info.role))
             || (Roles.clickableIfPressable.contains(info.role) && !inWeb && !inTarget && node.offersPress()) {
             let c = CGPoint(x: r.midX, y: r.midY)
             switch scope {

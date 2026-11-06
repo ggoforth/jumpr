@@ -7,6 +7,7 @@ final class Fake: AXNode {
     var role: String; var frame: CGRect?; var enabled: Bool? = true
     var kids: [Fake]; var selected = false; var rows: [Fake]?
     var pressable = false
+    var focusable = false
     private(set) var infoCalls = 0
     private(set) var pressAsks = 0
     private static var next = 0
@@ -14,7 +15,10 @@ final class Fake: AXNode {
         Fake.next += 1; id = ElementID(Fake.next)
         self.role = role; self.frame = frame; self.kids = kids
     }
-    func info() -> NodeInfo? { infoCalls += 1; return NodeInfo(role: role, frame: frame, enabled: enabled, children: kids) }
+    func info() -> NodeInfo? {
+        infoCalls += 1
+        return NodeInfo(role: role, frame: frame, enabled: enabled, children: kids, focusable: focusable)
+    }
     func isSelected() -> Bool { selected }
     func visibleRows() -> [any AXNode]? { rows }
     func offersPress() -> Bool { pressAsks += 1; return pressable }
@@ -273,6 +277,27 @@ private func buttonAt(depth: Int) -> Fake {
     #expect(largestFreeBand(of: whole, around: [r(250, 0, 20, 76)]) == r(0, 0, 250, 76))       // the band to the left
     #expect(largestFreeBand(of: whole, around: [whole]) == nil)
     #expect(largestFreeBand(of: whole, around: [r(0, 3, 270, 70)]) == nil)                     // what is left is under 4 pt
+}
+// A date picker on a web page: each day is plain text in a list, with no role that says it
+// can be clicked. What sets it apart from the text around it is that it can take keyboard
+// focus. None of the days got a label.
+@Test func textOnAWebPageThatCanTakeFocusIsLabeled() {
+    let day = Fake("AXStaticText", r(10, 40, 40, 39)); day.focusable = true
+    let past = Fake("AXStaticText", r(50, 40, 40, 39)); past.focusable = true; past.enabled = false   // a day that cannot be picked
+    let heading = Fake("AXStaticText", r(10, 10, 117, 19))
+    let picker = Fake("AXList", bounds, [Fake("AXGroup", bounds, [heading, day, past])])
+    let res = run(Fake("AXWindow", bounds, [Fake("AXWebArea", bounds, [picker])]))
+    #expect(res.targets.map(\.id) == [day.id])
+    #expect(res.targets[0].inWeb)
+}
+@Test func otherThingsOnAWebPageThatCanTakeFocusAreNotLabeled() {   // scrolling regions, splitters, toolbars
+    let region = Fake("AXGroup", r(10, 10, 300, 300)); region.focusable = true
+    let splitter = Fake("AXSplitter", r(320, 10, 19, 300)); splitter.focusable = true
+    #expect(run(Fake("AXWindow", bounds, [Fake("AXWebArea", bounds, [region, splitter])])).targets.isEmpty)
+}
+@Test func outsideWebContentFocusIsNotTheSign() {   // there, text says so by offering a press
+    let text = Fake("AXStaticText", r(10, 10)); text.focusable = true
+    #expect(run(Fake("AXWindow", bounds, [text])).targets.isEmpty)
 }
 @Test func nestedRowsCollapseToTheInnermostControl() {
     let button = Fake("AXButton", r(20, 0, 380, 24))
