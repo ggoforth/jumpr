@@ -10,6 +10,7 @@ let keyTap = KeyTap()
 let controller = Controller(scanner: scanner, registry: treeRegistry, tap: keyTap)
 let onboarding = Onboarding()
 let loginItem = LoginItem()
+let updaterController = UpdaterController()
 
 // Power: battery, Low Power Mode, lock and pause (pause is only reflected; `applyPaused` acts on it).
 // `onChange` belongs to the watcher (Task 13).
@@ -54,13 +55,16 @@ let readoutWatcher = DefaultsWatcher(Keys.showReadout) {
 }
 
 let settingsWindow = SettingsWindow(
-    onboarding: onboarding, loginItem: loginItem,
+    onboarding: onboarding, loginItem: loginItem, updater: updaterController,
     onRecording: { recording in
         keyTap.suspended = recording
         log("hotkey recorder: \(recording ? "recording, key listener suspended" : "done, key listener resumed")")
     },
     onHotkey: { applyHotkey($0) })  // usually already applied by `hotkeyWatcher`
 statusItem.onSettings = { settingsWindow.show() }
+statusItem.onCheckForUpdates = { updaterController.checkForUpdates() }
+statusItem.canCheckForUpdates = { updaterController.canCheckForUpdates }
+updaterController.onUpdatePending = { statusItem.setUpdatePending($0) }
 // The tap callback must return at once: the trigger runs on main's next turn.
 // A real hotkey press proves the displays are awake and no screen saver runs.
 keyTap.onHotkey = {
@@ -163,6 +167,9 @@ debugSignal.setEventHandler {
     }
 }
 debugSignal.resume()
+
+// Sparkle starts on the first turn of the run loop, once the app is running.
+DispatchQueue.main.async { updaterController.start() }
 
 // Debug: `kill -USR2 <pid>` = open Settings, the same path as the menu item.
 signal(SIGUSR2, SIG_IGN)

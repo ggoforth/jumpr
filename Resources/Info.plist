@@ -20,5 +20,12 @@
     <true/>
     <key>LSMinimumSystemVersion</key>
     <string>15.0</string>
+    <!-- Sparkle. SUFeedURL and SUPublicEDKey are added by scripts/build-app.sh. -->
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
+    <key>SUScheduledCheckInterval</key>
+    <integer>86400</integer>
+    <key>SUEnableSystemProfiling</key>
+    <false/>
 </dict>
 </plist>

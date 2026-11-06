@@ -1,12 +1,18 @@
 #!/bin/bash
-# Builds build/release/Jumpr.zip: universal, Developer ID signed, notarized, stapled.
+# Builds build/release/Jumpr.zip: universal, Developer ID signed, notarized, stapled, with
+# Sparkle embedded; then build/release/appcast.xml for it. Uploads nothing.
 #
 #   scripts/release.sh <version> [--skip-notarize]
 #
+# --skip-notarize makes a test build: signed, not notarized, no appcast. It is the only
+# way to build while SPARKLE_PUBLIC_KEY below is still the placeholder.
+#
 # Env:
-#   JUMPR_NOTARY_PROFILE  notarytool keychain profile (required unless --skip-notarize)
-#   JUMPR_SIGN_IDENTITY   codesign identity; default: SHA-1 of the first valid
-#                         "Developer ID Application ... (WUGFD7332A)" identity
+#   JUMPR_NOTARY_PROFILE    notarytool keychain profile (required unless --skip-notarize)
+#   JUMPR_SIGN_IDENTITY     codesign identity; default: SHA-1 of the first valid
+#                           "Developer ID Application ... (WUGFD7332A)" identity
+#   JUMPR_SPARKLE_KEY_FILE  passed to scripts/appcast.sh (test keys only); default: the
+#                           private key in the login keychain, account "jumpr"
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -14,6 +20,14 @@ TEAM_ID=WUGFD7332A
 OUT=build/release
 APP="$OUT/Jumpr.app"
 ZIP="$OUT/Jumpr.zip"
+APPCAST="$OUT/appcast.xml"
+
+# --- updates -----------------------------------------------------------------
+FEED_URL=https://getjumpr.app/appcast.xml
+# THE Sparkle public key; this line is the one place it lives. Paste what
+# `.build/artifacts/sparkle/Sparkle/bin/generate_keys --account jumpr -p` prints.
+# Every Jumpr shipped trusts only this key: never change it after the first release.
+SPARKLE_PUBLIC_KEY=PLACEHOLDER-NOT-A-REAL-SPARKLE-KEY
 
 die() { echo "error: $*" >&2; exit 1; }
 step() { echo; echo "==> $*"; }
@@ -35,6 +49,17 @@ if [ "$NOTARIZE" = 1 ] && [ -z "${JUMPR_NOTARY_PROFILE:-}" ]; then
     die "JUMPR_NOTARY_PROFILE is not set. Set it to your notarytool keychain profile, or pass --skip-notarize."
 fi
 
+ALLOW_PLACEHOLDER_KEY=0
+if [ "$SPARKLE_PUBLIC_KEY" = PLACEHOLDER-NOT-A-REAL-SPARKLE-KEY ]; then
+    [ "$NOTARIZE" = 0 ] || die "SPARKLE_PUBLIC_KEY in scripts/release.sh is still the placeholder; paste the key from: .build/artifacts/sparkle/Sparkle/bin/generate_keys --account jumpr -p"
+    ALLOW_PLACEHOLDER_KEY=1
+    echo
+    echo "*****************************************************************************"
+    echo "*** SPARKLE_PUBLIC_KEY is the PLACEHOLDER: this test build cannot update. ***"
+    echo "*** Allowed only with --skip-notarize. Do not ship it.                     ***"
+    echo "*****************************************************************************"
+fi
+
 BUILD_NUMBER="$(git rev-list --count HEAD)"
 
 # --- signing identity --------------------------------------------------------
@@ -47,10 +72,31 @@ if [ -z "$IDENTITY" ]; then
 fi
 echo "Version $VERSION (build $BUILD_NUMBER), signing identity $IDENTITY"
 
-# Signs everything that ships. Sparkle goes here later, signed inside-out
-# (its nested helpers and framework first, the app last).
+SPARKLE_FW="$APP/Contents/Frameworks/Sparkle.framework"
+SPARKLE_B="$SPARKLE_FW/Versions/B"
+# Everything that carries its own signature, innermost first, the app last.
+SIGNED_PIECES=(
+    "$SPARKLE_B/XPCServices/Installer.xpc"
+    "$SPARKLE_B/XPCServices/Downloader.xpc"
+    "$SPARKLE_B/Autoupdate"
+    "$SPARKLE_B/Updater.app"
+    "$SPARKLE_FW"
+    "$APP"
+)
+
+sign() { codesign --force --options runtime --timestamp --sign "$IDENTITY" "$@"; }
+
+# Signs everything that ships, inside out and never --deep: Sparkle's XPC services,
+# Autoupdate, Updater.app, the framework, then the app. This is Sparkle's documented order
+# for apps not built by Xcode (sparkle-project.org/documentation/sandboxing); Downloader.xpc
+# keeps the entitlements Sparkle gave it.
 sign_app() {
-    codesign --force --options runtime --timestamp --sign "$IDENTITY" "$APP"
+    sign "$SPARKLE_B/XPCServices/Installer.xpc"
+    sign --preserve-metadata=entitlements "$SPARKLE_B/XPCServices/Downloader.xpc"
+    sign "$SPARKLE_B/Autoupdate"
+    sign "$SPARKLE_B/Updater.app"
+    sign "$SPARKLE_FW"
+    sign "$APP"
 }
 
 report() {
@@ -69,25 +115,49 @@ zip_app() {
 step "Building universal app"
 rm -rf "$OUT"
 mkdir -p "$OUT"
-JUMPR_BUILD_DIR="$OUT" JUMPR_ARCHS="arm64 x86_64" JUMPR_NO_SIGN=1 scripts/build-app.sh
+# build-app.sh stamps version, build number, feed and key, and refuses a release without
+# real ones (the placeholder key passes only under --skip-notarize, above).
+JUMPR_BUILD_DIR="$OUT" JUMPR_ARCHS="arm64 x86_64" JUMPR_NO_SIGN=1 JUMPR_RELEASE=1 \
+    JUMPR_VERSION="$VERSION" JUMPR_BUILD_NUMBER="$BUILD_NUMBER" \
+    JUMPR_FEED_URL="$FEED_URL" JUMPR_SPARKLE_PUBLIC_KEY="$SPARKLE_PUBLIC_KEY" \
+    JUMPR_ALLOW_PLACEHOLDER_KEY="$ALLOW_PLACEHOLDER_KEY" \
+    scripts/build-app.sh
 
-ARCHS="$(lipo -archs "$APP/Contents/MacOS/Jumpr")"
-echo "Architectures: $ARCHS"
-[[ " $ARCHS " == *" arm64 "* && " $ARCHS " == *" x86_64 "* ]] || die "binary is not universal (got: $ARCHS)"
+for bin in "$APP/Contents/MacOS/Jumpr" "$SPARKLE_B/Sparkle"; do
+    ARCHS="$(lipo -archs "$bin")"
+    echo "Architectures of ${bin#"$OUT/"}: $ARCHS"
+    [[ " $ARCHS " == *" arm64 "* && " $ARCHS " == *" x86_64 "* ]] || die "$bin is not universal (got: $ARCHS)"
+done
+# The app finds Sparkle.framework through this rpath, or it does not launch.
+# (Captured first: grep -q quitting early would fail the pipe under pipefail.)
+LOAD_COMMANDS="$(otool -l "$APP/Contents/MacOS/Jumpr")"
+grep -q 'path @executable_path/../Frameworks ' <<<"$LOAD_COMMANDS" \
+    || die "the binary has no @executable_path/../Frameworks rpath"
+echo "rpath: @executable_path/../Frameworks"
 
 # --- version -----------------------------------------------------------------
-step "Stamping version"
-plutil -replace CFBundleShortVersionString -string "$VERSION" "$APP/Contents/Info.plist"
-plutil -replace CFBundleVersion -string "$BUILD_NUMBER" "$APP/Contents/Info.plist"
+step "Checking version, build number, feed and key"
+info() { plutil -extract "$1" raw -o - "$APP/Contents/Info.plist"; }
+[ "$(info CFBundleShortVersionString)" = "$VERSION" ] || die "CFBundleShortVersionString is not $VERSION"
+[ "$(info CFBundleVersion)" = "$BUILD_NUMBER" ] || die "CFBundleVersion is not $BUILD_NUMBER"
+[ "$(info SUFeedURL)" = "$FEED_URL" ] || die "SUFeedURL is not $FEED_URL"
+[ "$(info SUPublicEDKey)" = "$SPARKLE_PUBLIC_KEY" ] || die "SUPublicEDKey is not the key in this script"
+echo "CFBundleShortVersionString $VERSION, CFBundleVersion $BUILD_NUMBER"
+echo "SUFeedURL     $FEED_URL"
+echo "SUPublicEDKey $SPARKLE_PUBLIC_KEY"
 
 # --- sign + verify -----------------------------------------------------------
 step "Signing"
 sign_app
 codesign --verify --deep --strict --verbose=2 "$APP"
-SIG="$(codesign -dvv "$APP" 2>&1)"
-grep -q '^CodeDirectory .*flags=0x10000(runtime)' <<<"$SIG" || die "signature lacks the hardened runtime flag"
-grep -q '^Authority=Developer ID Application:' <<<"$SIG" || die "signature is not from a Developer ID Application certificate"
-grep -q '^Timestamp=' <<<"$SIG" || die "signature has no secure timestamp"
+for piece in "${SIGNED_PIECES[@]}"; do
+    SIG="$(codesign -dvv "$piece" 2>&1)"
+    grep -q '^CodeDirectory .*flags=0x10000(runtime)' <<<"$SIG" || die "$piece lacks the hardened runtime flag"
+    grep -q '^Authority=Developer ID Application:' <<<"$SIG" || die "$piece is not signed with a Developer ID Application certificate"
+    grep -q "^TeamIdentifier=$TEAM_ID\$" <<<"$SIG" || die "$piece is not signed by team $TEAM_ID"
+    grep -q '^Timestamp=' <<<"$SIG" || die "$piece has no secure timestamp"
+    echo "Signed: ${piece#"$OUT/"}"
+done
 grep -E '^(Authority=Developer ID Application|TeamIdentifier|Timestamp|CodeDirectory)' <<<"$SIG"
 
 step "Zipping"
@@ -97,6 +167,7 @@ zip_app
 if [ "$NOTARIZE" = 0 ]; then
     echo
     echo "*** --skip-notarize: $ZIP is signed but NOT notarized. Do not ship it. ***"
+    echo "*** No appcast written: the appcast is only for a notarized zip. ***"
     report "NOT notarized"
     exit 0
 fi
@@ -122,4 +193,13 @@ zip_app
 xcrun stapler validate "$APP"
 spctl --assess --type execute --verbose=2 "$APP"
 
+# --- appcast -----------------------------------------------------------------
+step "Signing the zip for Sparkle and writing the appcast"
+scripts/appcast.sh "$APP" "$ZIP" "$APPCAST"
+
 report "Notarized and stapled"
+echo
+echo "Nothing was uploaded. Upload, zip first (the appcast points at it):"
+echo "  1. $ZIP     -> GitHub Release v$VERSION, asset named Jumpr.zip"
+echo "       (it must download from https://github.com/ggoforth/jumpr/releases/download/v$VERSION/Jumpr.zip)"
+echo "  2. $APPCAST -> $FEED_URL"
