@@ -7,7 +7,8 @@ test:
 app:
 	scripts/build-app.sh
 
-# Universal, Developer ID signed, notarized build/release/Jumpr.zip.
+# Universal, Developer ID signed, notarized build/release/Jumpr.zip with Sparkle, and its
+# signed build/release/appcast.xml. Uploads nothing.
 #   make release VERSION=1.0.0 JUMPR_NOTARY_PROFILE=<profile>
 #   make release VERSION=1.0.0 ARGS=--skip-notarize
 release:
