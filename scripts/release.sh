@@ -27,7 +27,7 @@ FEED_URL=https://getjumpr.app/appcast.xml
 # THE Sparkle public key; this line is the one place it lives. Paste what
 # `.build/artifacts/sparkle/Sparkle/bin/generate_keys --account jumpr -p` prints.
 # Every Jumpr shipped trusts only this key: never change it after the first release.
-SPARKLE_PUBLIC_KEY=PLACEHOLDER-NOT-A-REAL-SPARKLE-KEY
+SPARKLE_PUBLIC_KEY='UybtTCaO+m2OQcQHPooMTy+2sGlbH/sEvcxFNrGq+Mc='
 
 die() { echo "error: $*" >&2; exit 1; }
 step() { echo; echo "==> $*"; }
