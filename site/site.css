@@ -694,9 +694,9 @@ kbd + kbd { margin-left: 0.2em; }
 
 html:not(.js) .js-only, html:not(.js) .tile-btn, html:not(.js) .swatches, html:not(.js) .swatch-note { display: none; }
 
-.sec-head { display: grid; justify-items: start; gap: 14px; max-width: 760px; margin-bottom: 44px; }
-.sec-head h2 { font-size: clamp(1.9rem, 3.8vw, 2.9rem); font-weight: 750; letter-spacing: -0.035em; line-height: 1.08; }
-.sec-sub { color: var(--muted); font-size: 1.12rem; max-width: 56ch; }
+.sec-head { display: grid; justify-items: start; gap: 10px; max-width: 760px; margin-bottom: 30px; }
+.sec-head h2 { font-size: clamp(1.6rem, 3vw, 2.25rem); font-weight: 750; letter-spacing: -0.035em; line-height: 1.08; }
+.sec-sub { color: var(--muted); font-size: 1.05rem; max-width: 56ch; }
 
 /* a Jumpr label: section tags, and the chips inside the drawings */
 .tag, .chip {
@@ -722,34 +722,35 @@ html:not(.js) .js-only, html:not(.js) .tile-btn, html:not(.js) .swatches, html:n
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 64px;
-  height: 64px;
-  padding: 0 14px;
-  font: 600 1.5rem/1 var(--sans);
+  min-width: 52px;
+  height: 52px;
+  padding: 0 12px;
+  font: 600 1.25rem/1 var(--sans);
   color: var(--text);
   background: var(--key);
   border: 1px solid var(--key-edge);
-  border-bottom-width: 5px;
-  border-radius: 13px;
+  border-bottom-width: 4px;
+  border-radius: 11px;
   box-shadow: 0 10px 18px -12px var(--shadow);
 }
-.key-wide { min-width: 132px; font-size: 1.05rem; letter-spacing: 0.01em; }
+.key-wide { min-width: 104px; font-size: 0.95rem; letter-spacing: 0.01em; }
 .key-letter { font-family: var(--mono); font-weight: 700; }
 .key-sm { min-width: 34px; height: 34px; padding: 0 8px; font-size: 0.95rem; border-bottom-width: 3px; border-radius: 8px; box-shadow: none; }
 .key-sm.key-wide { min-width: 64px; font-size: 0.85rem; }
 
 /* --- 2. press, type, clicked --- */
 
-.how { margin-top: 136px; }
-.how-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin: 0; padding: 0; list-style: none; }
+.how { margin-top: 104px; }
+/* --gap and --art-h also place the arrow, so it stays centred when either changes */
+.how-steps { --gap: 44px; --art-h: 132px; display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap); margin: 0; padding: 0; list-style: none; }
 .how-step { position: relative; min-width: 0; }
 .how-art {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  height: 176px;
-  margin-bottom: 22px;
+  height: var(--art-h);
+  margin-bottom: 18px;
   background: var(--art);
   border: 1px solid var(--line);
   border-radius: 20px;
@@ -757,16 +758,16 @@ html:not(.js) .js-only, html:not(.js) .tile-btn, html:not(.js) .swatches, html:n
 .how-step + .how-step::before {          /* the arrow between steps */
   content: "";
   position: absolute;
-  left: -19px;
-  top: 82px;
-  width: 14px;
-  height: 14px;
-  border-top: 2px solid var(--line-strong);
-  border-right: 2px solid var(--line-strong);
+  left: calc(var(--gap) / -2 - 7px);      /* the middle of the gap between two panels */
+  top: calc(var(--art-h) / 2 - 5px);      /* the panels' middle line */
+  width: 9px;
+  height: 9px;
+  border-top: 1.5px solid var(--line-strong);
+  border-right: 1.5px solid var(--line-strong);
   transform: rotate(45deg);
 }
 .how-n { font: 600 0.8rem/1 var(--mono); letter-spacing: 0.08em; color: var(--faint); margin-bottom: 10px; }
-.how-step h3 { font-size: 1.3rem; margin-bottom: 6px; }
+.how-step h3 { font-size: 1.15rem; margin-bottom: 6px; }
 .how-step p:last-child { color: var(--muted); }
 
 .fx-btn {
@@ -798,11 +799,11 @@ html:not(.js) .js-only, html:not(.js) .tile-btn, html:not(.js) .swatches, html:n
 .how-steps.play .fx-hit { animation: chip-hit 0.35s ease 3s both; }
 
 @keyframes key-hold {
-  0%, 100% { transform: none; border-bottom-width: 5px; background: var(--key); color: var(--text); }
+  0%, 100% { transform: none; border-bottom-width: 4px; background: var(--key); color: var(--text); }
   12%, 82% { transform: translateY(3px); border-bottom-width: 2px; background: var(--label); color: var(--on-label); }
 }
 @keyframes key-tap {
-  0%, 100% { transform: none; border-bottom-width: 5px; background: var(--key); color: var(--text); }
+  0%, 100% { transform: none; border-bottom-width: 4px; background: var(--key); color: var(--text); }
   25%, 60% { transform: translateY(3px); border-bottom-width: 2px; background: var(--label); color: var(--on-label); }
 }
 @keyframes btn-press { 0%, 100% { transform: none; } 40% { transform: scale(0.94); } }
@@ -811,7 +812,7 @@ html:not(.js) .js-only, html:not(.js) .tile-btn, html:not(.js) .swatches, html:n
 
 /* --- 3. the feature grid --- */
 
-.features { margin-top: 136px; }
+.features { margin-top: 104px; }
 .bento { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; }
 .tile {
   display: flex;
@@ -826,8 +827,8 @@ html:not(.js) .js-only, html:not(.js) .tile-btn, html:not(.js) .swatches, html:n
   position: relative;
   display: grid;
   place-items: center;
-  height: 212px;
-  margin-bottom: 22px;
+  height: 192px;
+  margin-bottom: 20px;
   overflow: hidden;
   background: var(--art);
   border-radius: 14px;
@@ -869,7 +870,7 @@ html:not(.js) .js-only, html:not(.js) .tile-btn, html:not(.js) .swatches, html:n
 
 /* speed */
 .fx-speed { width: 84%; }
-.fx-speed-fig { font: 700 clamp(3rem, 6vw, 4.2rem)/1 var(--mono); letter-spacing: -0.04em; margin-bottom: 36px; }
+.fx-speed-fig { font: 700 clamp(2.6rem, 5vw, 3.6rem)/1 var(--mono); letter-spacing: -0.04em; margin-bottom: 30px; }
 .fx-speed-fig span { font-size: 0.45em; margin-left: 0.15em; color: var(--muted); letter-spacing: 0; }
 .fx-track { position: relative; height: 8px; border-radius: 4px; background: var(--line); }
 .fx-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 10%; border-radius: 4px; background: var(--text); }
@@ -1049,35 +1050,35 @@ html:not(.js) .js-only, html:not(.js) .tile-btn, html:not(.js) .swatches, html:n
 
 /* --- 4. questions --- */
 
-.qa { margin-top: 136px; }
+.qa { margin-top: 104px; }
 .qa-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 56px; margin: 0; }
-.qa-item { padding: 26px 0 28px; border-top: 1px solid var(--line); }
+.qa-item { padding: 22px 0 24px; border-top: 1px solid var(--line); }
 .qa-item dt { font-weight: 650; font-size: 1.12rem; margin-bottom: 8px; }
 .qa-item dd { margin: 0; color: var(--muted); }
 .qa-item kbd { font-size: 0.8em; }
 
 /* --- 5. closing band and more apps --- */
 
-.closing { margin-top: 136px; }
+.closing { margin-top: 104px; }
 .closing-band {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 28px 40px;
-  padding: 52px 52px;
+  padding: 40px 44px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 28px;
 }
 .closing-copy { flex: 1 1 420px; }
-.closing-copy h2 { font-size: clamp(1.9rem, 3.6vw, 2.8rem); font-weight: 750; letter-spacing: -0.035em; line-height: 1.08; max-width: 18ch; }
+.closing-copy h2 { font-size: clamp(1.6rem, 3vw, 2.25rem); font-weight: 750; letter-spacing: -0.035em; line-height: 1.08; max-width: 18ch; }
 .closing-keys { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 22px; color: var(--muted); font-size: 0.98rem; }
 .closing-keys > span:last-child { margin-left: 8px; }
 .closing-actions { display: grid; justify-items: center; gap: 12px; }
 .closing-note { font: 500 0.82rem/1.4 var(--mono); color: var(--muted); }
 
-.more { margin-top: 88px; }
+.more { margin-top: 72px; }
 .more > h2 { font-size: 1.05rem; font-weight: 600; letter-spacing: 0; color: var(--muted); margin-bottom: 18px; }
 .app-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
 .app-card {
@@ -1111,19 +1112,17 @@ html:not(.js) .js-only, html:not(.js) .tile-btn, html:not(.js) .swatches, html:n
   .bento { grid-template-columns: repeat(2, 1fr); }
   .t-displays, .t-yours, .t-oss { grid-column: span 2; }
   .t-speed, .t-narrow, .t-menus, .t-web, .t-private { grid-column: span 1; }
-  .how-steps { gap: 18px; }
-  .how-step + .how-step::before { left: -15px; }
-  .key { min-width: 54px; height: 54px; font-size: 1.3rem; }
-  .key-wide { min-width: 100px; font-size: 0.95rem; }
+  .how-steps { --gap: 36px; }
+  .key { min-width: 44px; height: 44px; padding: 0 10px; font-size: 1.1rem; }
+  .key-wide { min-width: 84px; font-size: 0.85rem; }
 }
 
 @media (max-width: 760px) {
-  .how, .features, .qa, .closing { margin-top: 96px; }
-  .how-steps { grid-template-columns: 1fr; gap: 36px; }
+  .how, .features, .qa, .closing { margin-top: 80px; }
+  .how-steps { grid-template-columns: 1fr; gap: 32px; --art-h: 124px; }
   .how-step + .how-step::before { display: none; }
-  .how-art { height: 150px; }
-  .key { min-width: 60px; height: 60px; }
-  .key-wide { min-width: 116px; }
+  .key { min-width: 52px; height: 52px; padding: 0 12px; font-size: 1.25rem; }
+  .key-wide { min-width: 104px; font-size: 0.95rem; }
   .bento { grid-template-columns: 1fr; }
   .bento > .tile { grid-column: auto; }
   .tile-art { height: 196px; }
@@ -1149,8 +1148,8 @@ html:not(.js) .js-only, html:not(.js) .tile-btn, html:not(.js) .swatches, html:n
 }
 
 @media (max-width: 360px) {
-  .key { min-width: 52px; height: 52px; font-size: 1.2rem; }
-  .key-wide { min-width: 96px; }
+  .key { min-width: 46px; height: 46px; font-size: 1.1rem; }
+  .key-wide { min-width: 88px; }
   .fx-narrow { gap: 12px 12px; }
 }
 
