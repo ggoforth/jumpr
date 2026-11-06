@@ -116,4 +116,8 @@ final class AXElementNode: AXNode {
     func visibleRows() -> [any AXNode]? {
         axElements(axCopy(element, "AXVisibleRows")).map { AXElementNode($0) }
     }
+
+    func offersPress() -> Bool {
+        axActionNames(element)?.contains("AXPress") == true
+    }
 }
