@@ -43,8 +43,19 @@ final class Scanner {
     private let lock = NSLock()
     private var queues: [Int32: DispatchQueue] = [:]
     private var pending: [Int32: Int] = [:]
+    /// Apps that quit while work for them was still queued: their queue goes when it drains.
+    private var quit = Set<Int32>()
 
     init() {}
+
+    /// The app quit: drop its queue, now if nothing is queued for it, else once the
+    /// work already queued has run (dropping it earlier would let new work for the same
+    /// pid start on a fresh queue alongside it).
+    func forget(pid: Int32) {
+        lock.withLock {
+            if pending[pid] == nil { queues[pid] = nil } else { quit.insert(pid) }
+        }
+    }
 
     /// True while work for `pid` is queued or running.
     func isScanning(pid: Int32) -> Bool {
@@ -64,7 +75,10 @@ final class Scanner {
             work()
             lock.withLock {
                 pending[pid, default: 1] -= 1
-                if pending[pid] == 0 { pending[pid] = nil }
+                if pending[pid] == 0 {
+                    pending[pid] = nil
+                    if quit.remove(pid) != nil { queues[pid] = nil }
+                }
             }
         }
     }
