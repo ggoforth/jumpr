@@ -17,6 +17,11 @@ import Testing
 @Test func defaultHotkeyIsCmdShiftSpace() {
     #expect(Hotkey.default == Hotkey(keyCode: 49, modifiers: Modifiers.command | Modifiers.shift))
 }
+@Test func defaultScrollShortcutIsCmdShiftJ() {
+    #expect(Hotkey.defaultScroll == Hotkey(keyCode: 38, modifiers: Modifiers.command | Modifiers.shift))
+    #expect(Hotkey.defaultScroll.isValid)
+    #expect(Hotkey.defaultScroll != Hotkey.default)
+}
 @Test func hotkeyNeedsCmdCtrlOrOpt() {
     #expect(!Hotkey(keyCode: 38, modifiers: 0).isValid)
     #expect(!Hotkey(keyCode: 38, modifiers: Modifiers.shift).isValid)

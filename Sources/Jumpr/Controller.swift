@@ -22,7 +22,8 @@ final class Controller {
     private let registry: TreeRegistry
     private let tap: KeyTap
     private let extras = ExtrasOwners()
-    private var overlays: [Overlay] = []
+    /// One per display; scroll mode draws on them too (`ScrollController`).
+    private(set) var overlays: [Overlay] = []
 
     private struct Placed {
         let target: Target
