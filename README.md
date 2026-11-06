@@ -93,6 +93,7 @@ Things to know when you work on it:
 
 - A build from source is a development build. It shows version 0.1.0, never updates itself, and shares the bundle ID, preferences and log of an installed Jumpr. `make run` stops the installed copy; reopen it from Applications when you are done.
 - macOS ties the Accessibility permission to the signature. If you also have the released Jumpr installed, its entry in System Settings does not cover your build: remove the entry and add your build, or run `tccutil reset Accessibility com.greggoforth.jumpr` and grant it again.
+- [docs/design.md](docs/design.md) explains how it works: the scan, web content, labels, keys and pressing.
 - The logic lives in `Sources/JumprCore` and is covered by `make test`. `Sources/Jumpr` is the app around it (windows, the key listener, accessibility calls) and has no unit tests.
 - Start Jumpr with `JUMPR_DEBUG_LABELS=1` in its environment to log every label's position. That also logs the label letters you type, so leave it off otherwise.
 

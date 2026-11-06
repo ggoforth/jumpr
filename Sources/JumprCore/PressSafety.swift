@@ -37,7 +37,7 @@ public enum AfterAXPress: Equatable {
     case pressed
     /// The element is gone; do nothing.
     case skip
-    /// Fall back to a synthetic click, after re-checking the element (design §7.6).
+    /// Fall back to a synthetic click, after re-checking the element (docs/design.md, Pressing).
     case click
 }
 
@@ -51,7 +51,7 @@ public func afterAXPress(_ axError: Int32) -> AfterAXPress {
 }
 
 /// Where a synthetic click lands: the center of the part of the element that was visible
-/// when scanned, as it is now (design §7.6 step 4).
+/// when scanned, as it is now (docs/design.md, Pressing, step 6).
 /// Only called after `pressDecision` said `.press`, so `visible ∩ current` is not empty.
 public func clickPoint(visible: CGRect, current: CGRect) -> CGPoint {
     let r = visible.intersection(current)

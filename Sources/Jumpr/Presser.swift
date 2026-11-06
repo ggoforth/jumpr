@@ -1,7 +1,7 @@
 import AppKit
 import JumprCore
 
-/// Presses a matched element (design §7.6). All accessibility work runs on the target
+/// Presses a matched element (docs/design.md, Pressing). All accessibility work runs on the target
 /// app's own serial queue, so a press never overlaps a scan of the same app; completions
 /// come back on main.
 final class Presser {

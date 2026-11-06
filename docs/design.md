@@ -11,7 +11,7 @@ Jumpr lets you click anything on screen from the keyboard. Press the hotkey and 
 
 Measured during development on one three-display Mac, approximately: listing the on-screen windows takes 2–4 ms, scanning all apps in parallel about 70–110 ms (up to about 270 ms on a heavy web page), and painting labels 5–15 ms. The first scan of an app after Jumpr starts costs more, about 250–285 ms, a one-time connection cost per app. Scanning is nearly the whole cost, and an app answers one accessibility request at a time, so the total is set by the slowest app.
 
-Jumpr does nothing in the background while you are not using it: there are no timers and no polling. The few delayed calls in the code are one-shot.
+Jumpr does nothing in the background while you are not using it: there are no timers and no polling of its own. The few delayed calls in the code are one-shot. The one exception is the updater's daily check for a new version.
 
 ## Shape of the code
 
@@ -208,6 +208,6 @@ None of these is implemented.
 - **`JUMPR_DEBUG_LABELS`**: set it in Jumpr's environment to log every label's role, process, window and position when a trigger completes, each narrowing as you type, and when the look-again pass finds nothing in a web view. It logs the letters you type, so leave it off otherwise.
 - **`JUMPR_DEBUG_SIGNALS`**: set it to make two signals do something. `kill -USR1 <pid>` runs a trigger that scans and paints without capturing keys, cancelled after 2 s (a second USR1 within that time cancels it). `kill -USR2 <pid>` opens Settings by the same path as the menu item. Without the variable both signals are ignored, so a normal copy has no such hook.
 - **`showReadout`**: a hidden preference that draws each trigger's timing on the main display: total time split into window list, scan and paint; label and app counts; then per app its time, elements read, labels and any timeout. The same lines are always written to the log.
-- **`showAdvancedSettings`**: a hidden preference that shows the advanced controls in Settings, including the timing readout toggle.
+- **`showAdvancedSettings`**: a hidden preference that shows the timing readout toggle in Settings.
 
 Set the hidden preferences with `defaults write <bundle ID> showReadout -bool true`; the bundle ID is in `Resources/Info.plist`.
