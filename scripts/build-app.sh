@@ -32,7 +32,7 @@ trim() { local v="$1"; v="${v#"${v%%[![:space:]]*}"}"; v="${v%"${v##*[![:space:]
 # A stable identity keeps the Accessibility grant across rebuilds.
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-Apple Development}"
 CODESIGN_OPTIONS="${CODESIGN_OPTIONS:-}"
-# Switched off as in Watchflows' Debug build, so a development build never updates itself.
+# Switched off by default, so a development build never updates itself.
 JUMPR_FEED_URL="${JUMPR_FEED_URL:-file:///dev/null}"
 # Must match UpdatePolicy.placeholderPublicKey; the app never starts Sparkle with it.
 JUMPR_SPARKLE_PUBLIC_KEY="$(trim "${JUMPR_SPARKLE_PUBLIC_KEY:-PLACEHOLDER-NOT-A-REAL-SPARKLE-KEY}")"

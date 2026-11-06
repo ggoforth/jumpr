@@ -5,7 +5,7 @@ let package = Package(
     name: "Jumpr",
     platforms: [.macOS(.v15)],
     dependencies: [
-        // The same pin as Watchflows. The app's only third-party code; JumprCore stays free of it.
+        // The app's only third-party code; JumprCore stays free of it.
         .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.0"),
     ],
     targets: [
