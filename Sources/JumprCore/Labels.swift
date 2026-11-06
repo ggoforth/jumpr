@@ -48,14 +48,17 @@ public enum Labels {
 
 public struct LabelPool {
     public let length: Int
+    private let alphabet: [Character]
     private var index = 0
     private let total: Int
 
-    public init(length: Int) {
+    /// `alphabet`: scroll mode's letters leave out the keys that scroll.
+    public init(length: Int, alphabet: [Character] = Labels.alphabet) {
         precondition(length > 0, "a label needs at least one letter")
         self.length = length
+        self.alphabet = alphabet
         var t = 1
-        for _ in 0..<length { t *= Labels.alphabet.count }
+        for _ in 0..<length { t *= alphabet.count }
         self.total = t
     }
 
@@ -65,8 +68,8 @@ public struct LabelPool {
         var digits: [Character] = []
         var n = index
         for _ in 0..<length {
-            digits.append(Labels.alphabet[n % Labels.alphabet.count])
-            n /= Labels.alphabet.count
+            digits.append(alphabet[n % alphabet.count])
+            n /= alphabet.count
         }
         index += 1
         return String(digits.reversed())
