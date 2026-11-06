@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="18 28 64 43" fill="none">
+  <defs>
+    <!-- top-down sheen: a soft highlight rolling off toward the middle -->
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.45"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0.07"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- connectors (behind the chips) -->
+  <g stroke="#717F93" stroke-width="2.4" stroke-linecap="round">
+    <line x1="27" y1="37" x2="40" y2="62"/>
+    <line x1="50" y1="40" x2="40" y2="62"/>
+    <line x1="50" y1="40" x2="60" y2="62"/>
+    <line x1="73" y1="39" x2="60" y2="62"/>
+  </g>
+
+  <!-- node chips: base color -->
+  <rect x="20" y="30" width="14" height="14" rx="4.2" fill="#F75653"/>
+  <rect x="43" y="33" width="14" height="14" rx="4.2" fill="#35C68B"/>
+  <rect x="66" y="32" width="14" height="14" rx="4.2" fill="#9073E6"/>
+  <rect x="33" y="55" width="14" height="14" rx="4.2" fill="#F4B22B"/>
+  <rect x="53" y="55" width="14" height="14" rx="4.2" fill="#2DADED"/>
+
+  <!-- top sheen overlay -->
+  <g fill="url(#sheen)">
+    <rect x="20" y="30" width="14" height="14" rx="4.2"/>
+    <rect x="43" y="33" width="14" height="14" rx="4.2"/>
+    <rect x="66" y="32" width="14" height="14" rx="4.2"/>
+    <rect x="33" y="55" width="14" height="14" rx="4.2"/>
+    <rect x="53" y="55" width="14" height="14" rx="4.2"/>
+  </g>
+
+  <!-- faint light rim on the edge for a glossy lift -->
+  <g fill="none" stroke="#fff" stroke-opacity="0.20" stroke-width="0.7">
+    <rect x="20.45" y="30.45" width="13.1" height="13.1" rx="3.9"/>
+    <rect x="43.45" y="33.45" width="13.1" height="13.1" rx="3.9"/>
+    <rect x="66.45" y="32.45" width="13.1" height="13.1" rx="3.9"/>
+    <rect x="33.45" y="55.45" width="13.1" height="13.1" rx="3.9"/>
+    <rect x="53.45" y="55.45" width="13.1" height="13.1" rx="3.9"/>
+  </g>
+</svg>

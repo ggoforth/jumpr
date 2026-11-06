@@ -146,7 +146,7 @@ No cache; every trigger scanned from scratch.
 | Default hotkey `⌘⇧Space` | The one that worked |
 | Hotkey and label typing both go through one always-on key listener | The system hotkey API didn't fire; the listener is needed for typing anyway |
 | Always re-check every visible window in the background after painting from cache | Makes correctness independent of how well each app reports changes |
-| Never press an element that has moved away from where its label was drawn | Guards the "wrong click" anti-goal |
+| Never press an element that has moved away from where it was when it was labelled | Guards the "wrong click" anti-goal |
 | A window known to be stale waits for its fresh scan instead of showing old labels | Labels that appear and then jump read as broken; a ~100 ms wait in one window does not |
 | Background scans are capped at ~5% of any app's time, and paused for windows that won't stop changing | Scans run inside the other app; uncapped, they'd cause stutter and battery drain there |
 | Web-based apps get their accessibility tree switched on while they have a visible window, and switched back off on Pause or Quit | Without it they get no labels at all; with it they do extra work for as long as it's on |
@@ -176,7 +176,7 @@ hotkey
   │
   └─ user types a label
         → re-read that element's position
-        → still under its label?  press it, bring its app forward
+        → still where it was?     press it, bring its app forward
         → moved or gone?          do nothing; labels are already correcting
 ```
 
@@ -221,8 +221,11 @@ hotkey
     labels at all.
   - Remember which apps Jumpr switched on, and switch them back off on Pause and
     on Quit.
-  - Use the heavier `AXEnhancedUserInterface` only for browsers that return an
-    empty tree without it — it has known side effects on window animation.
+  - Use the heavier `AXEnhancedUserInterface` only for browsers whose page is
+    missing from the tree without it — it has known side effects on window
+    animation. "Missing" means nothing to click in web content: Chrome refuses
+    `AXManualAccessibility` and answers with its toolbar either way, so an empty
+    window is not the sign. Chrome's page arrives about 2 s after the request.
   - The standing cost of leaving the tree on is not yet measured. Measuring it is
     an early build task (section 8); if it is large, bring it back to Greg before
     building further on this rule.
@@ -316,23 +319,29 @@ being worked in clean again before the next trigger.
 - Length is chosen before the scans finish, from the last known element counts,
   with headroom: 1 letter up to 26, 2 up to 676, 3 beyond. If the real count
   overflows, the extras go unlabeled and the readout says so.
-- Placement: centered on small elements, at the left edge (vertically centered) of
-  wide ones, always inside the visible part of the element and inside the display.
+- Placement (changed 2026-11-05, JUM-71): a label must not hide what it points at.
+  Small and medium elements (under four label widths) get the label hanging off their
+  bottom-right corner, overlapping only a few points; at a display edge it flips to the
+  other side of the element. Large elements (rows, wide buttons) keep it inside, at the
+  right end, so stacked rows never share a label. Always inside the display.
 - Typing narrows: labels that no longer match disappear. Backspace undoes a letter.
   Esc or the hotkey cancels. Keys with ⌘, ⌃ or ⌥ pass through to the system.
 
 ### 7.6 Pressing
 
 1. Re-read the element's position (one request, under a millisecond).
-2. If it no longer overlaps where its label was drawn, or it no longer exists: do
-   nothing.
+2. If it no longer overlaps where it was when scanned, or it no longer exists: do
+   nothing. (The label is not the reference: it sits beside small elements.)
 3. If it belongs to a window: bring that app forward and raise that window.
 4. Text fields and text areas: synthetic mouse click at the center of the visible
    part (places the cursor).
 5. Everything else: accessibility "press". A "cannot complete" reply counts as
    delivered — apps answer that way while a menu they just opened is tracking.
-6. If "press" is unsupported: synthetic click, after a ~40 ms pause for the raise
-   to land.
+6. If "press" is unsupported: synthetic click. Before any synthetic click into a
+   window, wait until the app says it is frontmost and that window is its main
+   window (up to half a second), then a further 50 ms (changed 2026-11-05, JUM-72;
+   was a fixed 40 ms). A click on a window that is not in front only brings it
+   forward: browsers do not pass it on to the page. One click, never two.
 7. If the pressed element was a menu bar item, or a menu item with a submenu: when
    the menu opens, label it automatically.
 
@@ -359,10 +368,14 @@ just fewer windows; nothing about the feature set changes.
 | Label color | Color picker | Yellow `#FFD60A` |
 | Text color | Color picker | Black |
 | Preview | Live sample label | — |
-| On battery | Full speed / Front app only / Scan on demand | Front app only |
-| Start at login | Toggle | On |
+| On battery | Full speed / Front app only / Scan on demand (hidden, see below) | Front app only |
+| Start at login | Toggle (changed 2026-11-05, JUM-32: opt-in; was on) | Off |
 | Permission | Status + "Open Accessibility Settings" button | — |
-| Timing readout | Toggle | Off |
+| Timing readout | Toggle (hidden, see below) | Off |
+
+Hidden for the public release (2026-11-05, JUM-32): the "On battery" and timing readout
+controls show only after `defaults write com.greggoforth.jumpr showAdvancedSettings -bool true`.
+`batteryMode` and `showReadout` still work when set by hand.
 
 - Label settings take effect on the next trigger.
 - The hotkey recorder must reject combinations with no modifier, and must not let
@@ -458,6 +471,14 @@ app visible, read from the readout:
 | The private window-matching call changes | Fallback by process + frame (7.3) |
 | System hotkey API silently not firing | Avoided by design; cause still unknown |
 | Only tested on macOS 27 | Fine for a personal tool; test older versions before any release |
+
+### Known limits
+
+- `AXManualAccessibility` cannot be read back, so Jumpr cannot tell whether another tool already had an app's tree on. On Pause and Quit it switches off every tree it set, including one another tool had on.
+- If Jumpr loses the Accessibility permission while running, it can no longer switch trees off: they stay on until those apps quit.
+- While a password field has keyboard focus (secure input), the hotkey and Esc do not reach Jumpr.
+- Menu bar icons belong to apps the window list does not name, so Jumpr remembers which apps own one (asked at trust, resume, unlock, and when an app launches or first comes to the front). An app that adds its icon later is not labelled until the next of those moments.
+- A web-based app whose window was covered when Jumpr started gets its tree switched on when the app first comes to the front. If its window is uncovered without the app coming to the front, the first trigger shows few labels for it and the next one is complete.
 
 ---
 
