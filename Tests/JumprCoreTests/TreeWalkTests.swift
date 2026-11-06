@@ -6,7 +6,9 @@ final class Fake: AXNode {
     let id: ElementID
     var role: String; var frame: CGRect?; var enabled: Bool? = true
     var kids: [Fake]; var selected = false; var rows: [Fake]?
+    var pressable = false
     private(set) var infoCalls = 0
+    private(set) var pressAsks = 0
     private static var next = 0
     init(_ role: String, _ frame: CGRect? = nil, _ kids: [Fake] = []) {
         Fake.next += 1; id = ElementID(Fake.next)
@@ -15,6 +17,12 @@ final class Fake: AXNode {
     func info() -> NodeInfo? { infoCalls += 1; return NodeInfo(role: role, frame: frame, enabled: enabled, children: kids) }
     func isSelected() -> Bool { selected }
     func visibleRows() -> [any AXNode]? { rows }
+    func offersPress() -> Bool { pressAsks += 1; return pressable }
+}
+/// Text that says it can be pressed, as Messages' sidebar items do.
+private func pressableText(_ frame: CGRect) -> Fake {
+    let t = Fake("AXStaticText", frame); t.pressable = true
+    return t
 }
 private let bounds = CGRect(x: 0, y: 0, width: 400, height: 400)
 private let stack = WindowStack([Win(id: 1, pid: 10, name: "w", bounds: bounds, layer: 0, alpha: 1)])
@@ -185,6 +193,40 @@ private func buttonAt(depth: Int) -> Fake {
     let half = Fake("AXButton", r(0, 0, 200, 24)), less = Fake("AXButton", r(0, 24, 199, 24))
     let rows = [Fake("AXRow", r(0, 0, 400, 24), [half]), Fake("AXRow", r(0, 24, 400, 24), [less])]
     #expect(run(Fake("AXWindow", bounds, rows)).targets.map(\.id) == [half.id, rows[1].id, less.id])
+}
+// Messages' sidebar: each conversation and each pin is text that offers a press, not a row
+// or a button, and none of them got a label.
+@Test func textThatOffersAPressIsLabeled() {
+    let pin = pressableText(r(10, 10, 95, 115)), conversation = pressableText(r(10, 140, 300, 79))
+    let plain = Fake("AXStaticText", r(10, 230))
+    let res = run(Fake("AXWindow", bounds, [Fake("AXGroup", bounds, [pin, conversation, plain])]))
+    #expect(res.targets.map(\.id) == [pin.id, conversation.id])
+    #expect(res.targets.allSatisfy { $0.role == "AXStaticText" && !$0.inWeb })
+}
+// Asking is one more request per element, so it is not spent where the answer cannot matter.
+@Test func textInsideSomethingAlreadyLabeledIsNotAsked() {   // Finder and Mail: every row holds text
+    let text = pressableText(r(0, 0, 400, 24))
+    let row = Fake("AXRow", r(0, 0, 400, 24), [Fake("AXCell", r(0, 0, 400, 24), [text])])
+    #expect(run(Fake("AXWindow", bounds, [row])).targets.map(\.id) == [row.id])
+    #expect(text.pressAsks == 0)
+}
+@Test func textInWebContentIsNotAsked() {   // a long page holds thousands of text nodes
+    let text = pressableText(r(10, 40))
+    let res = run(Fake("AXWindow", bounds, [Fake("AXWebArea", bounds, [Fake("AXGroup", bounds, [text])])]))
+    #expect(res.targets.isEmpty)
+    #expect(text.pressAsks == 0)
+}
+@Test func textThatCouldNotBeLabeledIsNotAsked() {
+    let off = pressableText(r(10, 10)); off.enabled = false
+    let tiny = pressableText(r(10, 40, 3, 3)), noFrame = pressableText(.zero)
+    let res = run(Fake("AXWindow", bounds, [off, tiny, noFrame]))
+    #expect(res.targets.isEmpty)
+    #expect([off, tiny, noFrame].allSatisfy { $0.pressAsks == 0 })
+}
+@Test func otherRolesAreNeverAsked() {   // in Messages even plain groups offer a press
+    let group = Fake("AXGroup", r(10, 10, 200, 200)); group.pressable = true
+    #expect(run(Fake("AXWindow", bounds, [group])).targets.isEmpty)
+    #expect(group.pressAsks == 0)
 }
 @Test func nestedRowsCollapseToTheInnermostControl() {
     let button = Fake("AXButton", r(20, 0, 380, 24))

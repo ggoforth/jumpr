@@ -27,6 +27,8 @@ public protocol AXNode {
     func info() -> NodeInfo?
     func isSelected() -> Bool
     func visibleRows() -> [any AXNode]?
+    /// Whether the element offers `AXPress`. One more request, so `walk` asks sparingly.
+    func offersPress() -> Bool
 }
 
 public struct Target: Equatable {
@@ -55,6 +57,11 @@ public enum Roles {
         "AXDisclosureTriangle", "AXSlider", "AXIncrementor", "AXColorWell", "AXDockItem",
     ])
     public static let clickable: Set<String> = leaf.union(["AXMenuItem", "AXMenuBarItem", "AXRow"])
+    /// Clickable only if the element itself offers `AXPress`. Apps built with the iPad
+    /// frameworks present a list item as text: every conversation and pin in Messages'
+    /// sidebar is an `AXStaticText` that offers a press. Text only: there, plain groups
+    /// offer a press too.
+    public static let clickableIfPressable: Set<String> = ["AXStaticText"]
 }
 
 public enum WalkScope {
@@ -87,7 +94,8 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
     case .system: startClip = .infinite
     }
 
-    func visit(_ node: any AXNode, clip: CGRect, depth: Int, inWeb: Bool) {
+    /// `inTarget`: under an element that got a label.
+    func visit(_ node: any AXNode, clip: CGRect, depth: Int, inWeb: Bool, inTarget: Bool) {
         if depth >= maxDepth || result.timedOut { return }
         if now() > deadline {
             result.timedOut = true
@@ -109,8 +117,13 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
         }
 
         let before = result.targets.count
-        if Roles.clickable.contains(info.role), info.enabled != false,
-           let r = visibleRect, r.width >= 4, r.height >= 4 {
+        // Asking whether text offers a press is one more request per element, so it comes
+        // last and is skipped where the answer cannot matter: in web content (a long page
+        // holds thousands of text nodes, and its links and buttons have roles of their own)
+        // and under an element that already has a label (the text in a table's rows).
+        if info.enabled != false, let r = visibleRect, r.width >= 4, r.height >= 4,
+           Roles.clickable.contains(info.role)
+            || (Roles.clickableIfPressable.contains(info.role) && !inWeb && !inTarget && node.offersPress()) {
             let c = CGPoint(x: r.midX, y: r.midY)
             switch scope {
             case .window(let id, _, let appWindows):
@@ -134,7 +147,7 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
             children = rows
         }
         for child in children {
-            visit(child, clip: clip, depth: depth + 1, inWeb: inWeb)
+            visit(child, clip: clip, depth: depth + 1, inWeb: inWeb, inTarget: inTarget || mine != nil)
         }
 
         // A clickable element (a row) with a clickable element inside it that covers at
@@ -150,7 +163,7 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
         }
     }
 
-    visit(root, clip: startClip, depth: 0, inWeb: false)
+    visit(root, clip: startClip, depth: 0, inWeb: false, inTarget: false)
     return result
 }
 
