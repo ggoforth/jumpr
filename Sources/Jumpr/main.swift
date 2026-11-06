@@ -130,7 +130,7 @@ onboarding.start(
         let ok = keyTap.start()
         log("key tap: \(ok)")
         controller.enableTrees("trusted")
-        loginItem.autoRegisterIfFirstLaunch()
+        loginItem.refresh()  // start at login is opt-in: only read its state
         return ok
     },
     onLost: {

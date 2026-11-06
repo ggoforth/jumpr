@@ -100,13 +100,6 @@ final class LoginItem: ObservableObject {
         refresh()
     }
 
-    /// Called once trust is granted. Start at login is opt-in: a fresh install never adds
-    /// itself (JUM-32), and one the user already turned on is left on. Only re-reads the
-    /// status. Kept under its old name until its call in main.swift can go.
-    func autoRegisterIfFirstLaunch() {
-        refresh()
-    }
-
     /// Registers or unregisters the login item and logs the result. Any thread.
     private static func register(_ on: Bool) {
         let service = SMAppService.mainApp
