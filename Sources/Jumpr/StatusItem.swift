@@ -54,6 +54,14 @@ final class StatusItem: NSObject, NSPopoverDelegate {
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
         button.highlight(true)
+        // Again on the next turn: when a click opened the panel, the button drops its
+        // highlight as that click ends. The highlight is what accessibility reports as
+        // "selected", and a scan looks inside a menu bar item only while it is selected, so
+        // without this the open panel's controls got no labels.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, popover.isShown else { return }
+            item.button?.highlight(true)
+        }
     }
 
     func closePanel() {

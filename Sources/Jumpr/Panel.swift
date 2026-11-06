@@ -157,7 +157,9 @@ struct PanelView: View {
             HStack(spacing: 10) {
                 Text("A").font(.system(size: 10, weight: .bold, design: .monospaced)).foregroundStyle(.secondary)
                     .accessibilityHidden(true)
-                Slider(value: Binding(get: { clampLabelSize(size) }, set: { size = $0 }), in: 10...32, step: 1) {
+                // No `step`: a stepped slider draws a tick for each of its 23 values. Whole
+                // points come from rounding instead.
+                Slider(value: Binding(get: { clampLabelSize(size) }, set: { size = $0.rounded() }), in: 10...32) {
                     Text("Label size")
                 }
                 .labelsHidden()
@@ -409,7 +411,8 @@ private struct SwatchPicker: View {
     }
 }
 
-/// The Auto choice: half black, half white, with a small A, so it reads as "whichever fits".
+/// The Auto choice: half black, half white, named on a small plate so the word reads on both
+/// halves. It says "whichever fits".
 private struct AutoSwatch: View {
     var body: some View {
         HStack(spacing: 0) {
@@ -417,9 +420,12 @@ private struct AutoSwatch: View {
             Color.white
         }
         .overlay(
-            Text("A")
-                .font(.system(size: 12, weight: .bold, design: .monospaced))
-                .foregroundStyle(Color.gray))
+            Text("Auto")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 1)
+                .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: 4)))
     }
 }
 
