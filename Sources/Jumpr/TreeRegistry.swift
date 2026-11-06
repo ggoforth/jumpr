@@ -32,8 +32,6 @@ final class TreeRegistry {
     /// Set once the locked-screen skip in `noteScan` has been logged, until the screen unlocks.
     private var loggedLockedSkip = false
 
-    var enabledPids: Set<Int32> { lock.withLock { manual } }
-
     /// Seconds since Jumpr switched this app's web tree on, or nil if it never did. The tree
     /// arrives some time after (see `treeMayStillBeBuilding`). Safe from any thread.
     func sinceEnabled(_ pid: Int32) -> Double? {

@@ -112,10 +112,6 @@ public struct RGB: Equatable {
     }
 }
 
-public enum BatteryMode: String, CaseIterable {
-    case full, frontApp, onDemand
-}
-
 /// Clamps to 10...32 pt; an unset (0 or less) or non-finite value falls back to the 15 pt default.
 public func clampLabelSize(_ v: Double) -> Double {
     if !v.isFinite || v <= 0 { return 15 }
@@ -127,10 +123,9 @@ public enum Keys {
     public static let labelColor = "labelColor"
     public static let labelTextColor = "labelTextColor"
     public static let hotkey = "hotkey"
-    public static let batteryMode = "batteryMode"
     public static let showReadout = "showReadout"
     public static let paused = "paused"
-    /// Shows the "On battery" and timing readout controls in Settings (hidden by default).
+    /// Shows the timing readout control in Settings (hidden by default).
     public static let showAdvancedSettings = "showAdvancedSettings"
     /// Bundle IDs of apps seen showing web content, so a web view of theirs that is not
     /// built yet gets a second look. Not a setting: Jumpr keeps it for itself.
