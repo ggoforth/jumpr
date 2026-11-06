@@ -10,7 +10,7 @@ import JumprCore
 /// session is active (`isCurrent`). Scans already queued for a stale generation stop
 /// early through `isStale`, which reads `sharedGeneration`.
 final class Controller {
-    var onMatched: (Target, CGRect) -> Void = { _, _ in }
+    var onMatched: (Target) -> Void = { _ in }
     let readout = Readout()
     private(set) var isActive = false
     /// Identifies the current session; changes on every trigger and cancel.
@@ -34,20 +34,37 @@ final class Controller {
     private var session = LabelSession()
     private var pool = LabelPool(length: 1)
     private var placed: [String: Placed] = [:]
+    /// Elements labelled in this session, so a repeated scan of an app adds only what is new.
+    private var placedIDs = Set<ElementID>()
     private var overflow = 0
     private var pendingApps = 0
     private var screens: [CGRect] = []
     private var style = LabelStyle.current()
     /// Labels needed by the previous complete trigger, for sizing the next one's labels.
     private var lastTotal: Int?
+    /// Apps that have shown a web area in some scan, by bundle ID (see `rescanWhileTreeBuilds`).
+    /// Kept across launches: a web view that is not built yet gives no sign of itself, so
+    /// without this the first email after Jumpr starts would get no labels on its links.
+    private var webHosts = Set(UserDefaults.standard.stringArray(forKey: Keys.webHostApps) ?? [])
+    /// Apps known from the start to show their content in a WebKit view, which `webHosts`
+    /// cannot learn in time: on a first press the unbuilt view shows no web area, so the
+    /// page would get no labels until a later press. Safari's page was there 0.3 s after
+    /// the first read.
+    private static let webKitHostIDs: Set<String> = [
+        "com.apple.Safari", "com.apple.SafariTechnologyPreview", "com.apple.mail",
+    ]
 
     private let debugLabels = ProcessInfo.processInfo.environment["JUMPR_DEBUG_LABELS"] != nil
+    private var colorWatchers: [DefaultsWatcher] = []
 
     init(scanner: Scanner, registry: TreeRegistry, tap: KeyTap) {
         self.scanner = scanner
         self.registry = registry
         self.tap = tap
         rebuildOverlays()
+        colorWatchers = [Keys.labelColor, Keys.labelTextColor].map { key in
+            DefaultsWatcher(key) { [weak self] in self?.recolor() }
+        }
 
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
@@ -151,11 +168,13 @@ final class Controller {
         if screenIsLocked() { log("trigger ignored: locked"); return }
         generation += 1
         let gen = generation
+        let started = now()
         isActive = true
         tap.capturing = capture
 
         session = LabelSession()
         placed = [:]
+        placedIDs = []
         overflow = 0
         style = LabelStyle.current()
         readout.begin()
@@ -189,42 +208,114 @@ final class Controller {
                 }
             }
             // Registry bookkeeping for the app, kept even if this trigger goes stale.
-            // A window with no nodes was not walked (hidden, gone, or out of budget).
-            var windowsScanned = 0
-            var windowNodes = 0
+            var web = WebFound()
             scanner.scanApp(pid: pid, stack: stack, screens: screens, frontPid: front, isDock: isDock, background: false,
                             isStale: { [sharedGeneration] in sharedGeneration.value != gen },
                             each: { [weak self] s in
-                                if s.window != nil && s.nodes > 0 { windowsScanned += 1; windowNodes += s.nodes }
+                                web.add(s)
                                 guard let self, isCurrent(gen) else { return }  // stale: drop
                                 receive(s, name: name)
                             },
                             done: { [weak self, scanner, registry] complete in
                                 // A scan cut short by a newer trigger says nothing about the tree.
                                 if hasVisibleWindow && complete {
-                                    let (w, n) = (windowsScanned, windowNodes)
+                                    let found = web
                                     // Locked at any point while this app was scanned: its zero nodes mean nothing.
                                     let locked = lockedAtStart || screenIsLocked()
                                     scanner.perform(pid: pid, background: true) {
-                                        registry.noteScan(pid: pid, bundleID: bundle, windowsScanned: w, windowNodes: n,
-                                                          screenLocked: locked)
+                                        registry.noteScan(pid: pid, bundleID: bundle, walkedWindow: found.walkedWindow,
+                                                          webTargets: found.targets, screenLocked: locked)
                                     }
                                 }
                                 guard let self, isCurrent(gen) else { return }  // stale: drop
                                 pendingApps -= 1
                                 if pendingApps == 0 { finish() }
+                                rescanWhileTreeBuilds(pid: pid, name: name, isDock: isDock, stack: stack,
+                                                      front: front, gen: gen, web: web, started: started,
+                                                      bundle: bundle)
                             })
         }
     }
 
-    /// Paints one scan's targets. Only called for the current generation.
-    private func receive(_ s: WindowScan, name: String) {
+    /// What one scan of an app met of web content: its web areas, and what there was to
+    /// click inside them. `walkedWindow`: some window was on screen to look in at all.
+    private struct WebFound {
+        var areas = 0
+        var targets = 0
+        var walkedWindow = false
+        mutating func add(_ s: WindowScan) {
+            if s.window != nil && s.nodes > 0 { walkedWindow = true }
+            areas += s.webAreas
+            targets += s.targets.lazy.filter(\.inWeb).count
+        }
+    }
+
+    /// The scan just finished may have come too early for the app's tree. While these
+    /// labels are up, look at the app again every 0.4 s and add the labels that were missing.
+    /// Two cases. A web tree Jumpr switched on moments ago is still being built (1Password
+    /// takes 1 to 2 s), so the scan found an empty window. And a WebKit view (an email open
+    /// in Mail) builds its tree only once asked: the scan that asked found nothing to click
+    /// in it (`web`), so repeat until something is there or `started` is too long ago.
+    private func rescanWhileTreeBuilds(pid: Int32, name: String, isDock: Bool, stack: WindowStack,
+                                       front: Int32?, gen: Int, web: WebFound, started: Double,
+                                       bundle: String?, isRepeat: Bool = false) {
+        if web.areas > 0, let bundle, webHosts.insert(bundle).inserted {
+            UserDefaults.standard.set(webHosts.sorted(), forKey: Keys.webHostApps)
+        }
+        let switchedOn = treeMayStillBeBuilding(sinceSwitchedOn: registry.sinceEnabled(pid))
+        // An app with no window on screen (hidden, or on another Space) has no web view to
+        // wait for. One with no bundle ID is never remembered, so never waited for. A
+        // Chromium browser always hosts web content: with nothing to click in it, `noteScan`
+        // is about to switch its page tree on (queued ahead of the look-again scan).
+        let hostsWeb = bundle.map {
+            webHosts.contains($0) || TreeRegistry.chromiumIDs.contains($0) || Self.webKitHostIDs.contains($0)
+        } == true && web.walkedWindow
+        let webView = webViewMayStillBeBuilding(hostsWeb: hostsWeb, webTargets: web.targets,
+                                                sinceTrigger: now() - started)
+        guard switchedOn || webView else { return }
+        if webView && !switchedOn && !isRepeat {
+            log("nothing to click in \(name)'s web view (\(web.areas) web areas): looking again")
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            guard let self, isCurrent(gen) else { return }
+            var added = 0
+            var web = WebFound()
+            scanner.scanApp(pid: pid, stack: stack, screens: screens, frontPid: front, isDock: isDock, background: false,
+                            isStale: { [sharedGeneration] in sharedGeneration.value != gen },
+                            each: { [weak self] s in
+                                guard let self, isCurrent(gen) else { return }
+                                web.add(s)
+                                added += receive(s, name: name, late: true)
+                            },
+                            done: { [weak self] _ in
+                                guard let self, isCurrent(gen) else { return }
+                                if added > 0 {
+                                    CATransaction.flush()
+                                    lastTotal = placed.count + overflow
+                                    log("late labels: \(added) more in \(name), its tree was still building")
+                                }
+                                rescanWhileTreeBuilds(pid: pid, name: name, isDock: isDock, stack: stack,
+                                                      front: front, gen: gen, web: web, started: started,
+                                                      bundle: bundle, isRepeat: true)
+                            })
+        }
+    }
+
+    /// Paints one scan's targets and returns how many labels it added. Only called for the
+    /// current generation. `late`: a repeated scan of an app (`rescanWhileTreeBuilds`); what
+    /// is already labelled is skipped either way, and the readout is left alone.
+    @discardableResult
+    private func receive(_ s: WindowScan, name: String, late: Bool = false) -> Int {
         let t0 = now()
+        var added = 0
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         for t in s.targets {
             guard let i = Labels.screenIndex(for: CGPoint(x: t.rect.midX, y: t.rect.midY), screens: screens) else { continue }
+            guard !placedIDs.contains(t.id) else { continue }
             guard let label = pool.next() else { overflow += 1; continue }
+            placedIDs.insert(t.id)
+            added += 1
             let rect = Labels.frame(length: pool.length, target: t.rect, screen: screens[i],
                                     fontSize: style.size, advance: style.advance)
             let layer = overlays[i].add(label: label, at: rect, style: style)
@@ -233,7 +324,8 @@ final class Controller {
             session.labels.insert(label)
         }
         CATransaction.commit()
-        readout.note(s, name: name, paint: now() - t0)
+        if !late { readout.note(s, name: name, paint: now() - t0) }
+        return added
     }
 
     /// Every app has answered for the current generation.
@@ -284,9 +376,29 @@ final class Controller {
         case .matched(let label):
             let hit = placed[label]
             cancel()
-            if let hit { onMatched(hit.target, hit.rect) }
+            if let hit { onMatched(hit.target) }
             return true
         }
+    }
+
+    // MARK: - Colours
+
+    /// A colour changed in Settings while labels are up: repaint the labels on screen now
+    /// instead of at the next trigger. Labels added later in this session use the new
+    /// colours too. Size is left as the session started (it would move every label).
+    private func recolor() {
+        guard isActive else { return }
+        let new = LabelStyle.current()
+        style.bg = new.bg
+        style.fg = new.fg
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for p in placed.values {
+            p.layer.backgroundColor = new.bg
+            (p.layer as? CATextLayer)?.foregroundColor = new.fg
+        }
+        CATransaction.commit()
+        CATransaction.flush()
     }
 
     // MARK: - Cancel

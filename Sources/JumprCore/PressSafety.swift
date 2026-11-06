@@ -11,19 +11,23 @@ public enum PressResult: Equatable {
     case clicked
 }
 
-/// Press only if the element still exists and still overlaps where its label was drawn.
-public func pressDecision(drawn: CGRect, current: CGRect?) -> PressDecision {
-    guard let current, current.intersects(drawn) else { return .skip }
+/// Press only if the element still exists and still overlaps where it was when it was
+/// labelled (`scanned`, its visible part at scan time). The label itself is no reference:
+/// it hangs beside a small target rather than on it (see `Labels.frame`).
+public func pressDecision(scanned: CGRect, current: CGRect?) -> PressDecision {
+    guard let current, current.intersects(scanned) else { return .skip }
     return .press
 }
 
 /// Whether to press through `AXPress` at all; otherwise the element gets a synthetic click.
-/// Text fields always get a click (it puts the caret in them). `actions` are the element's
-/// action names, nil if they could not be read: an element that does not offer `AXPress`
-/// is clicked, because some web content (Dia) answers success to an `AXPress` it does not
-/// offer and then does nothing.
-public func usesAXPress(role: String, actions: [String]?) -> Bool {
-    if Roles.text.contains(role) { return false }
+/// - Text fields always get a click (it puts the caret in them).
+/// - Web content (`inWeb`) always gets a click: it answers success to `AXPress` and may do
+///   nothing. Dia does not even offer the action; Linear offers it, answers success, and
+///   does not navigate. Only a real click is trustworthy there.
+/// - Elsewhere, `actions` are the element's action names (nil if they could not be read):
+///   an element that does not offer `AXPress` is clicked.
+public func usesAXPress(role: String, actions: [String]?, inWeb: Bool = false) -> Bool {
+    if Roles.text.contains(role) || inWeb { return false }
     return actions?.contains("AXPress") ?? true
 }
 
@@ -47,13 +51,32 @@ public func afterAXPress(_ axError: Int32) -> AfterAXPress {
 }
 
 /// Where a synthetic click lands: the center of the part of the element that was visible
-/// when scanned, as it is now (design §7.6 step 4). If the element has moved off that
-/// spot but is still under its label, the center of the part under the label.
-/// Only called after `pressDecision` said `.press`, so `drawn ∩ current` is not empty.
-public func clickPoint(visible: CGRect, drawn: CGRect, current: CGRect) -> CGPoint {
-    var r = visible.intersection(current)
-    if r.isEmpty { r = drawn.intersection(current) }
+/// when scanned, as it is now (design §7.6 step 4).
+/// Only called after `pressDecision` said `.press`, so `visible ∩ current` is not empty.
+public func clickPoint(visible: CGRect, current: CGRect) -> CGPoint {
+    let r = visible.intersection(current)
     return CGPoint(x: r.midX, y: r.midY)
+}
+
+public enum ClickReadiness: Equatable {
+    /// Click now.
+    case ready
+    /// Ask again shortly.
+    case wait
+    /// It never came forward; click anyway and say so in the log.
+    case giveUp
+}
+
+/// Whether a synthetic click can be sent yet. A click on a window that is not in front only
+/// brings it forward: browsers do not pass that first click on to the page. So after asking
+/// the app forward, wait until it says it is frontmost and the target's window is its main
+/// window. `nil` means the app did not answer; `waited` and `limit` are seconds.
+///
+/// One click, never two: an app that does pass the first click on would get a double click.
+public func clickReadiness(appFrontmost: Bool?, windowMain: Bool?, waited: Double, limit: Double = 0.5) -> ClickReadiness {
+    if appFrontmost == true && windowMain != false { return .ready }
+    if appFrontmost == nil && waited >= 0.04 { return .ready }  // cannot tell: the old fixed pause
+    return waited >= limit ? .giveUp : .wait
 }
 
 /// A press that opened a menu labels it right away: a menu bar item or menu item the

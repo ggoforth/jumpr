@@ -148,8 +148,12 @@ final class SettingsWindow {
             w.center()
             window = w
         }
+        // Jumpr is rarely the active app, and making it active is only a request that macOS
+        // may refuse; the window would then open behind the active app's windows.
+        // `orderFrontRegardless` puts it on top either way.
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
+        window?.orderFrontRegardless()
         if let w = window {
             log("settings: shown, frame \(w.frame.size), content \(w.contentLayoutRect.size)")
         }

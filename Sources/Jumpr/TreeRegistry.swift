@@ -24,6 +24,8 @@ final class TreeRegistry {
     /// Apps whose `AXEnhancedUserInterface` was already on: never touched again.
     private var enhancedByOthers = Set<Int32>()
     private var scans: [Int32: Int] = [:]
+    /// When Jumpr last switched each app's tree on, by either attribute (`now()`), for `sinceEnabled`.
+    private var enabledAt: [Int32: Double] = [:]
     /// False from `disableAll` until `allowEnabling`: work queued before a pause
     /// must not switch a tree back on after it.
     private var enabling = true
@@ -31,6 +33,12 @@ final class TreeRegistry {
     private var loggedLockedSkip = false
 
     var enabledPids: Set<Int32> { lock.withLock { manual } }
+
+    /// Seconds since Jumpr switched this app's web tree on, or nil if it never did. The tree
+    /// arrives some time after (see `treeMayStillBeBuilding`). Safe from any thread.
+    func sinceEnabled(_ pid: Int32) -> Double? {
+        lock.withLock { enabledAt[pid].map { now() - $0 } }
+    }
 
     /// Whether `enableIfNeeded` already ran for `pid` (cheap; safe from any thread).
     func hasSeen(_ pid: Int32) -> Bool { lock.withLock { seen.contains(pid) } }
@@ -49,6 +57,7 @@ final class TreeRegistry {
         let err = AXUIElementSetAttributeValue(app, Self.manualAttr as CFString, kCFBooleanTrue)
         switch err {
         case .success:
+            lock.withLock { enabledAt[pid] = now() }
             log("tree on: AXManualAccessibility \(bundleID ?? "pid \(pid)")")
         case .cannotComplete:
             // Did not answer in time: try again next sight.
@@ -58,17 +67,19 @@ final class TreeRegistry {
         }
     }
 
-    /// Records one finished scan of the app. A Chromium browser whose windows came back
-    /// empty (`webTreeLooksEmpty`) on its second scan or later also gets
-    /// `AXEnhancedUserInterface`, unless it is already on. Skipped when the screen was
-    /// locked during the scan (`screenLocked`, taken by the caller when the scan ran):
-    /// every window scan is empty then.
-    func noteScan(pid: Int32, bundleID: String?, windowsScanned: Int, windowNodes: Int, screenLocked locked: Bool) {
-        let count: Int = lock.withLock {
+    /// Records one finished scan of the app. A Chromium browser whose page is missing from
+    /// its tree (`webTreeLooksEmpty`) also gets `AXEnhancedUserInterface`, unless it is
+    /// already on: at once if it refused `AXManualAccessibility` (Chrome), else from its
+    /// second scan (`mayAskForEnhancedTree`). Skipped when the screen was locked during
+    /// the scan (`screenLocked`, taken by the caller when the scan ran): every window scan
+    /// is empty then.
+    func noteScan(pid: Int32, bundleID: String?, walkedWindow: Bool, webTargets: Int, screenLocked locked: Bool) {
+        let (count, manualAccepted): (Int, Bool) = lock.withLock {
             scans[pid, default: 0] += 1
-            return scans[pid]!
+            return (scans[pid]!, manual.contains(pid))
         }
-        guard count >= 2, webTreeLooksEmpty(windowsScanned: windowsScanned, windowNodes: windowNodes),
+        guard mayAskForEnhancedTree(scan: count, manualAccepted: manualAccepted),
+              webTreeLooksEmpty(walkedWindow: walkedWindow, webTargets: webTargets),
               let bundleID, Self.chromiumIDs.contains(bundleID),
               lock.withLock({ enabling && !enhanced.contains(pid) && !enhancedByOthers.contains(pid) })
         else { return }
@@ -85,7 +96,11 @@ final class TreeRegistry {
             return
         }
         guard record(pid, in: \.enhanced) else { return }  // before the call, as in `enableIfNeeded`
-        if AXUIElementSetAttributeValue(app, Self.enhancedAttr as CFString, kCFBooleanTrue) == .success {
+        // Go by what the attribute reads back, not by the result: Chrome answers "not
+        // implemented" (-25208) and switches its page tree on all the same.
+        AXUIElementSetAttributeValue(app, Self.enhancedAttr as CFString, kCFBooleanTrue)
+        if Self.isOn(app, Self.enhancedAttr) {
+            lock.withLock { enabledAt[pid] = now() }
             log("tree on: AXEnhancedUserInterface \(bundleID)")
         } else {
             lock.withLock { _ = enhanced.remove(pid) }
@@ -101,7 +116,7 @@ final class TreeRegistry {
             defer {
                 enabling = false
                 seen.removeAll(); manual.removeAll(); enhanced.removeAll()
-                enhancedByOthers.removeAll(); scans.removeAll()
+                enhancedByOthers.removeAll(); scans.removeAll(); enabledAt.removeAll()
             }
             return (manual, enhanced)
         }

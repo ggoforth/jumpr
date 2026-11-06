@@ -1,8 +1,55 @@
-# Jumpr launch: direct sale
+# Jumpr launch: free and open source (was: direct sale)
 
 **Date:** 2026-11-05
 **Status:** Greg gave the go-ahead on 2026-11-05 with four changes, marked **[changed]** below: Sparkle now, Watchflows' build procedure on the Mac mini, an in-browser demo on the site, and Claude creates the cloud pieces.
 **Builds on:** `2026-11-04-jumpr-design.md` (the app itself). Where the two disagree, this one wins.
+
+---
+
+## 0. Direction change, 2026-11-05: free and open source
+
+**This section wins over everything below it.**
+
+Greg's words: "I'm thinking more I just want to open source this. It's so simple. Lets give it away and use the github / website as an oppty to download and promote watchflows (See out other apps...)"
+
+### What Jumpr's launch is now
+
+- Free. No price, no Stripe, no licence key, no trial.
+- The source is public on GitHub (`ggoforth/jumpr`).
+- The site explains Jumpr with the demo, offers the download, links the source, and promotes Watchflows ("See our other apps").
+- The README does the same job on GitHub.
+
+### What this does to the rest of this document
+
+| Section | Now |
+|---|---|
+| 1 Intent, 2 Goals | Replaced by the list above. "Least ongoing effort" still holds. |
+| 3 Non-goals | "Open source" is no longer a non-goal. The rest stand. |
+| 4 Anti-goals | "The app phones home" and "touching Watchflows' live systems" stand. The two about sales and paying customers no longer apply. |
+| 7 Part A, finish the app for strangers | Stands, minus the "Licence…" menu item. |
+| 8 Licence and Trial | **Dropped.** The Sparkle part of section 8 stands. |
+| 9 Part D, marketing site | Stands, with changes: no buy button, no thank-you page; a Download button, a GitHub link, a Watchflows section. Terms and privacy lose everything about payment. |
+| 10 Part E, payment and the key email | **Dropped.** No payment function, no email sender. |
+| 11 Part F, release | Stands, with one change below. |
+| 12 Account-owner tasks | Stripe and the email sender are gone. Apple signing, AWS for the site, and the Sparkle key remain. |
+| 13 How we'll know it works | The purchase checks are gone. The clean-Mac check and the update check remain. |
+
+### Claude's calls for the new direction (check these)
+
+| # | Call | Why |
+|---|---|---|
+| O1 | **The download lives on GitHub Releases.** The site's button points at the latest release asset; the update feed (`appcast.xml`) stays on `getjumpr.app` and points at that asset. | Free, no downloads bucket, and every download passes the repo. |
+| O2 | **The whole history is published, not a fresh start.** | Checked on 2026-11-05: 56 commits, no keys, no account numbers, no personal email. Nothing to hide, and the history is the honest record. |
+| O3 | **Support is GitHub issues first, email second, no promised response time.** | Least ongoing effort. |
+| O4 | **Watchflows is promoted on the site and in the README only, never inside the app.** | Greg named "the github / website". An ad inside a utility is a different decision. |
+| O5 | **The build is still signed and notarized.** | A stranger must be able to open it without a warning. |
+
+### Open, only Greg can answer
+
+| # | Question | Until then |
+|---|---|---|
+| OQ1 | **Which license?** Claude recommends MIT, copyright BaggaDonuts LLC. GPL v3 is the alternative if a renamed, closed, paid copy would bother you. | The site says MIT. No `LICENSE` file is added until answered. |
+| OQ2 | **The go-ahead to make the repo public.** It cannot be cleanly undone. | The repo stays private. The site's Download and GitHub links return "not found". |
 
 ---
 
@@ -46,7 +93,7 @@ So every choice here favors **least ongoing effort**: nothing to babysit, nothin
 
 | Decision | When |
 |---|---|
-| Sell direct, $10 one time, through Stripe, "same setup as Watchflows" | 2026-11-05 |
+| ~~Sell direct, $10 one time, through Stripe, "same setup as Watchflows"~~ Replaced the same day, see the last row | 2026-11-05 |
 | A simple marketing site | 2026-11-05 |
 | No Setapp | 2026-11-05 |
 | Tags are made by Greg, by hand, in GitHub | standing rule |
@@ -55,6 +102,9 @@ So every choice here favors **least ongoing effort**: nothing to babysit, nothin
 | The site is "super simple" and **shows how Jumpr works with an in-browser demo** | 2026-11-05 |
 | The site ships to AWS the way Watchflows' does: a GitHub Action that deploys on merge to `main`, **after Greg approves the design** | 2026-11-05 |
 | Claude has access to Linear, AWS and GitHub and creates what is needed there | 2026-11-05 |
+| **The name stays Jumpr. The domain is `getjumpr.app`** (bought 2026-11-05). `jumpr.com`, `.app`, `.dev` and `.io` were taken. | 2026-11-05 |
+| Terms and privacy are modelled on Watchflows' (BaggaDonuts LLC, fully local). Support address: `support@getjumpr.app` | 2026-11-05 |
+| **Jumpr is free and open source.** The site and the GitHub repo offer the download and promote Watchflows. See section 0. | 2026-11-05 |
 
 ### Claude's calls (not confirmed by Greg — check these while reading)
 
@@ -81,7 +131,7 @@ So every choice here favors **least ongoing effort**: nothing to babysit, nothin
 
 | # | Question | Blocks |
 |---|---|---|
-| Q1 | **Domain?** | Site, key email sender, update check address. Use the placeholder `DOMAIN` until known. |
+| Q1 | ~~Domain?~~ **Answered 2026-11-05: `getjumpr.app`**, bought by Greg. Wherever this document says `DOMAIN`, read `getjumpr.app`. | |
 | Q2 | **Support email address?** | Site footer, key email, refund policy |
 | Q3 | ~~Who creates the cloud pieces~~ **Answered:** Claude, for AWS and GitHub. Stripe and the email sender were not mentioned: still to confirm. | |
 

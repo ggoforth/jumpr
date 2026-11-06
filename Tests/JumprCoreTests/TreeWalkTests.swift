@@ -110,16 +110,58 @@ private func buttonAt(depth: Int) -> Fake {
     #expect(run(buttonAt(depth: 80)).targets.isEmpty)
 }
 
-// The walk counts each window's root node, so an empty web tree shows as one node per window.
-@Test func webTreeIsEmptyWhenWindowsGaveOnlyTheirRoots() {
-    #expect(webTreeLooksEmpty(windowsScanned: 1, windowNodes: 1))
-    #expect(webTreeLooksEmpty(windowsScanned: 3, windowNodes: 3))
-    #expect(webTreeLooksEmpty(windowsScanned: 2, windowNodes: 0))
+// Chrome with its page tree off still answers with its toolbar (about 60 nodes), so the
+// sign of a missing page is nothing to click in web content, not an empty window.
+@Test func webTreeIsEmptyWhenAWalkedWindowGaveNothingToClickInWebContent() {
+    #expect(webTreeLooksEmpty(walkedWindow: true, webTargets: 0))
 }
-@Test func webTreeIsNotEmptyWithMoreThanTheRoots() {
-    #expect(!webTreeLooksEmpty(windowsScanned: 1, windowNodes: 2))
-    #expect(!webTreeLooksEmpty(windowsScanned: 2, windowNodes: 40))
+@Test func webTreeIsNotEmptyWithSomethingToClickInWebContent() {
+    #expect(!webTreeLooksEmpty(walkedWindow: true, webTargets: 1))
+    #expect(!webTreeLooksEmpty(walkedWindow: true, webTargets: 129))
 }
-@Test func webTreeIsUndecidedWithNoWindowScanned() {
-    #expect(!webTreeLooksEmpty(windowsScanned: 0, windowNodes: 0))
+@Test func webTreeIsUndecidedWithNoWindowWalked() {   // hidden, or on another Space
+    #expect(!webTreeLooksEmpty(walkedWindow: false, webTargets: 0))
+}
+
+// A browser that took `AXManualAccessibility` moments ago may still be building: wait for
+// its second scan. One that refused it (Chrome) has nothing to wait for.
+@Test func theHeavierRequestWaitsOnlyForATreeAlreadyAskedFor() {
+    #expect(!mayAskForEnhancedTree(scan: 1, manualAccepted: true))
+    #expect(mayAskForEnhancedTree(scan: 2, manualAccepted: true))
+    #expect(mayAskForEnhancedTree(scan: 1, manualAccepted: false))
+    #expect(mayAskForEnhancedTree(scan: 5, manualAccepted: false))
+}
+
+// Web content (browsers, Electron apps) answers "success" to a press and may do nothing.
+@Test func targetsUnderAWebAreaAreMarkedAsWeb() {
+    let web = Fake("AXWebArea", bounds, [Fake("AXGroup", bounds, [Fake("AXLink", r(10, 40))])])
+    let res = run(Fake("AXWindow", bounds, [Fake("AXButton", r(10, 10)), web]))
+    #expect(res.targets.map(\.role) == ["AXButton", "AXLink"])
+    #expect(res.targets.map(\.inWeb) == [false, true])
+}
+
+@Test func countsWebAreas() {
+    let web = Fake("AXWebArea", bounds, [Fake("AXLink", r(10, 40))])
+    #expect(run(Fake("AXWindow", bounds, [Fake("AXButton", r(10, 10)), web])).webAreas == 1)
+    #expect(run(Fake("AXWindow", bounds, [Fake("AXButton", r(10, 10))])).webAreas == 0)
+    #expect(run(Fake("AXWindow", bounds, [Fake("AXWebArea", bounds)])).webAreas == 1)   // empty: still counted
+}
+
+// Mail's message body: the first scan found no links, the next found ten.
+@Test func aWebViewWithNothingToClickMayStillBeBuilding() {
+    #expect(webViewMayStillBeBuilding(hostsWeb: true, webTargets: 0, sinceTrigger: 0))
+    #expect(webViewMayStillBeBuilding(hostsWeb: true, webTargets: 0, sinceTrigger: 1.2))
+    #expect(!webViewMayStillBeBuilding(hostsWeb: true, webTargets: 0, sinceTrigger: 1.3))   // waited long enough
+    #expect(!webViewMayStillBeBuilding(hostsWeb: true, webTargets: 10, sinceTrigger: 0))    // already built
+    #expect(!webViewMayStillBeBuilding(hostsWeb: false, webTargets: 0, sinceTrigger: 0))    // no web view: nothing to wait for
+    #expect(webViewMayStillBeBuilding(hostsWeb: true, webTargets: 0, sinceTrigger: 2, allow: 3))
+}
+
+@Test func aTreeSwitchedOnMomentsAgoMayStillBeBuilding() {
+    #expect(treeMayStillBeBuilding(sinceSwitchedOn: 0))
+    #expect(treeMayStillBeBuilding(sinceSwitchedOn: 1.5))    // 1Password: still empty containers
+    #expect(!treeMayStillBeBuilding(sinceSwitchedOn: 3))
+    #expect(!treeMayStillBeBuilding(sinceSwitchedOn: 600))
+    #expect(!treeMayStillBeBuilding(sinceSwitchedOn: nil))   // native app: nothing to wait for
+    #expect(treeMayStillBeBuilding(sinceSwitchedOn: 4, allow: 5))
 }

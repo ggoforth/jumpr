@@ -132,4 +132,7 @@ public enum Keys {
     public static let paused = "paused"
     /// Set once the login item has been registered automatically or toggled by hand.
     public static let loginItemSetUp = "loginItemSetUp"
+    /// Bundle IDs of apps seen showing web content, so a web view of theirs that is not
+    /// built yet gets a second look. Not a setting: Jumpr keeps it for itself.
+    public static let webHostApps = "webHostApps"
 }
