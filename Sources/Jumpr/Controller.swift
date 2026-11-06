@@ -46,6 +46,13 @@ final class Controller {
     /// Kept across launches: a web view that is not built yet gives no sign of itself, so
     /// without this the first email after Jumpr starts would get no labels on its links.
     private var webHosts = Set(UserDefaults.standard.stringArray(forKey: Keys.webHostApps) ?? [])
+    /// Apps known from the start to show their content in a WebKit view, which `webHosts`
+    /// cannot learn in time: on a first press the unbuilt view shows no web area, so the
+    /// page would get no labels until a later press. Safari's page was there 0.3 s after
+    /// the first read.
+    private static let webKitHostIDs: Set<String> = [
+        "com.apple.Safari", "com.apple.SafariTechnologyPreview", "com.apple.mail",
+    ]
 
     private let debugLabels = ProcessInfo.processInfo.environment["JUMPR_DEBUG_LABELS"] != nil
     private var colorWatchers: [DefaultsWatcher] = []
@@ -260,8 +267,9 @@ final class Controller {
         // wait for. One with no bundle ID is never remembered, so never waited for. A
         // Chromium browser always hosts web content: with nothing to click in it, `noteScan`
         // is about to switch its page tree on (queued ahead of the look-again scan).
-        let hostsWeb = bundle.map { webHosts.contains($0) || TreeRegistry.chromiumIDs.contains($0) } == true
-            && web.walkedWindow
+        let hostsWeb = bundle.map {
+            webHosts.contains($0) || TreeRegistry.chromiumIDs.contains($0) || Self.webKitHostIDs.contains($0)
+        } == true && web.walkedWindow
         let webView = webViewMayStillBeBuilding(hostsWeb: hostsWeb, webTargets: web.targets,
                                                 sinceTrigger: now() - started)
         guard switchedOn || webView else { return }
