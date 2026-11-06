@@ -62,6 +62,10 @@ public enum Roles {
     /// sidebar is an `AXStaticText` that offers a press. Text only: there, plain groups
     /// offer a press too.
     public static let clickableIfPressable: Set<String> = ["AXStaticText"]
+    /// Clickable only as a list's own item (a direct child of an `AXList`). Dia's sidebar
+    /// presents each folder as an `AXUnknown` child of its list, with no children and no
+    /// actions: its place in the list is the only sign that it is something to click.
+    public static let clickableAsListItem: Set<String> = ["AXUnknown"]
 }
 
 public enum WalkScope {
@@ -94,8 +98,8 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
     case .system: startClip = .infinite
     }
 
-    /// `inTarget`: under an element that got a label.
-    func visit(_ node: any AXNode, clip: CGRect, depth: Int, inWeb: Bool, inTarget: Bool) {
+    /// `inTarget`: under an element that got a label. `inList`: a list's own item.
+    func visit(_ node: any AXNode, clip: CGRect, depth: Int, inWeb: Bool, inTarget: Bool, inList: Bool) {
         if depth >= maxDepth || result.timedOut { return }
         if now() > deadline {
             result.timedOut = true
@@ -123,6 +127,7 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
         // and under an element that already has a label (the text in a table's rows).
         if info.enabled != false, let r = visibleRect, r.width >= 4, r.height >= 4,
            Roles.clickable.contains(info.role)
+            || (inList && Roles.clickableAsListItem.contains(info.role))
             || (Roles.clickableIfPressable.contains(info.role) && !inWeb && !inTarget && node.offersPress()) {
             let c = CGPoint(x: r.midX, y: r.midY)
             switch scope {
@@ -146,8 +151,31 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
            let rows = node.visibleRows(), !rows.isEmpty {
             children = rows
         }
+        // A page's lists hold links, which have a role of their own, so only lists outside
+        // web content count.
+        let isList = info.role == "AXList" && !inWeb
+        let firstInList = result.targets.count
         for child in children {
-            visit(child, clip: clip, depth: depth + 1, inWeb: inWeb, inTarget: inTarget || mine != nil)
+            visit(child, clip: clip, depth: depth + 1, inWeb: inWeb, inTarget: inTarget || mine != nil, inList: isList)
+        }
+
+        // An item with no role can span more than its own line: an open folder in Dia also
+        // spans the tabs in it, which are the list's next items. Its label and its click
+        // belong on the part the list's other labels leave free; with nothing free, it gets
+        // none. In list order, so an outer item is trimmed before the items inside it.
+        if isList {
+            var i = firstInList
+            while i < result.targets.count {
+                let t = result.targets[i]
+                guard Roles.clickableAsListItem.contains(t.role) else { i += 1; continue }
+                let others = result.targets[firstInList...].filter { $0.id != t.id }.map(\.rect)
+                if let free = largestFreeBand(of: t.rect, around: others) {
+                    result.targets[i] = Target(id: t.id, rect: free, role: t.role, pid: t.pid, window: t.window, inWeb: t.inWeb)
+                    i += 1
+                } else {
+                    result.targets.remove(at: i)
+                }
+            }
         }
 
         // A clickable element (a row) with a clickable element inside it that covers at
@@ -163,8 +191,27 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
         }
     }
 
-    visit(root, clip: startClip, depth: 0, inWeb: false, inTarget: false)
+    visit(root, clip: startClip, depth: 0, inWeb: false, inTarget: false, inList: false)
     return result
+}
+
+/// The largest part of `rect` beside everything in `others` that overlaps it: the band
+/// above, below, left or right of what they cover together. `rect` itself if nothing
+/// overlaps it; nil if no band of at least 4×4 pt is left.
+func largestFreeBand(of rect: CGRect, around others: [CGRect]) -> CGRect? {
+    var covered = CGRect.null
+    for other in others {
+        let overlap = other.intersection(rect)
+        if !overlap.isEmpty { covered = covered.union(overlap) }   // null and edge-touching are empty
+    }
+    if covered.isNull { return rect }
+    let bands = [
+        CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: covered.minY - rect.minY),
+        CGRect(x: rect.minX, y: covered.maxY, width: rect.width, height: rect.maxY - covered.maxY),
+        CGRect(x: rect.minX, y: rect.minY, width: covered.minX - rect.minX, height: rect.height),
+        CGRect(x: covered.maxX, y: rect.minY, width: rect.maxX - covered.maxX, height: rect.height),
+    ].filter { $0.width >= 4 && $0.height >= 4 }
+    return bands.max { $0.width * $0.height < $1.width * $1.height }
 }
 
 /// Whether `inner` covers at least half of `outer`'s area.
