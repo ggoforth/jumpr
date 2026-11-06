@@ -137,8 +137,8 @@ final class Controller {
 
     // MARK: - Trees ahead of the first trigger
 
-    /// Switches web trees on now, so the first trigger already finds them built (design
-    /// §7.3: Chromium/Electron build the tree some time after being asked). Called when
+    /// Switches web trees on now, so the first trigger already finds them built
+    /// (docs/design.md, Web content: these apps build the tree some time after being asked). Called when
     /// Jumpr becomes trusted, on resume, 2 s after an app launches and the first time an
     /// app comes to the front (`only` that app), and when the screen unlocks. Never while paused or locked; the AX work runs on each
     /// app's scan queue. The trigger's own enabling stays as the catch-all.

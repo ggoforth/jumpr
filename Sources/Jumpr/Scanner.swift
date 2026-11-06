@@ -2,14 +2,6 @@ import AppKit
 import ApplicationServices
 import JumprCore
 
-/// `window == nil` means the app's system pieces (menu bar, extras, or the Dock).
-/// For a window scan, `element` is the window's element if the caller already has it.
-struct ScanRequest {
-    let pid: Int32
-    let window: WindowID?
-    let element: AXUIElement?
-}
-
 struct WindowScan {
     let pid: Int32
     let window: WindowID?
@@ -57,11 +49,6 @@ final class Scanner {
         }
     }
 
-    /// True while work for `pid` is queued or running.
-    func isScanning(pid: Int32) -> Bool {
-        lock.withLock { pending[pid, default: 0] > 0 }
-    }
-
     /// Runs `work` on `pid`'s serial queue — for other AX work on that app (e.g. `TreeRegistry`).
     func perform(pid: Int32, background: Bool, _ work: @escaping () -> Void) {
         let q: DispatchQueue = lock.withLock {
@@ -88,49 +75,6 @@ final class Scanner {
     func appWindows(pid: Int32) -> [(id: WindowID, element: AXUIElement)] {
         guard let a = axMulti(axApp(pid), windowsAttr), a.count == 1 else { return [] }
         return resolveWindows(axElements(a[0]), pid: pid, stack: nil)
-    }
-
-    /// One window, or the app's system pieces when `req.window == nil`.
-    func scan(_ req: ScanRequest, stack: WindowStack, screens: [CGRect], frontPid: Int32?,
-              background: Bool, completion: @escaping (WindowScan) -> Void) {
-        perform(pid: req.pid, background: background) { [self] in
-            let t0 = now()
-            let deadline = t0 + Scanner.budget
-            let result: WindowScan
-            if let wid = req.window {
-                if stack.win(wid) == nil || !stack.anyVisible(wid) {
-                    result = .empty(pid: req.pid, window: wid, startedAt: t0)
-                } else {
-                    let (values, err) = axMultiResult(axApp(req.pid), windowsAttr)
-                    if values == nil, didNotAnswer(err, after: now() - t0) {
-                        result = .empty(pid: req.pid, window: wid, startedAt: t0, ms: (now() - t0) * 1000, timedOut: true)
-                    } else {
-                        var wins: [(id: WindowID, element: AXUIElement)] = []
-                        if let a = values, a.count == 1 { wins = resolveWindows(axElements(a[0]), pid: req.pid, stack: nil) }
-                        let element = req.element ?? wins.first { $0.id == wid }?.element
-                        result = scanWindow(pid: req.pid, id: wid, element: element, appWindows: Set(wins.map(\.id)),
-                                            stack: stack, deadline: deadline)
-                    }
-                }
-            } else {
-                let isDock = NSRunningApplication(processIdentifier: req.pid)?.bundleIdentifier == "com.apple.dock"
-                let app = axApp(req.pid)
-                var pieces: (AXUIElement?, AXUIElement?) = (nil, nil)
-                var err = AXError.success
-                if !isDock {  // the Dock is walked from the application element itself
-                    let (values, e) = axMultiResult(app, systemAttrs)
-                    if let a = values, a.count == 2 { pieces = (axElementValue(a[0]), axElementValue(a[1])) }
-                    else { err = e }
-                }
-                if didNotAnswer(err, after: now() - t0) {
-                    result = .empty(pid: req.pid, window: nil, startedAt: t0, ms: (now() - t0) * 1000, timedOut: true)
-                } else {
-                    result = scanSystem(pid: req.pid, app: app, isDock: isDock, isFront: req.pid == frontPid,
-                                        pieces: pieces, screens: screens, stack: stack, deadline: deadline)
-                }
-            }
-            DispatchQueue.main.async { completion(result) }
-        }
     }
 
     /// Every window of the app plus its system pieces, under one per-app budget.
@@ -186,7 +130,6 @@ final class Scanner {
 
     private let windowsAttr = ["AXWindows"] as CFArray
     private let appAttrs = ["AXWindows", "AXMenuBar", "AXExtrasMenuBar"] as CFArray
-    private let systemAttrs = ["AXMenuBar", "AXExtrasMenuBar"] as CFArray
 
     /// Window IDs from `_AXUIElementGetWindow`; on error, the same app's on-screen window
     /// whose bounds match the element's frame (within 1 pt per edge).

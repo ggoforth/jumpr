@@ -5,7 +5,7 @@ import JumprCore
 /// Web-based apps (Electron, Chromium) keep their accessibility tree off until asked.
 /// Records only the trees Jumpr itself switched on, so it can switch exactly those back
 /// off. An `AXEnhancedUserInterface` another tool switched on is left alone; an
-/// `AXManualAccessibility` cannot be read back, so Jumpr cannot tell (design: Known limits).
+/// `AXManualAccessibility` cannot be read back, so Jumpr cannot tell (docs/design.md, Known limits).
 /// `enableIfNeeded` and `noteScan` make AX calls: call them off the main thread (on the
 /// pid's scan queue). `disableAll` and `allowEnabling` may be called from main.
 final class TreeRegistry {
@@ -31,8 +31,6 @@ final class TreeRegistry {
     private var enabling = true
     /// Set once the locked-screen skip in `noteScan` has been logged, until the screen unlocks.
     private var loggedLockedSkip = false
-
-    var enabledPids: Set<Int32> { lock.withLock { manual } }
 
     /// Seconds since Jumpr switched this app's web tree on, or nil if it never did. The tree
     /// arrives some time after (see `treeMayStillBeBuilding`). Safe from any thread.

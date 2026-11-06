@@ -3,10 +3,8 @@ import IOKit.ps
 import JumprCore
 
 /// The system-facing source of `PowerState`: battery, Low Power Mode, lock and pause.
-/// Everything here runs on the main thread: `start()`, every observer, every
-/// `onChange`. `onChange` fires only when the state actually changes.
+/// Everything here runs on the main thread: `start()`, every observer, every callback.
 final class PowerSource {
-    var onChange: (PowerState) -> Void = { _ in }
     /// Fires on every lock event (session lock, screen saver start, display sleep), whether
     /// or not the combined state changed: a stale cause must not hide a real lock.
     var onLockEvent: () -> Void = {}
@@ -111,7 +109,6 @@ final class PowerSource {
         let wasLocked = state.locked
         state = next
         logState()
-        onChange(next)
         if wasLocked && !next.locked { onUnlock() }
     }
 
