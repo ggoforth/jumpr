@@ -201,14 +201,10 @@ final class Controller {
                 }
             }
             // Registry bookkeeping for the app, kept even if this trigger goes stale.
-            // A window with no nodes was not walked (hidden, gone, or out of budget).
-            var windowsScanned = 0
-            var windowNodes = 0
             var web = WebFound()
             scanner.scanApp(pid: pid, stack: stack, screens: screens, frontPid: front, isDock: isDock, background: false,
                             isStale: { [sharedGeneration] in sharedGeneration.value != gen },
                             each: { [weak self] s in
-                                if s.window != nil && s.nodes > 0 { windowsScanned += 1; windowNodes += s.nodes }
                                 web.add(s)
                                 guard let self, isCurrent(gen) else { return }  // stale: drop
                                 receive(s, name: name)
@@ -216,12 +212,12 @@ final class Controller {
                             done: { [weak self, scanner, registry] complete in
                                 // A scan cut short by a newer trigger says nothing about the tree.
                                 if hasVisibleWindow && complete {
-                                    let (w, n) = (windowsScanned, windowNodes)
+                                    let found = web
                                     // Locked at any point while this app was scanned: its zero nodes mean nothing.
                                     let locked = lockedAtStart || screenIsLocked()
                                     scanner.perform(pid: pid, background: true) {
-                                        registry.noteScan(pid: pid, bundleID: bundle, windowsScanned: w, windowNodes: n,
-                                                          screenLocked: locked)
+                                        registry.noteScan(pid: pid, bundleID: bundle, walkedWindow: found.walkedWindow,
+                                                          webTargets: found.targets, screenLocked: locked)
                                     }
                                 }
                                 guard let self, isCurrent(gen) else { return }  // stale: drop
@@ -261,8 +257,11 @@ final class Controller {
         }
         let switchedOn = treeMayStillBeBuilding(sinceSwitchedOn: registry.sinceEnabled(pid))
         // An app with no window on screen (hidden, or on another Space) has no web view to
-        // wait for. One with no bundle ID is never remembered, so never waited for.
-        let hostsWeb = bundle.map(webHosts.contains) == true && web.walkedWindow
+        // wait for. One with no bundle ID is never remembered, so never waited for. A
+        // Chromium browser always hosts web content: with nothing to click in it, `noteScan`
+        // is about to switch its page tree on (queued ahead of the look-again scan).
+        let hostsWeb = bundle.map { webHosts.contains($0) || TreeRegistry.chromiumIDs.contains($0) } == true
+            && web.walkedWindow
         let webView = webViewMayStillBeBuilding(hostsWeb: hostsWeb, webTargets: web.targets,
                                                 sinceTrigger: now() - started)
         guard switchedOn || webView else { return }

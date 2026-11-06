@@ -140,12 +140,10 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
     return result
 }
 
-/// Whether a web browser's windows came back empty: the walk counts each window's root,
-/// so `windowNodes` no larger than the number of windows walked means nothing under them.
-/// Undecided (false) when no window was walked.
 /// Whether a web tree switched on `sinceSwitchedOn` seconds ago may still be arriving, so a
-/// scan of its app is worth repeating. Electron apps build the tree some time after being
-/// asked: 1Password answered with empty containers at 0.5 s and the full tree by 2 s.
+/// scan of its app is worth repeating. Web apps build the tree some time after being asked:
+/// 1Password answered with empty containers at 0.5 s and the full tree by 2 s; Chrome's
+/// page was still missing at 1.7 s and there at 2.1 s.
 /// `nil`: Jumpr never switched this app's tree on (a native app, or one that refused).
 public func treeMayStillBeBuilding(sinceSwitchedOn: Double?, allow: Double = 3.0) -> Bool {
     guard let sinceSwitchedOn else { return false }
@@ -163,6 +161,18 @@ public func webViewMayStillBeBuilding(hostsWeb: Bool, webTargets: Int, sinceTrig
     hostsWeb && webTargets == 0 && sinceTrigger < allow
 }
 
-public func webTreeLooksEmpty(windowsScanned: Int, windowNodes: Int) -> Bool {
-    windowsScanned > 0 && windowNodes <= windowsScanned
+/// Whether a web browser's page is missing from its tree: a window was walked and there
+/// was nothing to click inside web content. An empty window is not the sign: Chrome with
+/// its page tree off still answers with its toolbar (about 60 nodes).
+/// Undecided (false) when no window was walked.
+public func webTreeLooksEmpty(walkedWindow: Bool, webTargets: Int) -> Bool {
+    walkedWindow && webTargets == 0
+}
+
+/// Whether a browser whose page looks missing may be sent the heavier
+/// `AXEnhancedUserInterface` on this scan (`scan` counts from 1). One that accepted
+/// `AXManualAccessibility` may still be building that tree on its first scan, so wait for
+/// the second. One that refused it (Chrome) has nothing to wait for.
+public func mayAskForEnhancedTree(scan: Int, manualAccepted: Bool) -> Bool {
+    scan >= 2 || !manualAccepted
 }

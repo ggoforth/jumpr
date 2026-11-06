@@ -221,8 +221,11 @@ hotkey
     labels at all.
   - Remember which apps Jumpr switched on, and switch them back off on Pause and
     on Quit.
-  - Use the heavier `AXEnhancedUserInterface` only for browsers that return an
-    empty tree without it — it has known side effects on window animation.
+  - Use the heavier `AXEnhancedUserInterface` only for browsers whose page is
+    missing from the tree without it — it has known side effects on window
+    animation. "Missing" means nothing to click in web content: Chrome refuses
+    `AXManualAccessibility` and answers with its toolbar either way, so an empty
+    window is not the sign. Chrome's page arrives about 2 s after the request.
   - The standing cost of leaving the tree on is not yet measured. Measuring it is
     an early build task (section 8); if it is large, bring it back to Greg before
     building further on this rule.
