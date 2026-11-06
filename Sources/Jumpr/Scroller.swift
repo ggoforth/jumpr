@@ -8,10 +8,17 @@ import JumprCore
 final class Scroller {
     /// The gap between the events of one burst (`ScrollAmount.wheelSteps`).
     private static let gap = 0.008
+    /// When the burst going out now ends. A key repeat that arrives before then sends one
+    /// event instead of another burst: a held key would otherwise send six events per
+    /// repeat, about 180 a second, and Mail's web content stopped answering after such a
+    /// hold.
+    private var burstEndsAt = 0.0
 
     func scroll(_ area: Area, by amount: ScrollAmount) {
         let at = CGPoint(x: area.rect.midX, y: area.rect.midY)
-        for (i, pixels) in amount.wheelSteps(areaHeight: area.rect.height).enumerated() {
+        let steps = amount.wheelSteps(areaHeight: area.rect.height, burst: now() >= burstEndsAt)
+        burstEndsAt = now() + Self.gap * Double(steps.count - 1)
+        for (i, pixels) in steps.enumerated() {
             if i == 0 {
                 Self.post(pixels, at: at)
             } else {

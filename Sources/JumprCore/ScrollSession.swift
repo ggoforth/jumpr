@@ -16,19 +16,21 @@ public enum ScrollAmount: Equatable {
     static let end: Int32 = 1_000_000
 
     /// The pixel amounts of the wheel events that make this scroll, in order. Positive
-    /// scrolls up.
-    public func wheelSteps(areaHeight: CGFloat) -> [Int32] {
+    /// scrolls up. A `burst` glides; without one the whole amount goes as one event, for a
+    /// key repeat that arrives while the last burst is still going out.
+    public func wheelSteps(areaHeight: CGFloat, burst: Bool = true) -> [Int32] {
         switch self {
         case .top: return [Self.end]
         case .bottom: return [-Self.end]
-        case .line(let d): return Self.split(Self.linePixels, d)
-        case .half(let d): return Self.split(Int((areaHeight / 2).rounded()), d)
+        case .line(let d): return Self.split(Self.linePixels, d, burst: burst)
+        case .half(let d): return Self.split(Int((areaHeight / 2).rounded()), d, burst: burst)
         }
     }
 
     /// `total` in `burstEvents` events, the remainder spread over the first ones.
-    private static func split(_ total: Int, _ d: ScrollDirection) -> [Int32] {
+    private static func split(_ total: Int, _ d: ScrollDirection, burst: Bool) -> [Int32] {
         let sign: Int32 = d == .up ? 1 : -1
+        guard burst else { return [sign * Int32(total)] }
         return (0..<burstEvents).map { i in sign * Int32(total / burstEvents + (i < total % burstEvents ? 1 : 0)) }
     }
 }

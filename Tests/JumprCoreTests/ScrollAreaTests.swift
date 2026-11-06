@@ -44,11 +44,22 @@ private func focusableGroup(_ frame: CGRect, _ kids: [Fake] = []) -> Fake {
     let mostlyOff = Fake("AXScrollArea", r(600, 540, 200, 400))   // 60 pt of it inside the window
     #expect(areas(Fake("AXWindow", bounds, [narrow, short, enough, mostlyOff])).areas.map(\.id) == [enough.id])
 }
-@Test func anAreaIsClippedToTheWindowAndToTheScrollAreasAroundIt() {
-    let inner = Fake("AXScrollArea", r(0, 200, 400, 600))   // runs past the outer one's bottom
+@Test func anAreaIsClippedToTheWindow() {
+    let outer = Fake("AXScrollArea", r(0, 300, 400, 500))   // runs past the window's bottom
+    #expect(areas(Fake("AXWindow", bounds, [outer])).areas.map(\.rect) == [r(0, 300, 400, 300)])
+}
+// Mail's message pane: one scroll area holds the header and the body, and the body's own
+// scroll area runs past the pane's bottom. The body is the pane's content, scrolled by the
+// pane ("the header and body scroll as one"): one area, the pane.
+@Test func anAreaRunningPastTheAreaAroundItIsThatAreasContent() {
+    let body = Fake("AXScrollArea", r(0, 136, 400, 960), [Fake("AXWebArea", r(0, 136, 400, 960))])
+    let pane = Fake("AXScrollArea", r(0, 0, 400, 500), [body])
+    #expect(areas(Fake("AXWindow", bounds, [pane])).areas.map(\.id) == [pane.id])
+}
+@Test func anAreaWhollyInsideAnotherOfADifferentSizeIsItsOwnArea() {
+    let inner = Fake("AXScrollArea", r(0, 200, 400, 250))
     let outer = Fake("AXScrollArea", r(0, 0, 400, 500), [inner])
-    let res = areas(Fake("AXWindow", bounds, [outer]))
-    #expect(res.areas.map(\.rect) == [r(0, 0, 400, 500), r(0, 200, 400, 300)])
+    #expect(areas(Fake("AXWindow", bounds, [outer])).areas.map(\.id) == [outer.id, inner.id])
 }
 @Test func anAreaUnderAnotherWindowIsNotAnArea() {
     let cover = Win(id: 2, pid: 20, name: "c", bounds: r(0, 0, 400, 600), layer: 0, alpha: 1)

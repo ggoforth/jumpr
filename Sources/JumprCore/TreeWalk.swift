@@ -152,13 +152,17 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
 
     /// Records the node as an area if it is one, and returns the nearest area around its
     /// children. Kept out of `visit`, whose frame is on the stack once per level of the tree.
-    func noteArea(_ id: ElementID, role: String, focusable: Bool, visible r: CGRect, inWeb: Bool,
+    func noteArea(_ id: ElementID, role: String, focusable: Bool, frame: CGRect, visible r: CGRect, inWeb: Bool,
                   inArea: Int?) -> Int? {
         guard case .window(let window, _, let appWindows) = scope,
               r.width >= minAreaSide, r.height >= minAreaSide,
               Roles.scrollable.contains(role) || (inWeb && focusable && Roles.scrollableIfFocusable.contains(role)),
               stack.isVisible(CGPoint(x: r.midX, y: r.midY), window: window, pid: pid, appWindows: appWindows)
         else { return inArea }
+        // One that runs past the area around it is that area's content, scrolled by it, not
+        // an area of its own: Mail's message body sits in the pane that scrolls the header
+        // and the body together.
+        if let outer = inArea, !result.areas[outer].rect.insetBy(dx: -6, dy: -6).contains(frame) { return outer }
         let area = Area(id: id, rect: r, pid: pid, window: window)
         // Nested areas of one size are one area to a person: keep the innermost, the one
         // that holds the content.
@@ -196,8 +200,8 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
 
         var inArea = inArea
         if finding == .areas, let r = visibleRect {
-            inArea = noteArea(node.id, role: info.role, focusable: info.focusable, visible: r, inWeb: inWeb,
-                              inArea: inArea)
+            inArea = noteArea(node.id, role: info.role, focusable: info.focusable, frame: info.frame ?? r, visible: r,
+                              inWeb: inWeb, inArea: inArea)
         }
 
         let before = result.targets.count

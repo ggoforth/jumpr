@@ -150,6 +150,13 @@ private func session(outlined: Area? = nil) -> ScrollSession {
 
 // A line is about 60 px, sent as six small events; half the area's height likewise; the
 // ends as one very large event. Positive is up.
+// A held key repeats while the last burst is still going out: each repeat then sends one
+// event, not six more, so a long hold does not flood the app.
+@Test func aScrollCanGoAsOneEventInsteadOfABurst() {
+    #expect(ScrollAmount.line(.down).wheelSteps(areaHeight: 600, burst: false) == [-60])
+    #expect(ScrollAmount.half(.up).wheelSteps(areaHeight: 600, burst: false) == [300])
+    #expect(ScrollAmount.top.wheelSteps(areaHeight: 600, burst: false) == ScrollAmount.top.wheelSteps(areaHeight: 600))
+}
 @Test func wheelStepsForEachAmount() {
     #expect(ScrollAmount.line(.down).wheelSteps(areaHeight: 600) == Array(repeating: -10, count: 6))
     #expect(ScrollAmount.line(.up).wheelSteps(areaHeight: 600) == Array(repeating: 10, count: 6))
