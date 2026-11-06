@@ -44,12 +44,16 @@ final class Controller {
     private var lastTotal: Int?
 
     private let debugLabels = ProcessInfo.processInfo.environment["JUMPR_DEBUG_LABELS"] != nil
+    private var colorWatchers: [DefaultsWatcher] = []
 
     init(scanner: Scanner, registry: TreeRegistry, tap: KeyTap) {
         self.scanner = scanner
         self.registry = registry
         self.tap = tap
         rebuildOverlays()
+        colorWatchers = [Keys.labelColor, Keys.labelTextColor].map { key in
+            DefaultsWatcher(key) { [weak self] in self?.recolor() }
+        }
 
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
@@ -329,6 +333,26 @@ final class Controller {
             if let hit { onMatched(hit.target) }
             return true
         }
+    }
+
+    // MARK: - Colours
+
+    /// A colour changed in Settings while labels are up: repaint the labels on screen now
+    /// instead of at the next trigger. Labels added later in this session use the new
+    /// colours too. Size is left as the session started (it would move every label).
+    private func recolor() {
+        guard isActive else { return }
+        let new = LabelStyle.current()
+        style.bg = new.bg
+        style.fg = new.fg
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for p in placed.values {
+            p.layer.backgroundColor = new.bg
+            (p.layer as? CATextLayer)?.foregroundColor = new.fg
+        }
+        CATransaction.commit()
+        CATransaction.flush()
     }
 
     // MARK: - Cancel

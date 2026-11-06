@@ -2,12 +2,13 @@ import AppKit
 import JumprCore
 
 /// Label look, re-read from user defaults on every trigger so changes apply without a relaunch.
+/// The two colours also change while labels are up (`Controller.recolor`); the size does not.
 struct LabelStyle {
     let font: NSFont
     let size: CGFloat
     let advance: CGFloat
-    let bg: CGColor
-    let fg: CGColor
+    var bg: CGColor
+    var fg: CGColor
 
     static func current() -> LabelStyle {
         let d = UserDefaults.standard
