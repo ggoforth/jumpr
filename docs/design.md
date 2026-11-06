@@ -4,7 +4,7 @@ How Jumpr works today, for anyone who wants to understand or change the code. Fo
 
 ## Overview
 
-Jumpr lets you click anything on screen from the keyboard. Press the hotkey and every clickable element on every display gets a short letter label; type a label and Jumpr clicks that element, bringing its app forward if needed. Two targets shape the design:
+Jumpr lets you click anything on screen from the keyboard. Press the hotkey and every clickable element on every display gets a short letter label; type a label and Jumpr clicks that element, bringing its app forward if needed. A second shortcut turns on scroll mode, which scrolls any area from the keyboard (see [Scroll mode](#scroll-mode)). Two targets shape the design:
 
 - **Every display at once.** One hotkey labels every visible window of every app on every connected display, not just the focused app or the current screen.
 - **Labels in about a tenth of a second.** Hotkey to labels should feel instant, and Jumpr sits in the path of every keystroke, so it must never stall typing.
@@ -20,10 +20,11 @@ The package has two targets. `JumprCore` is pure logic: no AppKit, no accessibil
 | File | What it is for |
 |---|---|
 | **`Sources/JumprCore`** | |
-| `TreeWalk.swift` | The tree walk: clickable roles, clipping, the depth cap, the covered-row rule; the web-tree timing rules |
+| `TreeWalk.swift` | The tree walk: clickable roles, clipping, the depth cap, the covered-row rule; areas to scroll; the web-tree timing rules |
 | `Geometry.swift` | `WindowStack`: the on-screen windows front to back, which window is on top at a point, which apps to scan |
-| `Labels.swift` | The label alphabet, label length, label placement, `LabelPool` |
+| `Labels.swift` | The label alphabet, label length, label placement (scroll mode's too), `LabelPool` |
 | `LabelSession.swift` | What each key does while labels are up |
+| `ScrollSession.swift` | What each key does in scroll mode; area letters; where a session starts; the wheel amounts |
 | `PressSafety.swift` | Pressing rules: whether to press at all, `AXPress` or click, where to click, when a click may be sent |
 | `Settings.swift` | `Hotkey`, `RGB`, the label size clamp, and `Keys`, the names of every preference |
 | `LabelColor.swift` | The panel's preset colours, the letter colour (`Letters`, including Auto: black or white by relative luminance) and the exact-colour field's input |
@@ -41,11 +42,13 @@ The package has two targets. `JumprCore` is pure logic: no AppKit, no accessibil
 | `Overlay.swift` | One transparent, click-through window per display; `LabelStyle` |
 | `KeyTap.swift` | The event tap that sees every key press |
 | `Presser.swift` | Presses a matched element |
+| `ScrollController.swift` | Scroll mode end to end: scanning for areas, letters and the outline, keys, every way of leaving |
+| `Scroller.swift` | Scrolls an area with aimed wheel events |
 | `Activation.swift` | Ways to bring another app forward, mildest first |
 | `Readout.swift` | Per-trigger timing, always logged, optionally drawn on screen |
 | `Onboarding.swift` | The Accessibility permission; `LoginItem` (start at login) |
 | `Panel.swift`, `HotkeyRecorder.swift` | The panel under the menu bar icon, which holds every setting (the only SwiftUI), and its hotkey recorder |
-| `StatusItem.swift` | The menu bar icon and the popover that shows the panel |
+| `StatusItem.swift` | The menu bar icon and the popover that shows the panel; the icon's highlight in scroll mode |
 | `UpdaterController.swift` | Sparkle |
 | `PowerSource.swift` | Tracks whether the screen is locked, asleep or showing the screen saver |
 | `Log.swift`, `DefaultsWatcher.swift`, `DistributedObserver.swift` | The log file; live reaction to preference changes; distributed notifications delivered immediately |
@@ -137,8 +140,8 @@ An app "hosts web content" if it is on the built-in Chromium list, on the built-
 
 `KeyTap` is a session-level event tap on key-down events. The system hotkey API is not used: during development it registered but never fired, while detecting the hotkey in this listener worked, and the listener is needed for typing labels anyway.
 
-- **Idle.** The tap looks only for the hotkey and passes everything else through untouched. The hotkey is always swallowed; auto-repeats of it are ignored.
-- **Labels up** (`capturing`). Plain keys go to `LabelSession`:
+- **Idle.** The tap looks only for the hotkey and the scroll shortcut and passes everything else through untouched. Both are always swallowed; auto-repeats of them are ignored.
+- **Labels up or scroll mode on** (`capturing`). Plain keys go to `LabelSession`, or in scroll mode to `ScrollSession` (see [Scroll mode](#scroll-mode)). For labels:
   - a letter that extends a label narrows (labels that no longer match are hidden); one that completes a label matches; one that matches nothing is swallowed
   - Backspace undoes a letter
   - Esc cancels; the hotkey cancels too (it reaches the controller as a second trigger)
@@ -168,6 +171,39 @@ An app "hosts web content" if it is on the built-in Chromium list, on the built-
 
 The log records each press: role, result (`pressed`, `clicked` or `skipped`), time, the raw `AXPress` error when it was not success, and which activation step worked.
 
+## Scroll mode
+
+Scroll any area from the keyboard, with no mouse at any step. The scroll shortcut (⌘⇧J by default, `scrollHotkey`) turns it on; every scrollable area on every display gets a letter, and one may already be outlined. J scrolls the outlined area at once; typing an area's letter outlines that one first.
+
+**What is found.** A scan for areas (`Scanner.scanAreas`) walks every visible window of every app, the way a trigger does: per-app serial queues, the same budget, request timeout and generation rule, results painted as they arrive. It is the same walk (`walk` with `Finding.areas`), sharing the clip and the on-top rule, but it labels nothing and never asks whether text offers a press, and skips the menu bar and extras. An area is:
+
+- an `AXScrollArea`
+- an `AXWebArea`, a page
+- in web content, an `AXGroup` that is its own `AXFocusableAncestor`: Chromium and Electron expose a scrolling region this way, with no scroll role
+
+Its visible part must be at least 80×80 pt (`minAreaSide`), and on top at its center. Nested areas whose edges are all within 6 pt of each other (`nearlySameRect`) are one area to a person, as Safari's scroll area around its page is: the innermost is kept. Nothing in the tree says whether an area can actually scroll, so a short sidebar gets a letter too, and scrolling it does nothing.
+
+**The session** (`ScrollSession`, pure and tested). Areas take one letter each from the label alphabet without J, K, D, U, G and F, so a letter never means both an area and a key (20 letters). They get two letters only if the previous session found more than 20 areas; areas beyond what the letters allow get none. Letters are drawn exactly like labels, in each area's top-left corner inside the outline, off the content.
+
+| Key | What it does |
+|---|---|
+| J / K | Scroll the outlined area a line down / up |
+| D / U | Half the area's visible height down / up |
+| G / Shift G | To the top / the bottom |
+| A letter (while letters show) | Outline that area; the letters go |
+| F | Bring the letters back |
+| Esc, or the scroll shortcut | Leave |
+
+While nothing is outlined the scroll keys do nothing. Any scroll hides the letters. A held key repeats, since the key listener sees repeats as key downs. Keys with ⌘, ⌃ or ⌥ pass through; every other key is swallowed and never reaches the app.
+
+**Where it starts** (`startingArea`). The area scrolled last in the front window (the front app's frontmost normal window), if an area with that element is still there; else the smallest area of the front app holding its keyboard focus (`AXFocusedUIElement`, read on the app's scan queue, queued ahead of its area scan); else none. Holding means containing the focused element's frame with 6 pt to spare (a focused page reports its whole frame); if no area does, the one showing most of it (a long text being edited is taller than the scroll area showing it). Some web-based apps report no focus while not in front, so focus is a bonus, never waited for. The outline follows the scans in until the person picks an area or scrolls. The last area scrolled is remembered per window ID for as long as Jumpr runs.
+
+**Delivery** (`Scroller`). A pixel scroll-wheel event whose position is the area's center, posted at the system's HID event tap. The event carries the position, so the pointer never moves, and it does what scrolling with the pointer there would do; it scrolled native lists, Chromium pages and Electron apps alike when measured. Posting the same event to the app's process scrolled nothing, so that route is not used. A line is 60 px and half an area is half its visible height, each sent as six events 8 ms apart so it reads as a glide; the ends are one event of a million pixels. Modifier flags are cleared, so a Shift held for Shift G does not make the wheel scroll sideways.
+
+**Showing it.** The outlined area gets a 2 pt frame in the label colour between two thin dark edges, with a `SCROLL` tag at its top-left in the label's colours (`Overlay.add(outline:)`), on the existing overlays. The menu bar icon stays highlighted while scroll mode is on (`StatusItem.holdsHighlight`), as it is while the panel is open. Everything is removed the moment it leaves.
+
+**Leaving.** Esc; the scroll shortcut again; any mouse click, including on Jumpr's own icon or panel (a global and a local monitor, installed only while it is on); the front app changing; a Space or display change; a screen lock; Pause; losing the permission; quitting; and finding no area at all once every app has answered. The label hotkey leaves scroll mode and shows labels; the scroll shortcut cancels labels and turns scroll mode on; the two never run at once. Every exit is logged with its reason.
+
 ## Permission and lifecycle
 
 **Accessibility permission.** Jumpr needs only this one. At launch without it, Jumpr asks the system once to prompt (which also adds Jumpr to the list) and opens the panel under its menu bar icon, with the permission banner at the top. Its button opens the exact System Settings pane (`Onboarding.accessibilityPane`), because the pane is hard to find by hand. A change in trust is learned from the `com.apple.accessibility.api` distributed notification, rechecked 0.5 s and 2 s after it fires, because the answer lags the notification. On gaining trust, Jumpr starts the key tap and switches web trees on; if the tap still cannot start, the panel shows a Relaunch button. On losing it, Jumpr stops the tap, cancels any session and opens the panel. The panel is an `NSPopover` (transient: a click elsewhere closes it); Jumpr activates itself when it opens, so the exact-colour field and the hotkey recorder get the keys. A stable signing identity keeps the grant across rebuilds (see the README).
@@ -178,9 +214,9 @@ The log records each press: role, result (`pressed`, `clicked` or `skipped`), ti
 
 **Start at login** is opt-in: off until the user turns it on in the panel, backed by `SMAppService.mainApp`, and Jumpr only reads its state otherwise.
 
-**The log** is `~/Library/Logs/Jumpr.log`: launch, trust, pause, lock, tree switching, each trigger's readout lines, each press, updates. It names apps and element roles; Jumpr never reads element text. Past about 1 MB (`LogFile.cap`) it moves to `Jumpr.log.1`, replacing the one there, and starts again, so a copy left running for months cannot fill a disk.
+**The log** is `~/Library/Logs/Jumpr.log`: launch, trust, pause, lock, tree switching, each trigger's readout lines, each press, scroll mode turning on and off with the reason, each app's area count and time, each scroll (app and amount), updates. It names apps and element roles; Jumpr never reads element text. Past about 1 MB (`LogFile.cap`) it moves to `Jumpr.log.1`, replacing the one there, and starts again, so a copy left running for months cannot fill a disk.
 
-**Preferences** (names in `Keys`): `hotkey`, `labelSize`, `labelColor`, `labelTextColor`, `labelTextMode` (`auto` or `color`), `paused`, `showReadout`, `showAdvancedSettings`, and `webHostApps`, which is not a setting but Jumpr's remembered list of web-hosting apps. Sparkle keeps its own settings. Hotkey, readout and pause changes apply live through `DefaultsWatcher`, including changes made with `defaults write`; label settings apply on the next trigger.
+**Preferences** (names in `Keys`): `hotkey`, `scrollHotkey`, `labelSize`, `labelColor`, `labelTextColor`, `labelTextMode` (`auto` or `color`), `paused`, `showReadout`, `showAdvancedSettings`, and `webHostApps`, which is not a setting but Jumpr's remembered list of web-hosting apps. Sparkle keeps its own settings. Both shortcuts, readout and pause changes apply live through `DefaultsWatcher`, including changes made with `defaults write`; label settings apply on the next trigger.
 
 ## Updates
 
@@ -201,6 +237,9 @@ Jumpr has no Dock icon and is rarely the active app, so a scheduled update alert
 - Only standard accessibility roles are labelled, plus text that offers a press, web text that can take focus and a list's items with no role (see Scanning). Anything else that is clickable without being one of those gets no label.
 - What an app does not put in its accessibility tree cannot be labelled. The pinned tiles at the top of Dia's sidebar are an example: a hit test there answers with the window itself.
 - The window match relies on a private call, `_AXUIElementGetWindow`, with a fallback by process and frame. The third activation step relies on another private call.
+- Scroll mode gives a letter to every area the tree shows, including ones with nothing to scroll; picking one does nothing. It does not switch web trees on or look again the way a trigger does, so a web-based app whose tree is not built yet may show no areas until a trigger has woken it.
+- Scroll mode scrolls vertically only. Scrolling relies on the app scrolling whatever is under the event's position, as it would under the pointer.
+- If both shortcuts are set to the same combination, the label hotkey wins and scroll mode cannot be reached.
 - `JumprCore` is unit-tested; the app shell in `Sources/Jumpr` has no unit tests and is checked by running the app.
 
 ## Ideas not built
