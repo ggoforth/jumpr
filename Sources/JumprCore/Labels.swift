@@ -40,6 +40,19 @@ public enum Labels {
         return CGRect(x: cx, y: cy, width: w, height: h)
     }
 
+    /// A box for `characters` letters in scroll mode, at the top-left corner inside an area
+    /// (clear of its 2 pt outline), or just right of `after` (the outlined area's tag), kept
+    /// inside `screen`. In the corner it covers the least of what the area shows.
+    public static func insideTopLeft(characters: Int, of area: CGRect, after: CGRect?, screen: CGRect,
+                                     fontSize: CGFloat, advance: CGFloat) -> CGRect {
+        let w = ceil(CGFloat(characters) * advance + fontSize * 0.6)
+        let h = ceil(fontSize * 1.3)
+        let x = (after?.maxX ?? area.minX) + 4
+        let y = area.minY + 4
+        return CGRect(x: max(screen.minX, min(x, screen.maxX - w)),
+                      y: max(screen.minY, min(y, screen.maxY - h)), width: w, height: h)
+    }
+
     /// Index of the first screen containing `p`, or nil when it is on none.
     public static func screenIndex(for p: CGPoint, screens: [CGRect]) -> Int? {
         screens.firstIndex { $0.contains(p) }
@@ -48,14 +61,17 @@ public enum Labels {
 
 public struct LabelPool {
     public let length: Int
+    private let alphabet: [Character]
     private var index = 0
     private let total: Int
 
-    public init(length: Int) {
+    /// `alphabet`: scroll mode's letters leave out the keys that scroll.
+    public init(length: Int, alphabet: [Character] = Labels.alphabet) {
         precondition(length > 0, "a label needs at least one letter")
         self.length = length
+        self.alphabet = alphabet
         var t = 1
-        for _ in 0..<length { t *= Labels.alphabet.count }
+        for _ in 0..<length { t *= alphabet.count }
         self.total = t
     }
 
@@ -65,8 +81,8 @@ public struct LabelPool {
         var digits: [Character] = []
         var n = index
         for _ in 0..<length {
-            digits.append(Labels.alphabet[n % Labels.alphabet.count])
-            n /= Labels.alphabet.count
+            digits.append(alphabet[n % alphabet.count])
+            n /= alphabet.count
         }
         index += 1
         return String(digits.reversed())

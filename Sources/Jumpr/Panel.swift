@@ -19,6 +19,7 @@ struct PanelView: View {
     @AppStorage(Keys.labelTextColor) private var textHex: String?
     @AppStorage(Keys.labelTextMode) private var textMode: String?
     @AppStorage(Keys.hotkey) private var hotkeyStored = Hotkey.default.stored
+    @AppStorage(Keys.scrollHotkey) private var scrollHotkeyStored = Hotkey.defaultScroll.stored
     @AppStorage(Keys.showReadout) private var showReadout = false
     @AppStorage(Keys.showAdvancedSettings) private var showAdvanced = false
 
@@ -56,6 +57,11 @@ struct PanelView: View {
             sizeSlider
             Divider()
             HotkeyRecorder(hotkey: hotkeyBinding, accent: labelColor, onRecording: onRecording)
+            // Applied live by main's watcher on the default, as `defaults write` would be.
+            HotkeyRecorder(title: "Scroll shortcut",
+                           hotkey: Binding(get: { Hotkey(stored: scrollHotkeyStored) ?? .defaultScroll },
+                                           set: { scrollHotkeyStored = $0.stored }),
+                           accent: labelColor, onRecording: onRecording)
             settingSwitches
             Divider()
             footer

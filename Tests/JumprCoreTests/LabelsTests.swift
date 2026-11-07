@@ -65,6 +65,21 @@ private func frame(_ target: CGRect) -> CGRect {
     #expect(screen.contains(frame(CGRect(x: -50, y: -50, width: 2000, height: 2000))))
 }
 
+// Scroll mode's letters and its SCROLL tag sit in an area's top-left corner, inside the
+// outline, off the content a person reads.
+@Test func scrollModeDrawsInsideAnAreasTopLeftCorner() {
+    let area = CGRect(x: 100, y: 100, width: 400, height: 300)
+    let tag = Labels.insideTopLeft(characters: 6, of: area, after: nil, screen: screen, fontSize: 11, advance: 7)
+    #expect(tag == CGRect(x: 104, y: 104, width: 49, height: 15))
+    // The outlined area's letter follows its tag; any other area's letter takes the corner.
+    let beside = Labels.insideTopLeft(characters: 1, of: area, after: tag, screen: screen, fontSize: 15, advance: 9)
+    #expect(beside == CGRect(x: 157, y: 104, width: 18, height: 20))
+    #expect(Labels.insideTopLeft(characters: 1, of: area, after: nil, screen: screen, fontSize: 15, advance: 9).minX == 104)
+    // An area running off the display keeps its letter on the display.
+    let off = CGRect(x: -100, y: -50, width: 400, height: 300)
+    #expect(Labels.insideTopLeft(characters: 1, of: off, after: nil, screen: screen, fontSize: 15, advance: 9).origin == .zero)
+}
+
 @Test func screenIndexIsNilOffEveryDisplay() {   // Review Focus 4
     let screens = [CGRect(x: 0, y: 0, width: 100, height: 100), CGRect(x: -100, y: 0, width: 100, height: 100)]
     #expect(Labels.screenIndex(for: CGPoint(x: -50, y: 50), screens: screens) == 1)

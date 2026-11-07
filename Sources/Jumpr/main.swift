@@ -9,6 +9,8 @@ let scanner = Scanner()
 let treeRegistry = TreeRegistry()
 let keyTap = KeyTap()
 let controller = Controller(scanner: scanner, registry: treeRegistry, tap: keyTap)
+let scrollController = ScrollController(scanner: scanner, tap: keyTap, scroller: Scroller(), statusItem: statusItem,
+                                        overlays: { controller.overlays })
 let onboarding = Onboarding()
 let loginItem = LoginItem()
 let updaterController = UpdaterController()
@@ -19,6 +21,7 @@ let powerSource = PowerSource()
 // A capturing key listener must never be live at a lock screen. Driven by every lock
 // event, not by a change in the combined state, so a stale cause cannot hide a lock.
 powerSource.onLockEvent = {
+    scrollController.leave("locked")
     guard controller.isActive else { return }
     controller.cancel()
     log("cancelled: locked")
@@ -30,10 +33,10 @@ log("trusted: \(AXIsProcessTrusted())")
 powerSource.start()
 
 let defaults = UserDefaults.standard
-/// The stored hotkey, or the default when none is stored; nil for a value that does not
-/// parse or has no ⌘/⌃/⌥ (ignored, the current hotkey stays).
-func storedHotkey() -> Hotkey? {
-    guard let s = defaults.string(forKey: Keys.hotkey) else { return .default }
+/// The stored hotkey under `key`, or `fallback` when none is stored; nil for a value that
+/// does not parse or has no ⌘/⌃/⌥ (ignored, the current hotkey stays).
+func storedHotkey(_ key: String = Keys.hotkey, fallback: Hotkey = .default) -> Hotkey? {
+    guard let s = defaults.string(forKey: key) else { return fallback }
     guard let h = Hotkey(stored: s), h.isValid else { return nil }
     return h
 }
@@ -46,6 +49,14 @@ keyTap.hotkey = storedHotkey() ?? .default
 // Live, like `paused` and `showReadout`: the panel's recorder and `defaults write` both land here.
 let hotkeyWatcher = DefaultsWatcher(Keys.hotkey) {
     if let h = storedHotkey() { applyHotkey(h) } else { log("hotkey: stored value ignored, not a valid hotkey") }
+}
+func storedScrollHotkey() -> Hotkey? { storedHotkey(Keys.scrollHotkey, fallback: .defaultScroll) }
+keyTap.scrollHotkey = storedScrollHotkey() ?? .defaultScroll
+let scrollHotkeyWatcher = DefaultsWatcher(Keys.scrollHotkey) {
+    guard let h = storedScrollHotkey() else { log("scroll hotkey: stored value ignored, not a valid hotkey"); return }
+    guard h != keyTap.scrollHotkey else { return }
+    keyTap.scrollHotkey = h
+    log("scroll hotkey applied: \(h.display(keyName: characterForKey)) (\(h.stored))")
 }
 controller.readout.enabled = defaults.bool(forKey: Keys.showReadout)
 let readoutWatcher = DefaultsWatcher(Keys.showReadout) {
@@ -70,13 +81,25 @@ statusItem.willShow = { loginItem.refresh() }  // the status can change outside 
 updaterController.onUpdatePending = { statusItem.setUpdatePending($0) }
 // The tap callback must return at once: the trigger runs on main's next turn.
 // A real hotkey press proves the displays are awake and no screen saver runs.
+// Labels and scroll mode never run at once: each shortcut ends the other first.
 keyTap.onHotkey = {
     DispatchQueue.main.async {
         powerSource.noteUserActivity()
+        scrollController.leave("label shortcut")
         controller.trigger()
     }
 }
-keyTap.onKey = { controller.handle($0) }
+keyTap.onScrollHotkey = {
+    DispatchQueue.main.async {
+        powerSource.noteUserActivity()
+        if controller.isActive {
+            controller.cancel()
+            log("cancelled: scroll shortcut")
+        }
+        scrollController.toggle()
+    }
+}
+keyTap.onKey = { scrollController.isActive ? scrollController.handle($0) : controller.handle($0) }
 keyTap.onDisabled = {
     // Off the tap's callback: losing trust stops (invalidates) the tap itself.
     DispatchQueue.main.async {
@@ -112,6 +135,7 @@ func applyPaused() {
     guard paused != keyTap.paused else { return }
     if paused {
         if controller.isActive { controller.cancel() }
+        scrollController.leave("paused")
         keyTap.paused = true
         log("paused")
         treeRegistry.disableAll { pid, work in scanner.perform(pid: pid, background: true, work) }
@@ -136,6 +160,7 @@ onboarding.start(
     onLost: {
         keyTap.stop()
         if controller.isActive { controller.cancel() }
+        scrollController.leave("permission lost")
         log("key tap: stopped")
         statusItem.showPanel()
     })
@@ -151,6 +176,7 @@ let quitObserver = NotificationCenter.default.addObserver(
     forName: NSApplication.willTerminateNotification, object: nil, queue: .main
 ) { _ in
     if controller.isActive { controller.cancel() }
+    scrollController.leave("quit")
     let done = treeRegistry.disableAll { pid, work in scanner.perform(pid: pid, background: false, work) }
     let finished = done.wait(timeout: .now() + 0.5) == .success
     log("quit\(finished ? "" : " (trees still switching off after 0.5 s)")")

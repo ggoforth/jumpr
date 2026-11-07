@@ -77,7 +77,13 @@ final class StatusItem: NSObject, NSPopoverDelegate {
     }
 
     func popoverDidClose(_ notification: Notification) {
-        item.button?.highlight(false)
+        item.button?.highlight(holdsHighlight)
+    }
+
+    /// Keeps the icon highlighted while scroll mode is on, as it is while the panel is
+    /// open: with nothing but an outline on screen, the icon says Jumpr has the keys.
+    var holdsHighlight = false {
+        didSet { item.button?.highlight(holdsHighlight || popover.isShown) }
     }
 
     /// A gentle reminder for a scheduled update Sparkle did not bring forward: a dot on the

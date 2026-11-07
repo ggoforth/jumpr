@@ -13,6 +13,8 @@ public struct Hotkey: Equatable {
     public var modifiers: UInt64
 
     public static let `default` = Hotkey(keyCode: 49, modifiers: Modifiers.command | Modifiers.shift)
+    /// Scroll mode's shortcut: ⌘⇧J, J being the key that scrolls.
+    public static let defaultScroll = Hotkey(keyCode: 38, modifiers: Modifiers.command | Modifiers.shift)
 
     public init(keyCode: Int64, modifiers: UInt64) {
         self.keyCode = keyCode
@@ -131,6 +133,8 @@ public enum Keys {
     /// A `LetterMode` raw value: "auto" or "color".
     public static let labelTextMode = "labelTextMode"
     public static let hotkey = "hotkey"
+    /// Scroll mode's shortcut, stored as `hotkey` is.
+    public static let scrollHotkey = "scrollHotkey"
     public static let showReadout = "showReadout"
     public static let paused = "paused"
     /// Shows the timing readout switch in the panel (hidden by default).

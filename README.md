@@ -30,7 +30,7 @@ What Jumpr does with it:
 
 - It reads the screen on your Mac to place labels. What it reads is not recorded, stored or sent anywhere.
 - It does not record your screen.
-- It keeps a small activity log on your Mac (`~/Library/Logs/Jumpr.log`). The log has timings, the names of the apps Jumpr looked at, and the kind of control and app for each press. It has no window contents, no on-screen text and nothing you type. If you attach it to an issue, it shows which apps you had open.
+- It keeps a small activity log on your Mac (`~/Library/Logs/Jumpr.log`). The log has timings, the names of the apps Jumpr looked at, the kind of control and app for each press, and the app and amount of each scroll in scroll mode. It has no window contents, no on-screen text and nothing you type. If you attach it to an issue, it shows which apps you had open.
 
 ## Using it
 
@@ -48,10 +48,25 @@ Click the menu bar icon for Jumpr's panel. It has a switch that turns Jumpr on a
 
 The panel is also where you change:
 
-- The hotkey
+- The hotkey, and the scroll shortcut
 - Label size, label color and letter color (Auto picks black or white, whichever reads better on the label)
 - Start at login (off until you turn it on)
 - Whether Jumpr checks for updates on its own
+
+### Scrolling
+
+Press ⌘⇧J to turn on scroll mode. Every scrollable area on every display gets a letter, and the one you scrolled last in that window (or the one holding the keyboard focus) is already outlined. Your pointer never moves.
+
+| Key | What it does |
+|---|---|
+| J / K | Scrolls the outlined area down / up a line |
+| D / U | Half the area's height down / up |
+| G / Shift G | To the top / the bottom |
+| An area's letter | Outlines that area instead |
+| F | Brings the letters back |
+| Esc, or ⌘⇧J again | Leaves scroll mode |
+
+Holding a key keeps scrolling. While scroll mode is on, Jumpr takes the keys and the menu bar icon stays highlighted; shortcuts with ⌘, ⌃ or ⌥ still work. A click anywhere, switching apps, locking the screen or pausing Jumpr also leaves it.
 
 ## Updates
 

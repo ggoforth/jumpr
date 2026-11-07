@@ -2,10 +2,11 @@ import AppKit
 import JumprCore
 import SwiftUI
 
-/// The panel's Shortcut row: the hotkey as keycaps and "Change"; then press the new
+/// One of the panel's shortcut rows: the hotkey as keycaps and "Change"; then press the new
 /// combination. While recording, `onRecording(true)` has suspended Jumpr's own key
 /// listener so the keys reach the panel.
 struct HotkeyRecorder: View {
+    var title = "Shortcut"
     @Binding var hotkey: Hotkey
     var accent: Color
     var onRecording: (Bool) -> Void
@@ -16,7 +17,7 @@ struct HotkeyRecorder: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 5) {
-                Text("Shortcut")
+                Text(title)
                 Spacer()
                 if recording {
                     Text("Press the new shortcut")
