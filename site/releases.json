@@ -1,6 +1,16 @@
 {
   "releases": [
     {
+      "version": "v1.0.7",
+      "date": "2026-11-06",
+      "summary": "Notification Center now gets labels.",
+      "bullets": [
+        "<strong>Notifications:</strong> with Notification Center open, each notification has a label. Type it to open that notification, or to expand a stack.",
+        "<strong>Update window:</strong> the update window now shows what changed."
+      ],
+      "note": "While Notification Center is open, windows behind it on that display get no labels, because a click outside it only closes it. The menu bar, the Dock and your other displays keep theirs."
+    },
+    {
       "version": "v1.0.6",
       "date": "2026-11-06",
       "summary": "A new panel in the menu bar, and Jumpr can now click itself.",
