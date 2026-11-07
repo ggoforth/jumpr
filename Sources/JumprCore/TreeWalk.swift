@@ -158,6 +158,8 @@ private let maxDepth = 80
 public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowStack,
                  deadline: Double, now: () -> Double, finding: Finding = .targets) -> WalkResult {
     var result = WalkResult(targets: [], nodes: 0, timedOut: false)
+    /// For each area, the index of the area it sits in, by the tree (`trimOverlaidAreas`).
+    var areaParents: [Int?] = []
     let startClip: CGRect
     switch scope {
     case .window(_, let bounds, _): startClip = bounds
@@ -191,6 +193,7 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
             return outer
         }
         result.areas.append(area)
+        areaParents.append(inArea)
         return result.areas.count - 1
     }
 
@@ -298,7 +301,38 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
     }
 
     visit(root, clip: startClip, depth: 0, inWeb: false, inTarget: false, inList: false, inArea: nil)
+    if finding == .areas { trimOverlaidAreas(&result.areas, parents: areaParents) }
     return result
+}
+
+/// Two areas from different branches of the tree can overlap, the smaller lying over the
+/// larger: in Messages the transcript's group reports the whole window as its frame, and
+/// the conversation list sits over its left third. The larger keeps the largest part the
+/// smaller leaves free, its letter and aim move there, and it is dropped if nothing is
+/// left. An area inside another in the tree is that area's content, not something laid
+/// over it, so those pairs are left alone (`parents`: each area's enclosing area).
+func trimOverlaidAreas(_ areas: inout [Area], parents: [Int?]) {
+    func isInside(_ i: Int, _ j: Int) -> Bool {   // i nested in j, by the tree
+        var p = parents[i]
+        while let q = p { if q == j { return true }; p = parents[q] }
+        return false
+    }
+    var trimmed = areas
+    for (i, a) in areas.enumerated() {
+        let laidOver = areas.enumerated().filter { j, b in
+            j != i && b.window == a.window && b.rect.intersects(a.rect)
+                && b.rect.width * b.rect.height < a.rect.width * a.rect.height
+                && !isInside(j, i) && !isInside(i, j)
+        }.map { $0.element.rect }
+        guard !laidOver.isEmpty else { continue }
+        if let free = largestFreeBand(of: a.rect, around: laidOver), free.width >= minAreaSide, free.height >= minAreaSide {
+            trimmed[i] = Area(id: a.id, rect: free, pid: a.pid, window: a.window,
+                              aim: CGPoint(x: free.midX, y: free.midY), anchor: free.origin)
+        } else {
+            trimmed[i] = Area(id: a.id, rect: .null, pid: a.pid, window: a.window)   // dropped below
+        }
+    }
+    areas = trimmed.filter { !$0.rect.isNull }
 }
 
 /// The largest part of `rect` beside everything in `others` that overlaps it: the band

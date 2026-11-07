@@ -103,6 +103,24 @@ private func focusableGroup(_ frame: CGRect, _ kids: [Fake] = []) -> Fake {
     #expect(res.areas.map(\.id) == [list.id, transcript.id])
     #expect(inner.pageAsks == 0 && plain.pageAsks == 1)
 }
+// Messages: the transcript's group reports the whole window as its frame, and the
+// conversation list sits over its left third. Both were found, but their letters landed on
+// the same corner and the outline covered the window. The larger area keeps the part the
+// smaller one leaves free: its letter and its aim move there.
+@Test func anAreaLaidOverByASmallerOneKeepsThePartLeftFree() {
+    let list = Fake("AXGroup", r(0, 0, 327, 600)); list.pagesByAction = true
+    let transcript = Fake("AXGroup", r(0, 0, 800, 600)); transcript.pagesByAction = true
+    let res = areas(Fake("AXWindow", bounds, [Fake("AXGroup", bounds, [list, transcript])]))
+    #expect(res.areas.map(\.id) == [list.id, transcript.id])
+    #expect(res.areas[1].rect == r(327, 0, 473, 600))
+    #expect(res.areas[1].anchor == CGPoint(x: 327, y: 0))
+    #expect(res.areas[1].aim == CGPoint(x: 563.5, y: 300))
+}
+@Test func anAreaWithNothingLeftFreeBesideASmallerOneIsDropped() {
+    let over = Fake("AXScrollArea", r(0, 0, 798, 598)), under = Fake("AXScrollArea", r(0, 0, 800, 600))
+    let res = areas(Fake("AXWindow", bounds, [Fake("AXGroup", bounds, [over, under])]))
+    #expect(res.areas.map(\.id) == [over.id])
+}
 @Test func groupsInWebContentAndSmallGroupsAreNotAskedAboutPageScrolling() {
     let web = Fake("AXGroup", r(0, 0, 400, 400)); web.pagesByAction = true
     let small = Fake("AXGroup", r(500, 0, 60, 60)); small.pagesByAction = true
