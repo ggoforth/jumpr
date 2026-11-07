@@ -87,4 +87,5 @@ A change to what Jumpr reads, stores or sends must update the privacy page (`sit
 
 - Work on a branch and open a pull request. `main` is what ships next.
 - A commit message says what changed and why, in plain sentences, with the measurement if there is one.
+- Every release has notes in `site/releases.json`, landed by pull request before the tag. The `release-notes` skill drafts them.
 - Tags, releases, the update feed and the website are the maintainer's. Do not tag, publish or deploy.
