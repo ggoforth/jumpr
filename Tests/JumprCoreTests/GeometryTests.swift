@@ -34,6 +34,26 @@ private let b = w(2, 20, CGRect(x: 50, y: 0, width: 100, height: 100))
     let above = w(7, 41, CGRect(x: 0, y: 0, width: 200, height: 200), layer: 26)
     #expect(WindowStack([above, menuBar, b]).top(at: CGPoint(x: 120, y: 50))?.id == 2)
 }
+// Notification Center's open sidebar is one transparent window across the whole display, at
+// layer 21. A click anywhere outside the sidebar only closes it, so nothing behind it counts
+// as reachable, and the sidebar itself has to count as visible for a scan to walk it.
+@Test func theSidebarIsVisibleAndHidesTheWindowsBehindIt() {
+    let sidebar = w(8, 50, CGRect(x: 0, y: 0, width: 200, height: 200), layer: 21)
+    let s = WindowStack([sidebar, b])
+    #expect(s.anyVisible(8))
+    #expect(!s.anyVisible(2))
+    #expect(s.isVisible(CGPoint(x: 120, y: 50), window: 8, pid: 50, appWindows: [8]))
+}
+@Test func theLayersAroundTheSidebarStillDoNotHide() {   // the Dock (20), and nothing seen at 22
+    let dock = w(9, 60, CGRect(x: 0, y: 0, width: 200, height: 200), layer: 20)
+    let above = w(10, 61, CGRect(x: 0, y: 0, width: 200, height: 200), layer: 22)
+    #expect(WindowStack([above, dock, b]).top(at: CGPoint(x: 120, y: 50))?.id == 2)
+}
+// Desktop widgets belong to Notification Center too, far below every window.
+@Test func theDesktopLayerIsNotVisibleToAScan() {
+    let widget = w(11, 50, CGRect(x: 0, y: 0, width: 180, height: 180), layer: -2147483601)
+    #expect(!WindowStack([widget]).anyVisible(11))
+}
 @Test func visibleOnlyWhereOwnWindowIsOnTop() {
     let s = WindowStack([a, b])
     #expect(s.isVisible(CGPoint(x: 120, y: 50), window: 2, pid: 20, appWindows: [2]))

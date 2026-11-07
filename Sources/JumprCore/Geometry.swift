@@ -22,11 +22,17 @@ public struct Win: Equatable {
     /// The layer of a menu bar app's panel, open under its icon (Jumpr's own is one).
     public static let statusLayer = 25
 
-    /// Non-transparent windows hide whatever is behind them, if they are at a normal layer
-    /// or are a menu bar app's panel. The layers between and above hold full-screen
-    /// windows that hide nothing: the Dock (20), the menu bar (24), Jumpr's own label
-    /// overlays (1000).
-    public var occludes: Bool { ((0..<20).contains(layer) || layer == Win.statusLayer) && alpha > 0 }
+    /// The layer of Notification Center's open sidebar: one window across the whole display,
+    /// transparent outside the sidebar. A click anywhere outside it only closes it.
+    public static let sidebarLayer = 21
+
+    /// Non-transparent windows hide whatever is behind them, if they are at a normal layer,
+    /// are a menu bar app's panel, or are the open sidebar. The layers between and above
+    /// hold full-screen windows that hide nothing: the Dock (20), the menu bar (24), Jumpr's
+    /// own label overlays (1000).
+    public var occludes: Bool {
+        ((0..<20).contains(layer) || layer == Win.statusLayer || layer == Win.sidebarLayer) && alpha > 0
+    }
 }
 
 public struct WindowStack {
