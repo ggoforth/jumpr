@@ -15,7 +15,7 @@ final class Scroller {
     private var burstEndsAt = 0.0
 
     func scroll(_ area: Area, by amount: ScrollAmount) {
-        let at = CGPoint(x: area.rect.midX, y: area.rect.midY)
+        let at = area.aim   // a point of the area that shows; the event lands on the window under it
         let steps = amount.wheelSteps(areaHeight: area.rect.height, burst: now() >= burstEndsAt)
         burstEndsAt = now() + Self.gap * Double(steps.count - 1)
         for (i, pixels) in steps.enumerated() {

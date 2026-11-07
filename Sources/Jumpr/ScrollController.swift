@@ -213,8 +213,9 @@ final class ScrollController {
     private func drawLetter(_ letter: String, _ area: Area) {
         guard session.lettersShown, let i = screenIndex(area), i < overlays().count else { return }
         let after = area.id == session.outlined?.id ? tag : nil
-        let rect = Labels.insideTopLeft(characters: letter.count, of: area.rect, after: after, screen: screens[i],
-                                        fontSize: style.size, advance: style.advance)
+        // At the area's corner, or at a point of it that shows when the corner is covered.
+        let rect = Labels.insideTopLeft(characters: letter.count, of: CGRect(origin: area.anchor, size: .zero),
+                                        after: after, screen: screens[i], fontSize: style.size, advance: style.advance)
         let layer = overlays()[i].add(label: letter, at: rect, style: style)
         layer.isHidden = !letter.hasPrefix(session.typed)
         letterLayers[letter] = layer

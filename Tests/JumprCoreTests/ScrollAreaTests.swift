@@ -67,6 +67,49 @@ private func focusableGroup(_ frame: CGRect, _ kids: [Fake] = []) -> Fake {
     let res = areas(Fake("AXWindow", bounds, [under, beside]), stack: WindowStack([cover] + stack.wins))
     #expect(res.areas.map(\.id) == [beside.id])
 }
+// A browser window with another window over its middle: the page is still there to scroll,
+// aimed at a part of it that shows, with its letter there too.
+@Test func anAreaCoveredAtItsCenterIsAimedAtAVisiblePart() {
+    let cover = Win(id: 2, pid: 20, name: "c", bounds: r(300, 0, 300, 600), layer: 0, alpha: 1)   // the middle third
+    let page = Fake("AXWebArea", r(0, 0, 800, 600))
+    let res = areas(Fake("AXWindow", bounds, [page]), stack: WindowStack([cover] + stack.wins))
+    #expect(res.areas.map(\.id) == [page.id])
+    let aim = res.areas[0].aim
+    #expect(!cover.bounds.contains(aim) && page.frame!.contains(aim))
+    #expect(res.areas[0].anchor == CGPoint(x: 0, y: 0))   // the top-left corner shows, so the letter goes there
+}
+@Test func anAreaWhoseTopLeftIsCoveredPutsItsLetterAtTheAim() {
+    let cover = Win(id: 2, pid: 20, name: "c", bounds: r(0, 0, 200, 200), layer: 0, alpha: 1)   // the corner
+    let page = Fake("AXWebArea", r(0, 0, 800, 600))
+    let res = areas(Fake("AXWindow", bounds, [page]), stack: WindowStack([cover] + stack.wins))
+    #expect(res.areas[0].aim == CGPoint(x: 400, y: 300))
+    #expect(res.areas[0].anchor == res.areas[0].aim)
+}
+@Test func anUncoveredAreaIsAimedAtItsCenterAndLetteredAtItsCorner() {
+    let list = Fake("AXScrollArea", r(200, 50, 600, 550))
+    let a = areas(Fake("AXWindow", bounds, [list])).areas[0]
+    #expect(a.aim == CGPoint(x: 500, y: 325) && a.anchor == CGPoint(x: 200, y: 50))
+}
+// Messages: both panes are plain groups that offer the page-scroll actions, outside web
+// content, and neither has a scroll role. Asking costs a request, so only groups outside
+// any area found are asked, and never in web content.
+@Test func aGroupOutsideWebContentThatOffersPageScrollingIsAnArea() {
+    let list = Fake("AXGroup", r(0, 0, 327, 600)); list.pagesByAction = true
+    let inner = Fake("AXGroup", r(0, 0, 327, 600)); inner.pagesByAction = true   // nested, same size: not asked
+    list.kids = [inner]
+    let transcript = Fake("AXGroup", r(327, 0, 473, 600)); transcript.pagesByAction = true
+    let plain = Fake("AXGroup", r(0, 0, 800, 600), [list, transcript])
+    let res = areas(Fake("AXWindow", bounds, [plain]))
+    #expect(res.areas.map(\.id) == [list.id, transcript.id])
+    #expect(inner.pageAsks == 0 && plain.pageAsks == 1)
+}
+@Test func groupsInWebContentAndSmallGroupsAreNotAskedAboutPageScrolling() {
+    let web = Fake("AXGroup", r(0, 0, 400, 400)); web.pagesByAction = true
+    let small = Fake("AXGroup", r(500, 0, 60, 60)); small.pagesByAction = true
+    let res = areas(Fake("AXWindow", bounds, [Fake("AXWebArea", r(0, 0, 400, 600), [web]), small]))
+    #expect(!res.areas.map(\.id).contains(web.id) && !res.areas.map(\.id).contains(small.id))
+    #expect(web.pageAsks == 0 && small.pageAsks == 0)
+}
 // Safari wraps its page in a scroll area of the same size: one area to a person, the inner one.
 @Test func nestedAreasOfNearlyTheSameRectangleCollapseToTheInnermost() {
     let page = Fake("AXWebArea", r(3, 83, 794, 514))

@@ -33,6 +33,9 @@ public protocol AXNode {
     func visibleRows() -> [any AXNode]?
     /// Whether the element offers `AXPress`. One more request, so `walk` asks sparingly.
     func offersPress() -> Bool
+    /// Whether the element offers `AXScrollUpByPage` or `AXScrollDownByPage`. One more
+    /// request, asked only of large groups outside web content and outside any area found.
+    func offersPageScroll() -> Bool
 }
 
 public struct Target: Equatable {
@@ -61,12 +64,19 @@ public struct Area: Equatable {
     public let rect: CGRect
     public let pid: Int32
     public let window: WindowID
+    /// A point of the area that is on top, where a wheel event reaches it: its center, or
+    /// when another window covers that, a point that shows.
+    public let aim: CGPoint
+    /// Where its letter goes: its top-left corner, or `aim` when that corner is covered.
+    public let anchor: CGPoint
 
-    public init(id: ElementID, rect: CGRect, pid: Int32, window: WindowID) {
+    public init(id: ElementID, rect: CGRect, pid: Int32, window: WindowID, aim: CGPoint? = nil, anchor: CGPoint? = nil) {
         self.id = id
         self.rect = rect
         self.pid = pid
         self.window = window
+        self.aim = aim ?? CGPoint(x: rect.midX, y: rect.midY)
+        self.anchor = anchor ?? rect.origin
     }
 }
 
@@ -102,6 +112,10 @@ public enum Roles {
     /// Chromium and Electron expose a scrolling region as a plain group with no scroll role;
     /// being focusable is what sets it apart from the groups around it.
     public static let scrollableIfFocusable: Set<String> = ["AXGroup"]
+    /// Areas to scroll outside web content, if the element itself offers the page-scroll
+    /// actions. Apps built with the iPad frameworks present a scrolling pane as a plain
+    /// group: both panes in Messages are such groups.
+    public static let scrollableIfPagesByAction: Set<String> = ["AXGroup"]
 }
 
 /// The smallest area worth scrolling, per side of its visible part. Smaller ones are a
@@ -152,18 +166,24 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
 
     /// Records the node as an area if it is one, and returns the nearest area around its
     /// children. Kept out of `visit`, whose frame is on the stack once per level of the tree.
-    func noteArea(_ id: ElementID, role: String, focusable: Bool, frame: CGRect, visible r: CGRect, inWeb: Bool,
+    func noteArea(_ node: any AXNode, role: String, focusable: Bool, frame: CGRect, visible r: CGRect, inWeb: Bool,
                   inArea: Int?) -> Int? {
         guard case .window(let window, _, let appWindows) = scope,
               r.width >= minAreaSide, r.height >= minAreaSide,
-              Roles.scrollable.contains(role) || (inWeb && focusable && Roles.scrollableIfFocusable.contains(role)),
-              stack.isVisible(CGPoint(x: r.midX, y: r.midY), window: window, pid: pid, appWindows: appWindows)
+              Roles.scrollable.contains(role) || (inWeb && focusable && Roles.scrollableIfFocusable.contains(role))
+                || (!inWeb && inArea == nil && Roles.scrollableIfPagesByAction.contains(role) && node.offersPageScroll())
         else { return inArea }
+        let onTop = { (p: CGPoint) in stack.isVisible(p, window: window, pid: pid, appWindows: appWindows) }
+        // A wheel event reaches the area only at a point that shows. The center first; when
+        // another window covers it (a browser with a chat window over its middle), a point
+        // from a 5×5 grid that shows; none, and there is nothing to aim at.
+        guard let aim = visiblePoint(in: r, onTop: onTop) else { return inArea }
         // One that runs past the area around it is that area's content, scrolled by it, not
         // an area of its own: Mail's message body sits in the pane that scrolls the header
         // and the body together.
         if let outer = inArea, !result.areas[outer].rect.insetBy(dx: -6, dy: -6).contains(frame) { return outer }
-        let area = Area(id: id, rect: r, pid: pid, window: window)
+        let corner = CGPoint(x: r.minX + 12, y: r.minY + 12)
+        let area = Area(id: node.id, rect: r, pid: pid, window: window, aim: aim, anchor: onTop(corner) ? r.origin : aim)
         // Nested areas of one size are one area to a person: keep the innermost, the one
         // that holds the content.
         if let outer = inArea, nearlySameRect(result.areas[outer].rect, r) {
@@ -200,7 +220,7 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
 
         var inArea = inArea
         if finding == .areas, let r = visibleRect {
-            inArea = noteArea(node.id, role: info.role, focusable: info.focusable, frame: info.frame ?? r, visible: r,
+            inArea = noteArea(node, role: info.role, focusable: info.focusable, frame: info.frame ?? r, visible: r,
                               inWeb: inWeb, inArea: inArea)
         }
 
@@ -298,6 +318,20 @@ func largestFreeBand(of rect: CGRect, around others: [CGRect]) -> CGRect? {
         CGRect(x: covered.maxX, y: rect.minY, width: rect.maxX - covered.maxX, height: rect.height),
     ].filter { $0.width >= 4 && $0.height >= 4 }
     return bands.max { $0.width * $0.height < $1.width * $1.height }
+}
+
+/// A point of `rect` for which `onTop` is true: its center, else the first of a 5×5 grid
+/// inside it (the same grid `WindowStack.anyVisible` samples); nil when none is.
+func visiblePoint(in rect: CGRect, onTop: (CGPoint) -> Bool) -> CGPoint? {
+    let center = CGPoint(x: rect.midX, y: rect.midY)
+    if onTop(center) { return center }
+    for i in 1...5 {
+        for j in 1...5 {
+            let p = CGPoint(x: rect.minX + rect.width * CGFloat(i) / 6, y: rect.minY + rect.height * CGFloat(j) / 6)
+            if onTop(p) { return p }
+        }
+    }
+    return nil
 }
 
 /// Whether `inner` covers at least half of `outer`'s area.
