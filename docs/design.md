@@ -190,6 +190,8 @@ Jumpr has no Dock icon and is rarely the active app, so a scheduled update alert
 
 **Releases.** `scripts/release.sh <version>` builds the downloadable zip: a universal app, Developer ID signed, notarized and stapled, with Sparkle embedded, then a signed appcast for it. It uploads nothing. `--skip-notarize` makes a signed test build with no appcast. The feed address and the public key live in that script; read it for the details rather than this document.
 
+**Release notes.** Each release has one entry in `site/releases.json`, written before the tag (the `release-notes` skill). `site/changelog.html` shows the entries, newest first, five at a time. `scripts/release-notes.swift` turns an entry into the GitHub release's text and into the appcast item's description, which Sparkle shows in the update window. The notes sit inside the appcast rather than behind a link, so showing them adds no network request. `scripts/release.sh` refuses a notarized build whose version has no entry.
+
 ## Known limits
 
 - `AXManualAccessibility` cannot be read back, so Jumpr cannot tell whether another tool already had an app's tree on. On Pause and Quit it switches off every such tree it set, including one another tool had on.

@@ -68,6 +68,11 @@ if [ -n "$(git status --porcelain)" ]; then
     echo "warning: this test build includes uncommitted changes" >&2
 fi
 
+# Every release goes out with notes. Asked now, not after an hour of notarizing.
+if [ "$NOTARIZE" = 1 ]; then
+    NOTES_BODY="$(swift scripts/release-notes.swift body "$VERSION")" || exit 1
+fi
+
 # The build number is the commit count, which a shallow clone gets wrong.
 [ "$(git rev-parse --is-shallow-repository)" = false ] \
     || die "this is a shallow clone; the build number would be wrong. Run: git fetch --unshallow"
@@ -139,6 +144,7 @@ zip_app() {
 step "Building universal app"
 rm -rf "$OUT"
 mkdir -p "$OUT"
+[ "$NOTARIZE" = 0 ] || printf '%s\n' "$NOTES_BODY" >"$OUT/notes.md"
 # build-app.sh stamps version, build number, feed and key, and refuses a release without
 # real ones (the placeholder key passes only under --skip-notarize, above).
 JUMPR_BUILD_DIR="$OUT" JUMPR_ARCHS="arm64 x86_64" JUMPR_NO_SIGN=1 JUMPR_RELEASE=1 \
@@ -223,7 +229,9 @@ scripts/appcast.sh "$APP" "$ZIP" "$APPCAST"
 
 report "Notarized and stapled"
 echo
-echo "Nothing was uploaded. Upload, zip first (the appcast points at it):"
-echo "  1. $ZIP     -> GitHub Release v$VERSION, asset named Jumpr.zip"
+echo "Nothing was uploaded. Upload in this order: the appcast points at the zip, and the changelog names the release."
+echo "  1. $ZIP     -> GitHub Release v$VERSION, asset named Jumpr.zip, text from $OUT/notes.md"
 echo "       (it must download from https://github.com/ggoforth/jumpr/releases/download/v$VERSION/Jumpr.zip)"
 echo "  2. $APPCAST -> $FEED_URL"
+echo "  3. site/ -> getjumpr.app, for the changelog. A sync with --delete must exclude appcast.xml and download/:"
+echo "       those exist only in the bucket, and losing the appcast stops every installed copy updating."

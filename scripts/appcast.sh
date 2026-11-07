@@ -58,6 +58,9 @@ else
     echo "Signature verified with the app's SUPublicEDKey"
 fi
 
+# Inline rather than a link: showing the notes must not add a request to the app's network use.
+NOTES="$(swift scripts/release-notes.swift html "$VERSION")" || die "no release notes for $VERSION"
+
 PUB_DATE="$(LC_ALL=C date -u '+%a, %d %b %Y %H:%M:%S +0000')"
 cat >"$XML" <<EOF
 <?xml version="1.0" encoding="utf-8"?>
@@ -70,6 +73,7 @@ cat >"$XML" <<EOF
     <item>
       <title>Jumpr $VERSION</title>
       <pubDate>$PUB_DATE</pubDate>
+      <description><![CDATA[$NOTES]]></description>
       <sparkle:version>$BUILD</sparkle:version>
       <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>$MIN_OS</sparkle:minimumSystemVersion>
