@@ -1,0 +1,65 @@
+{
+  "releases": [
+    {
+      "version": "v1.0.6",
+      "date": "2026-11-06",
+      "summary": "A new panel in the menu bar, and Jumpr can now click itself.",
+      "bullets": [
+        "<strong>One panel for everything.</strong> Click the J in the menu bar: an on/off switch, a live preview of your labels, label color, letter color, label size, the shortcut, start at login and the update check are all there. The separate Settings window is gone.",
+        "<strong>Pick colors in place.</strong> Choose from swatches or type an exact color. The system color picker is no longer used.",
+        "<strong>Letters in any color.</strong> Letters can be any color you like, or Auto, which picks black or white, whichever reads better on your label color. If you had set a letter color, it is kept.",
+        "<strong>Jumpr labels itself.</strong> Its own menu bar icon gets a label. Type it to open the panel, and every control in the panel gets a label too."
+      ]
+    },
+    {
+      "version": "v1.0.5",
+      "date": "2026-11-06",
+      "summary": "More things get labels.",
+      "bullets": [
+        "<strong>Dia:</strong> the folders in the sidebar have labels. Type one to open or close that folder.",
+        "<strong>Web pages:</strong> text a page lets you move to with the keyboard now gets a label, such as the days in a date picker. Days a page marks as unavailable are skipped."
+      ],
+      "note": "Not fixed, because Dia does not tell macOS they are there: the pinned tiles at the top of Dia's sidebar, and the individual spaces in the strip at its bottom (the strip gets one label)."
+    },
+    {
+      "version": "v1.0.4",
+      "date": "2026-11-06",
+      "summary": "Messages now gets labels on its sidebar.",
+      "bullets": [
+        "<strong>Messages:</strong> every conversation in the list and every pin has a label. Type it to open that conversation.",
+        "<strong>Other apps built the same way:</strong> text that an app says can be pressed now gets a label, wherever it is. Some of it does nothing when pressed: in Messages, the time stamps between messages get labels too."
+      ]
+    },
+    {
+      "version": "v1.0.3",
+      "date": "2026-11-05",
+      "summary": "A housekeeping release. Nothing you see or do changes.",
+      "bullets": [
+        "The license notice for Sparkle, the updater Jumpr includes, now ships inside the app.",
+        "Two debugging hooks are switched off unless Jumpr is started with a debug flag.",
+        "Code the app never used is gone."
+      ]
+    },
+    {
+      "version": "v1.0.2",
+      "date": "2026-11-05",
+      "summary": "The menu bar icon is now the <strong>J</strong> from Jumpr's logo, on its own with no box. It follows your menu bar: white on a dark bar, black on a light one. Nothing else changes."
+    },
+    {
+      "version": "v1.0.1",
+      "date": "2026-11-05",
+      "summary": "The menu bar icon is now Jumpr's own yellow <strong>J</strong> label, matching the app icon and the site. Nothing else changes."
+    },
+    {
+      "version": "v1.0.0",
+      "date": "2026-11-05",
+      "summary": "First public release. Press ⌘⇧Space and every clickable thing on every display gets a short label, usually two letters. Type the letters and it clicks.",
+      "bullets": [
+        "Windows, menus, the Dock and menu bar icons",
+        "Works in Safari, Chrome and web-based apps",
+        "Checks for updates once a day; you can turn that off",
+        "Free and open source (MIT). macOS 15 or later. Built for Apple silicon and Intel; the Intel build has not yet been tested on an Intel Mac."
+      ]
+    }
+  ]
+}

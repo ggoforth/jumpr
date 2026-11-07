@@ -88,7 +88,7 @@ func axFrame(_ el: AXUIElement) -> CGRect? {
 
 // AXFocusableAncestor exists in web content only (Chromium and WebKit); elsewhere it comes
 // back as an error value, which reads as "not focusable".
-private let walkAttrs = ["AXRole", "AXPosition", "AXSize", "AXChildren", "AXEnabled", "AXFocusableAncestor"] as CFArray
+private let walkAttrs = ["AXRole", "AXPosition", "AXSize", "AXChildren", "AXEnabled", "AXFocusableAncestor", "AXSubrole"] as CFArray
 
 /// A live accessibility element for `walk`.
 final class AXElementNode: AXNode {
@@ -102,14 +102,15 @@ final class AXElementNode: AXNode {
 
     /// One `AXUIElementCopyMultipleAttributeValues` call.
     func info() -> NodeInfo? {
-        guard let a = axMulti(element, walkAttrs), a.count == 6 else { return nil }
+        guard let a = axMulti(element, walkAttrs), a.count == 7 else { return nil }
         var frame: CGRect?
         if let p = axPoint(a[1]), let s = axSize(a[2]) { frame = CGRect(origin: p, size: s) }
         return NodeInfo(role: a[0] as? String ?? "",
                         frame: frame,
                         enabled: a[4] as? Bool,
                         children: axElements(a[3]).map { AXElementNode($0) },
-                        focusable: axElementValue(a[5]).map { CFEqual($0, element) } ?? false)
+                        focusable: axElementValue(a[5]).map { CFEqual($0, element) } ?? false,
+                        subrole: a[6] as? String)
     }
 
     func isSelected() -> Bool {

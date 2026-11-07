@@ -16,13 +16,16 @@ public struct NodeInfo {
     /// The element itself can take keyboard focus (it is its own `AXFocusableAncestor`).
     /// Web content only: other apps do not have the attribute.
     public var focusable: Bool
+    public var subrole: String?
 
-    public init(role: String, frame: CGRect?, enabled: Bool?, children: [any AXNode], focusable: Bool = false) {
+    public init(role: String, frame: CGRect?, enabled: Bool?, children: [any AXNode], focusable: Bool = false,
+                subrole: String? = nil) {
         self.role = role
         self.frame = frame
         self.enabled = enabled
         self.children = children
         self.focusable = focusable
+        self.subrole = subrole
     }
 }
 
@@ -106,6 +109,10 @@ public enum Roles {
     /// presents each folder as an `AXUnknown` child of its list, with no children and no
     /// actions: its place in the list is the only sign that it is something to click.
     public static let clickableAsListItem: Set<String> = ["AXUnknown"]
+    /// Clickable whatever the role. Notification Center's notifications are plain groups,
+    /// and a press on one opens it (or a stack of them expands). Other groups offer a press
+    /// too (see `clickableIfPressable`), so the subrole is what sets these apart.
+    public static let clickableSubroles: Set<String> = ["AXNotificationCenterBanner", "AXNotificationCenterBannerStack"]
     /// Areas to scroll: a scroll area, a page.
     public static let scrollable: Set<String> = ["AXScrollArea", "AXWebArea"]
     /// Areas to scroll in web content only, if the element itself can take keyboard focus.
@@ -234,6 +241,7 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
         // and under an element that already has a label (the text in a table's rows).
         if finding == .targets, info.enabled != false, let r = visibleRect, r.width >= 4, r.height >= 4,
            Roles.clickable.contains(info.role)
+            || info.subrole.map(Roles.clickableSubroles.contains) == true
             || (inList && Roles.clickableAsListItem.contains(info.role))
             || (inWeb && info.focusable && Roles.clickableIfFocusable.contains(info.role))
             || (Roles.clickableIfPressable.contains(info.role) && !inWeb && !inTarget && node.offersPress()) {

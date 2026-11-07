@@ -8,7 +8,7 @@ There is a live demo on the website: [getjumpr.app](https://getjumpr.app).
 
 ## What it does
 
-- Press ⌘⇧Space and Jumpr puts a short label, usually two letters, on every clickable element on every display: buttons, links, Dock icons, menu bar icons and menus.
+- Press ⌘⇧Space and Jumpr puts a short label, usually two letters, on every clickable element on every display: buttons, links, Dock icons, menu bar icons, menus and notifications.
 - Type the letters and Jumpr clicks that element.
 - Labels take about a tenth of a second to appear.
 - It is free and open source, from BaggaDonuts LLC. It needs macOS 15 or later and works with one display or several.
@@ -116,6 +116,8 @@ Things to know when you work on it:
 
 ## Known limits
 
+- Widgets on the desktop have no labels.
+- While Notification Center is open, windows behind it on that display have no labels, because a click outside it only closes it.
 - Web pages in a browser can take a moment to get their labels the first time, because browsers build that information on request.
 - A web-based app that was covered by other windows when Jumpr started gets its labels when the app first comes to the front. If you uncover it some other way, the first press may show few labels for it and the next is complete.
 - Menu bar icons are found by remembering which apps own one. If an app adds its icon later, it has no label until Jumpr next checks (at unlock, resume, or when an app launches or first comes to the front).

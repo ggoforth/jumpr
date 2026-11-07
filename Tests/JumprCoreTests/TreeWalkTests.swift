@@ -8,6 +8,7 @@ final class Fake: AXNode {
     var kids: [Fake]; var selected = false; var rows: [Fake]?
     var pressable = false
     var focusable = false
+    var subrole: String?
     private(set) var infoCalls = 0
     private(set) var pressAsks = 0
     private static var next = 0
@@ -17,7 +18,7 @@ final class Fake: AXNode {
     }
     func info() -> NodeInfo? {
         infoCalls += 1
-        return NodeInfo(role: role, frame: frame, enabled: enabled, children: kids, focusable: focusable)
+        return NodeInfo(role: role, frame: frame, enabled: enabled, children: kids, focusable: focusable, subrole: subrole)
     }
     func isSelected() -> Bool { selected }
     func visibleRows() -> [any AXNode]? { rows }
@@ -307,4 +308,24 @@ private func buttonAt(depth: Int) -> Fake {
     let inner = Fake("AXRow", r(20, 0, 380, 24), [button])
     let outer = Fake("AXRow", r(0, 0, 400, 24), [Fake("AXDisclosureTriangle", r(2, 4, 16, 16)), inner])
     #expect(run(Fake("AXWindow", bounds, [outer])).targets.map(\.role) == ["AXDisclosureTriangle", "AXButton"])
+}
+
+// Notification Center presents a notification as a plain group, which is only told apart
+// from every other group by its subrole. The group offers the press; the text in it does not.
+@Test func aNotificationAndAStackOfThemAreLabeledOnce() {
+    let one = Fake("AXGroup", r(10, 10, 344, 75), [Fake("AXStaticText", r(60, 20, 100, 16))])
+    one.subrole = "AXNotificationCenterBanner"
+    let stacked = Fake("AXGroup", r(10, 100, 344, 58), [Fake("AXStaticText", r(60, 110, 100, 16))])
+    stacked.subrole = "AXNotificationCenterBannerStack"
+    let res = run(Fake("AXWindow", bounds, [one, stacked]))
+    #expect(res.targets.map(\.id) == [one.id, stacked.id])
+    #expect(res.targets.allSatisfy { $0.role == "AXGroup" })
+}
+// In apps built with the iPad frameworks plain groups offer a press too, and labelling
+// those would flood the screen.
+@Test func aGroupWithAnotherSubroleStaysUnlabeled() {
+    let host = Fake("AXGroup", r(10, 10, 344, 75))
+    host.subrole = "AXHostingView"
+    host.pressable = true
+    #expect(run(Fake("AXWindow", bounds, [host])).targets.isEmpty)
 }
