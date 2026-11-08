@@ -1,19 +1,22 @@
 import AppKit
 import JumprCore
 
-/// Session-level key listener. Idle: looks only for the hotkey and passes everything
-/// else through. Capturing: plain keys go to `onKey`, which decides whether to swallow.
+/// Session-level key listener. Idle: looks only for the two shortcuts (labels and scroll
+/// mode) and passes everything else through. Capturing: plain keys go to `onKey`, which
+/// decides whether to swallow.
 /// The handler runs on the main run loop and must never block: no AX calls, no scans.
 final class KeyTap {
     var hotkey: Hotkey = .default
+    var scrollHotkey: Hotkey = .defaultScroll
     /// True while something else needs the keyboard untouched (e.g. the hotkey recorder).
     var suspended = false
-    /// True while Jumpr is paused: the hotkey is ignored and nothing is captured.
+    /// True while Jumpr is paused: the shortcuts are ignored and nothing is captured.
     /// Separate from `suspended`, which the hotkey recorder owns.
     var paused = false
-    /// True while labels are up and typing selects them.
+    /// True while labels are up or scroll mode is on, and Jumpr takes the keys.
     var capturing = false
     var onHotkey: () -> Void = {}
+    var onScrollHotkey: () -> Void = {}
     /// Returns true to swallow the key.
     var onKey: (Key) -> Bool = { _ in false }
     /// The system switched the tap off (it is switched back on before this is called).
@@ -66,6 +69,10 @@ final class KeyTap {
             if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 { onHotkey() }
             return nil
         }
+        if scrollHotkey.matches(keyCode: code, flags: flags) {
+            if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 { onScrollHotkey() }
+            return nil
+        }
         guard capturing else { return Unmanaged.passUnretained(event) }
         return onKey(key(code: code, flags: flags, event: event)) ? nil : Unmanaged.passUnretained(event)
     }
@@ -76,7 +83,7 @@ final class KeyTap {
         if code == Self.delete { return .backspace }
         if let s = NSEvent(cgEvent: event)?.charactersIgnoringModifiers?.uppercased(), s.count == 1,
            let c = s.first, Labels.alphabet.contains(c) {
-            return .character(c)
+            return .character(c, shift: flags & Modifiers.shift != 0)
         }
         return .other
     }

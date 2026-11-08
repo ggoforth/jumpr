@@ -83,6 +83,44 @@ final class Overlay {
         return l
     }
 
+    /// Scroll mode's outline around `area` (global top-left): 2 pt in the label colour
+    /// between two thin dark edges, so it reads on light and dark content alike, and the
+    /// SCROLL tag at `tag`, in the label's colours.
+    func add(outline area: CGRect, tag: CGRect, tagFont: NSFont, style: LabelStyle) -> CALayer {
+        let dark = CGColor(gray: 0, alpha: 0.6)
+        let outer = CALayer()
+        outer.borderWidth = 0.5
+        outer.borderColor = dark
+        let band = CALayer()
+        band.frame = CGRect(origin: .zero, size: area.size).insetBy(dx: 0.5, dy: 0.5)
+        band.borderWidth = 2
+        band.borderColor = style.bg
+        let inner = CALayer()
+        inner.frame = band.bounds.insetBy(dx: 2, dy: 2)
+        inner.borderWidth = 0.5
+        inner.borderColor = dark
+        band.addSublayer(inner)
+        outer.addSublayer(band)
+
+        let t = CATextLayer()
+        t.string = "SCROLL"
+        t.font = tagFont
+        t.fontSize = tagFont.pointSize
+        t.alignmentMode = .center
+        t.foregroundColor = style.fg
+        t.backgroundColor = style.bg
+        t.cornerRadius = tagFont.pointSize / 4
+        t.borderWidth = 0.5
+        t.borderColor = dark
+        // The tag is a sublayer, placed in the outline's own (bottom-left) space.
+        t.frame = CGRect(x: tag.minX - area.minX, y: area.maxY - tag.maxY, width: tag.width, height: tag.height)
+        t.contentsScale = scale
+        outer.addSublayer(t)
+        [band, inner].forEach { $0.contentsScale = scale }
+        add(layer: outer, at: area)
+        return outer
+    }
+
     /// Adds any layer (e.g. the readout panel) at a global top-left rect.
     func add(layer: CALayer, at rect: CGRect) {
         layer.contentsScale = scale

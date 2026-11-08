@@ -1,5 +1,7 @@
 public enum Key: Equatable {
-    case character(Character), backspace, escape, modified, other
+    /// `shift`: held with Shift, which scroll mode reads (Shift G goes to the bottom).
+    case character(Character, shift: Bool = false)
+    case backspace, escape, modified, other
 }
 
 public enum Outcome: Equatable {
@@ -26,7 +28,7 @@ public struct LabelSession {
             guard !typed.isEmpty else { return .swallow }
             typed.removeLast()
             return .narrowed(typed)
-        case .character(let c):
+        case .character(let c, _):
             let candidate = typed + String(c).uppercased()
             if labels.contains(candidate) { return .matched(candidate) }
             if labels.contains(where: { $0.hasPrefix(candidate) }) {

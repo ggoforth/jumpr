@@ -23,6 +23,9 @@ final class Fake: AXNode {
     func isSelected() -> Bool { selected }
     func visibleRows() -> [any AXNode]? { rows }
     func offersPress() -> Bool { pressAsks += 1; return pressable }
+    var pagesByAction = false
+    private(set) var pageAsks = 0
+    func offersPageScroll() -> Bool { pageAsks += 1; return pagesByAction }
 }
 /// Text that says it can be pressed, as Messages' sidebar items do.
 private func pressableText(_ frame: CGRect) -> Fake {

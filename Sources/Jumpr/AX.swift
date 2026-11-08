@@ -124,4 +124,9 @@ final class AXElementNode: AXNode {
     func offersPress() -> Bool {
         axActionNames(element)?.contains("AXPress") == true
     }
+
+    func offersPageScroll() -> Bool {
+        guard let actions = axActionNames(element) else { return false }
+        return actions.contains("AXScrollDownByPage") || actions.contains("AXScrollUpByPage")
+    }
 }
