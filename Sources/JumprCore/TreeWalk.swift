@@ -104,6 +104,11 @@ public enum Roles {
     /// Messages' picker is an element with no role under a disabled group, offering a
     /// press. Text and no role only: there, plain groups offer a press too.
     public static let clickableIfPressable: Set<String> = ["AXStaticText", "AXUnknown"]
+    /// Of those, the roles common enough that asking under an element that already has a
+    /// label would cost: a table's rows hold text by the hundreds. An element with no role
+    /// is rare (none in Finder, Mail, Slack, Chrome; two in Setapp), so it is asked anywhere,
+    /// and the emoji in Messages' picker sit under their section's row.
+    public static let pressableNotAskedUnderALabel: Set<String> = ["AXStaticText"]
     /// Clickable in web content only if the element itself can take keyboard focus. A page
     /// builds controls out of plain text: each day in a date picker is an `AXStaticText`
     /// with no press action, and being focusable is what sets it apart from the text
@@ -253,13 +258,14 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
         // Asking whether text offers a press is one more request per element, so it comes
         // last and is skipped where the answer cannot matter: in web content (a long page
         // holds thousands of text nodes, and its links and buttons have roles of their own)
-        // and under an element that already has a label (the text in a table's rows).
+        // and, for text, under an element that already has a label (a table's rows).
         if finding == .targets, info.enabled != false, let r = visibleRect, r.width >= 4, r.height >= 4,
            Roles.clickable.contains(info.role)
             || info.subrole.map(Roles.clickableSubroles.contains) == true
             || (inList && !inWeb && Roles.clickableAsListItem.contains(info.role))
             || (inWeb && info.focusable && Roles.clickableIfFocusable.contains(info.role))
-            || (Roles.clickableIfPressable.contains(info.role) && !inWeb && !inTarget && node.offersPress()) {
+            || (Roles.clickableIfPressable.contains(info.role) && !inWeb
+                && !(inTarget && Roles.pressableNotAskedUnderALabel.contains(info.role)) && node.offersPress()) {
             let c = CGPoint(x: r.midX, y: r.midY)
             switch scope {
             case .window(let id, _, let appWindows):

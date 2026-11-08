@@ -292,21 +292,26 @@ private func buttonAt(depth: Int) -> Fake {
     let deeper = Fake("AXList", bounds, [Fake("AXGroup", bounds, [Fake("AXUnknown", r(0, 40, 270, 39))])])   // not the list's own item
     #expect(run(Fake("AXWindow", bounds, [loose, deeper])).targets.isEmpty)
 }
-// Messages' emoji picker: each frequently-used emoji is an element with no role, under a
-// disabled group under the section's list, so not the list's own item. It offers a press.
-@Test func anElementWithNoRoleThatOffersAPressIsLabeled() {
-    let emoji = Fake("AXUnknown", r(12, 12, 47, 45)); emoji.pressable = true
-    let wrapper = Fake("AXGroup", r(12, 12, 47, 45), [emoji]); wrapper.enabled = false
-    let list = Fake("AXList", r(0, 0, 320, 263), [wrapper])
-    #expect(run(Fake("AXWindow", bounds, [list])).targets.map(\.id) == [emoji.id])
+// Messages' emoji picker: each frequently-used emoji is an element with no role that offers
+// a press, under a disabled group under the section's list, so not the list's own item. The
+// section is a table row, labelled by role, and the row's label kept the emoji from being
+// asked, the way text under a row is not asked. Here the emoji get the labels and the row,
+// filled by them, loses its own.
+@Test func elementsWithNoRoleThatOfferAPressAreLabeledEvenUnderALabeledRow() {
+    let emoji = (0..<6).map { i -> Fake in
+        let e = Fake("AXUnknown", r(12 + CGFloat(i) * 50, 3, 47, 45)); e.pressable = true
+        return e
+    }
+    let wrappers = emoji.map { e -> Fake in let g = Fake("AXGroup", e.frame!, [e]); g.enabled = false; return g }
+    let list = Fake("AXList", r(0, 0, 320, 51), wrappers)
+    let row = Fake("AXRow", r(0, 0, 320, 51), [Fake("AXCell", r(0, 3, 320, 45), [Fake("AXScrollArea", r(0, 3, 320, 45), [list])])])
+    #expect(run(Fake("AXWindow", bounds, [row])).targets.map(\.id) == emoji.map(\.id))
 }
-@Test func anElementWithNoRoleIsNotAskedForAPressInWebContentOrUnderALabel() {
+@Test func anElementWithNoRoleIsNotAskedForAPressInWebContent() {
     let inWeb = Fake("AXUnknown", r(12, 12, 47, 45)); inWeb.pressable = true
-    let under = Fake("AXUnknown", r(12, 12, 47, 45)); under.pressable = true
-    let row = Fake("AXRow", r(0, 0, 320, 60), [under])
-    let res = run(Fake("AXWindow", bounds, [Fake("AXWebArea", r(0, 0, 400, 200), [inWeb]), row]))
-    #expect(res.targets.map(\.id) == [row.id])
-    #expect(inWeb.pressAsks == 0 && under.pressAsks == 0)
+    let res = run(Fake("AXWindow", bounds, [Fake("AXWebArea", r(0, 0, 400, 200), [inWeb])]))
+    #expect(res.targets.isEmpty)
+    #expect(inWeb.pressAsks == 0)
 }
 @Test func aListInWebContentIsLeftAlone() {   // a page's lists hold links, which have their own role
     let list = Fake("AXList", bounds, [Fake("AXUnknown", r(0, 0, 270, 39))])
