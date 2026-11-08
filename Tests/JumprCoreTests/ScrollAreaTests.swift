@@ -33,6 +33,19 @@ private func focusableGroup(_ frame: CGRect, _ kids: [Fake] = []) -> Fake {
     #expect(res.areas.map(\.id).contains(region.id))
     #expect(!res.areas.map(\.id).contains(plain.id))
 }
+// Electron apps make every message keyboard-focusable so the arrow keys can move between
+// them: in Claude and Discord each message is an article, in Slack a list's item. They are
+// the content the region around them scrolls, not regions of their own.
+@Test func anArticleOrAListsItemInWebContentIsNotAnAreaEvenIfItCanTakeFocus() {
+    let article = focusableGroup(r(300, 100, 400, 150)); article.subrole = "AXDocumentArticle"
+    let item = focusableGroup(r(300, 300, 400, 150))
+    let list = Fake("AXList", r(300, 300, 400, 150), [item])
+    let region = focusableGroup(r(300, 100, 400, 400), [article, list])
+    let res = areas(Fake("AXWindow", bounds, [Fake("AXWebArea", r(0, 0, 800, 600), [region])]))
+    #expect(res.areas.map(\.id).contains(region.id))
+    #expect(!res.areas.map(\.id).contains(article.id))
+    #expect(!res.areas.map(\.id).contains(item.id))
+}
 @Test func aGroupOutsideWebContentIsNotAnAreaEvenIfItCanTakeFocus() {
     #expect(areas(Fake("AXWindow", bounds, [focusableGroup(r(0, 0, 400, 400))])).areas.isEmpty)
 }

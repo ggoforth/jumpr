@@ -105,7 +105,8 @@ public enum Roles {
     /// with no press action, and being focusable is what sets it apart from the text
     /// around it. Text only: scrolling regions, splitters and toolbars take focus too.
     public static let clickableIfFocusable: Set<String> = ["AXStaticText"]
-    /// Clickable only as a list's own item (a direct child of an `AXList`). Dia's sidebar
+    /// Clickable only as a list's own item (a direct child of an `AXList`), outside web
+    /// content: a page's lists hold links, which have a role of their own. Dia's sidebar
     /// presents each folder as an `AXUnknown` child of its list, with no children and no
     /// actions: its place in the list is the only sign that it is something to click.
     public static let clickableAsListItem: Set<String> = ["AXUnknown"]
@@ -119,6 +120,11 @@ public enum Roles {
     /// Chromium and Electron expose a scrolling region as a plain group with no scroll role;
     /// being focusable is what sets it apart from the groups around it.
     public static let scrollableIfFocusable: Set<String> = ["AXGroup"]
+    /// Not an area even so: an item of a collection is the content the region around it
+    /// scrolls. Electron apps make every message keyboard-focusable so the arrow keys can
+    /// move between them; in Claude and Discord each message is an article, in Slack a
+    /// list's item (a direct child of an `AXList`, checked separately).
+    public static let itemSubroles: Set<String> = ["AXDocumentArticle"]
     /// Areas to scroll outside web content, if the element itself offers the page-scroll
     /// actions. Apps built with the iPad frameworks present a scrolling pane as a plain
     /// group: both panes in Messages are such groups.
@@ -175,11 +181,12 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
 
     /// Records the node as an area if it is one, and returns the nearest area around its
     /// children. Kept out of `visit`, whose frame is on the stack once per level of the tree.
-    func noteArea(_ node: any AXNode, role: String, focusable: Bool, frame: CGRect, visible r: CGRect, inWeb: Bool,
-                  inArea: Int?) -> Int? {
+    func noteArea(_ node: any AXNode, role: String, subrole: String?, focusable: Bool, frame: CGRect, visible r: CGRect,
+                  inWeb: Bool, inList: Bool, inArea: Int?) -> Int? {
+        let item = inList || subrole.map(Roles.itemSubroles.contains) == true
         guard case .window(let window, _, let appWindows) = scope,
               r.width >= minAreaSide, r.height >= minAreaSide,
-              Roles.scrollable.contains(role) || (inWeb && focusable && Roles.scrollableIfFocusable.contains(role))
+              Roles.scrollable.contains(role) || (inWeb && focusable && !item && Roles.scrollableIfFocusable.contains(role))
                 || (!inWeb && inArea == nil && Roles.scrollableIfPagesByAction.contains(role) && node.offersPageScroll())
         else { return inArea }
         let onTop = { (p: CGPoint) in stack.isVisible(p, window: window, pid: pid, appWindows: appWindows) }
@@ -230,8 +237,8 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
 
         var inArea = inArea
         if finding == .areas, let r = visibleRect {
-            inArea = noteArea(node, role: info.role, focusable: info.focusable, frame: info.frame ?? r, visible: r,
-                              inWeb: inWeb, inArea: inArea)
+            inArea = noteArea(node, role: info.role, subrole: info.subrole, focusable: info.focusable,
+                              frame: info.frame ?? r, visible: r, inWeb: inWeb, inList: inList, inArea: inArea)
         }
 
         let before = result.targets.count
@@ -242,7 +249,7 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
         if finding == .targets, info.enabled != false, let r = visibleRect, r.width >= 4, r.height >= 4,
            Roles.clickable.contains(info.role)
             || info.subrole.map(Roles.clickableSubroles.contains) == true
-            || (inList && Roles.clickableAsListItem.contains(info.role))
+            || (inList && !inWeb && Roles.clickableAsListItem.contains(info.role))
             || (inWeb && info.focusable && Roles.clickableIfFocusable.contains(info.role))
             || (Roles.clickableIfPressable.contains(info.role) && !inWeb && !inTarget && node.offersPress()) {
             let c = CGPoint(x: r.midX, y: r.midY)
@@ -267,9 +274,7 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
            let rows = node.visibleRows(), !rows.isEmpty {
             children = rows
         }
-        // A page's lists hold links, which have a role of their own, so only lists outside
-        // web content count.
-        let isList = info.role == "AXList" && !inWeb
+        let isList = info.role == "AXList"
         let firstInList = result.targets.count
         for child in children {
             visit(child, clip: clip, depth: depth + 1, inWeb: inWeb, inTarget: inTarget || mine != nil, inList: isList,
