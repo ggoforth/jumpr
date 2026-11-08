@@ -5,7 +5,7 @@ import CoreGraphics
 final class Fake: AXNode {
     let id: ElementID
     var role: String; var frame: CGRect?; var enabled: Bool? = true
-    var kids: [Fake]; var selected = false; var rows: [Fake]?
+    var kids: [Fake]; var selected = false; var rows: [Fake]?; var visibleKids: [Fake]?
     var pressable = false
     var focusable = false
     var subrole: String?
@@ -22,6 +22,7 @@ final class Fake: AXNode {
     }
     func isSelected() -> Bool { selected }
     func visibleRows() -> [any AXNode]? { rows }
+    func visibleChildren() -> [any AXNode]? { visibleKids }
     func offersPress() -> Bool { pressAsks += 1; return pressable }
     var pagesByAction = false
     private(set) var pageAsks = 0
@@ -61,6 +62,18 @@ private func r(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat = 40, _ h: CGFloat = 20)
     #expect(res.targets.count == 1)
     #expect(res.targets[0].rect == CGRect(x: 10, y: 90, width: 40, height: 10))
 }
+// Messages' emoji picker opens above the compose field's button at the window's right
+// edge and reaches 335 pt past it, drawn in a helper window of its own. Clipped to the
+// window's bounds, the walk found a sliver of the popover and nothing in it.
+@Test func aPopoverHangingOutsideItsWindowIsWalkedWhole() {
+    let outside = Fake("AXButton", r(500, 150))
+    let popover = Fake("AXPopover", CGRect(x: 350, y: 100, width: 300, height: 200), [outside])
+    let helper = Win(id: 3, pid: 10, name: "p", bounds: popover.frame!, layer: 0, alpha: 1)
+    let res = walk(root: Fake("AXWindow", bounds, [popover]), pid: 10, scope: .window(id: 1, bounds: bounds, appWindows: [1]),
+                   stack: WindowStack([helper] + stack.wins), deadline: 100, now: { 0 })
+    #expect(res.targets.map(\.id) == [outside.id])
+    #expect(res.targets.first?.rect == r(500, 150))
+}
 @Test func doesNotDescendIntoLeafControls() {
     let inner = Fake("AXLink", r(12, 12, 10, 10))
     let res = run(Fake("AXWindow", bounds, [Fake("AXButton", r(10, 10), [inner])]))
@@ -90,6 +103,36 @@ private func r(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat = 40, _ h: CGFloat = 20)
     #expect(run(Fake("AXWindow", bounds, [table])).targets.map(\.id) == [row1.id])
     table.rows = nil
     #expect(run(Fake("AXWindow", bounds, [table])).targets.map(\.id) == [row1.id, row2.id])
+}
+// Messages' emoji picker: the Smileys section is a grid that reports a 320×444 frame but
+// holds 482 buttons laid out over 3400 px, so the clip cannot prune it, and reading every
+// off-screen button ran the app out of its budget after the two rows on screen. The grid
+// says which 18 children show.
+@Test func aGridIsWalkedThroughItsVisibleChildrenOnly() {
+    let shown = Fake("AXButton", r(0, 0, 47, 42)), hidden = Fake("AXButton", r(0, 3000, 47, 42))
+    let grid = Fake("AXGrid", r(0, 0, 320, 444), [shown, hidden]); grid.visibleKids = [shown]
+    #expect(run(Fake("AXWindow", bounds, [grid])).targets.map(\.id) == [shown.id])
+    #expect(hidden.infoCalls == 0)
+}
+@Test func aGridThatNamesNoVisibleChildrenIsWalkedWhole() {
+    let a = Fake("AXButton", r(0, 0, 47, 42)), b = Fake("AXButton", r(50, 0, 47, 42))
+    let grid = Fake("AXGrid", r(0, 0, 320, 444), [a, b])
+    #expect(run(Fake("AXWindow", bounds, [grid])).targets.map(\.id) == [a.id, b.id])
+    grid.visibleKids = []
+    #expect(run(Fake("AXWindow", bounds, [grid])).targets.map(\.id) == [a.id, b.id])
+}
+// Messages' emoji picker: each section is a table row holding the section's grid or list.
+// The row is clickable by role, so it got a label of its own at its right end, beside the
+// labels on the emoji that fill it. No single emoji covers half the row; together they do.
+@Test func aRowWhoseInnerLabelsTogetherCoverHalfOfItGetsNoLabel() {
+    let cells = (0..<6).map { Fake("AXButton", r(CGFloat($0) * 50, 0, 47, 45)) }
+    let row = Fake("AXRow", r(0, 0, 320, 45), cells)
+    #expect(run(Fake("AXWindow", bounds, [row])).targets.map(\.id) == cells.map(\.id))
+}
+@Test func aRowWithOneSmallControlInsideKeepsItsLabel() {   // a checkbox at the edge of a wide row
+    let box = Fake("AXCheckBox", r(4, 4, 16, 16))
+    let row = Fake("AXRow", r(0, 0, 320, 24), [box])
+    #expect(run(Fake("AXWindow", bounds, [row])).targets.map(\.id) == [row.id, box.id])
 }
 @Test func coveredElementsAreNotLabeled() {
     let cover = Win(id: 2, pid: 20, name: "c", bounds: CGRect(x: 0, y: 0, width: 200, height: 400), layer: 0, alpha: 1)
@@ -248,6 +291,22 @@ private func buttonAt(depth: Int) -> Fake {
     let loose = Fake("AXUnknown", r(0, 0, 270, 39))
     let deeper = Fake("AXList", bounds, [Fake("AXGroup", bounds, [Fake("AXUnknown", r(0, 40, 270, 39))])])   // not the list's own item
     #expect(run(Fake("AXWindow", bounds, [loose, deeper])).targets.isEmpty)
+}
+// Messages' emoji picker: each frequently-used emoji is an element with no role, under a
+// disabled group under the section's list, so not the list's own item. It offers a press.
+@Test func anElementWithNoRoleThatOffersAPressIsLabeled() {
+    let emoji = Fake("AXUnknown", r(12, 12, 47, 45)); emoji.pressable = true
+    let wrapper = Fake("AXGroup", r(12, 12, 47, 45), [emoji]); wrapper.enabled = false
+    let list = Fake("AXList", r(0, 0, 320, 263), [wrapper])
+    #expect(run(Fake("AXWindow", bounds, [list])).targets.map(\.id) == [emoji.id])
+}
+@Test func anElementWithNoRoleIsNotAskedForAPressInWebContentOrUnderALabel() {
+    let inWeb = Fake("AXUnknown", r(12, 12, 47, 45)); inWeb.pressable = true
+    let under = Fake("AXUnknown", r(12, 12, 47, 45)); under.pressable = true
+    let row = Fake("AXRow", r(0, 0, 320, 60), [under])
+    let res = run(Fake("AXWindow", bounds, [Fake("AXWebArea", r(0, 0, 400, 200), [inWeb]), row]))
+    #expect(res.targets.map(\.id) == [row.id])
+    #expect(inWeb.pressAsks == 0 && under.pressAsks == 0)
 }
 @Test func aListInWebContentIsLeftAlone() {   // a page's lists hold links, which have their own role
     let list = Fake("AXList", bounds, [Fake("AXUnknown", r(0, 0, 270, 39))])

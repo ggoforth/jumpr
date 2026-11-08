@@ -34,6 +34,9 @@ public protocol AXNode {
     func info() -> NodeInfo?
     func isSelected() -> Bool
     func visibleRows() -> [any AXNode]?
+    /// The children a collection says are on screen (`AXVisibleChildren`). One more
+    /// request, asked of grids only.
+    func visibleChildren() -> [any AXNode]?
     /// Whether the element offers `AXPress`. One more request, so `walk` asks sparingly.
     func offersPress() -> Bool
     /// Whether the element offers `AXScrollUpByPage` or `AXScrollDownByPage`. One more
@@ -97,9 +100,10 @@ public enum Roles {
     public static let clickable: Set<String> = leaf.union(["AXMenuItem", "AXMenuBarItem", "AXRow"])
     /// Clickable only if the element itself offers `AXPress`. Apps built with the iPad
     /// frameworks present a list item as text: every conversation and pin in Messages'
-    /// sidebar is an `AXStaticText` that offers a press. Text only: there, plain groups
-    /// offer a press too.
-    public static let clickableIfPressable: Set<String> = ["AXStaticText"]
+    /// sidebar is an `AXStaticText` that offers a press. Each frequently-used emoji in
+    /// Messages' picker is an element with no role under a disabled group, offering a
+    /// press. Text and no role only: there, plain groups offer a press too.
+    public static let clickableIfPressable: Set<String> = ["AXStaticText", "AXUnknown"]
     /// Clickable in web content only if the element itself can take keyboard focus. A page
     /// builds controls out of plain text: each day in a date picker is an `AXStaticText`
     /// with no press action, and being focusable is what sets it apart from the text
@@ -227,6 +231,10 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
         let inWeb = inWeb || info.role == "AXWebArea"
 
         var clip = clip
+        // A popover hangs off its window, drawn in a helper window of its own: Messages'
+        // emoji picker opens above the compose field's button at the window's right edge
+        // and reaches 335 pt past it. The window's bounds would clip it to a sliver.
+        if info.role == "AXPopover", let f = info.frame { clip = f }
         var visibleRect: CGRect?
         if let f = info.frame, f.width > 0, f.height > 0 {
             let r = f.intersection(clip)
@@ -274,6 +282,13 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
            let rows = node.visibleRows(), !rows.isEmpty {
             children = rows
         }
+        // A grid's frame need not cover its children: the Smileys section of Messages' emoji
+        // picker reports 320×444 and holds 482 buttons laid out over 3400 px, so the clip
+        // cannot prune it, and reading every off-screen button ran the app out of its budget
+        // after the two rows on screen. The grid says which children show.
+        if info.role == "AXGrid", let shown = node.visibleChildren(), !shown.isEmpty {
+            children = shown
+        }
         let isList = info.role == "AXList"
         let firstInList = result.targets.count
         for child in children {
@@ -300,14 +315,16 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
             }
         }
 
-        // A clickable element (a row) with a clickable element inside it that covers at
-        // least half its area gets no label of its own: both labels would sit at the same
-        // right end (`Labels.frame`), and a press on the row mostly lands on the inner one
-        // anyway. A smaller control inside (a checkbox at the edge of a wide row) is a
-        // different action, so both keep their labels.
+        // A clickable element (a row) whose clickable elements inside cover at least half
+        // its area together gets no label of its own: its label would sit at the right end
+        // (`Labels.frame`) beside theirs, and a press on the row mostly lands on one of them
+        // anyway. One inner element can be the cover (a row filled by a button), or many
+        // (each section of Messages' emoji picker is a row filled by its emoji). A smaller
+        // control inside (a checkbox at the edge of a wide row) is a different action, so
+        // both keep their labels.
         if let mine {
             let outer = result.targets[mine].rect
-            if result.targets[(mine + 1)...].contains(where: { coversHalf($0.rect, of: outer) }) {
+            if coverHalf(result.targets[(mine + 1)...].map(\.rect), of: outer) {
                 result.targets.remove(at: mine)
             }
         }
@@ -381,11 +398,16 @@ func visiblePoint(in rect: CGRect, onTop: (CGPoint) -> Bool) -> CGPoint? {
     return nil
 }
 
-/// Whether `inner` covers at least half of `outer`'s area.
-func coversHalf(_ inner: CGRect, of outer: CGRect) -> Bool {
-    let i = inner.intersection(outer)
-    guard !i.isNull else { return false }
-    return 2 * i.width * i.height >= outer.width * outer.height
+/// Whether `inners` together cover at least half of `outer`'s area. Their parts inside
+/// `outer` are summed, so two that overlap each other count twice; labels do not overlap
+/// in practice, and the sum errs toward dropping the outer label, the cheaper mistake.
+func coverHalf(_ inners: some Sequence<CGRect>, of outer: CGRect) -> Bool {
+    var covered: CGFloat = 0
+    for inner in inners {
+        let i = inner.intersection(outer)
+        if !i.isNull { covered += i.width * i.height }
+    }
+    return 2 * covered >= outer.width * outer.height
 }
 
 /// Whether a web tree switched on `sinceSwitchedOn` seconds ago may still be arriving, so a
