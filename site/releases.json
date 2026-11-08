@@ -1,6 +1,18 @@
 {
   "releases": [
     {
+      "version": "v1.1.0",
+      "date": "2026-11-07",
+      "summary": "Scroll mode: scroll any area on any display from the keyboard, with your pointer left where it is.",
+      "bullets": [
+        "<strong>Scroll mode:</strong> press ⌘⇧J and every area that scrolls gets a letter. J and K scroll the outlined area a line, D and U half a page, G and ⇧G to the ends; hold a key to keep going. Type a letter to pick another area, F to bring the letters back, Esc or ⌘⇧J to leave.",
+        "<strong>Where it starts:</strong> the area you scrolled last in that window is already outlined, or the one with keyboard focus, so J works at once.",
+        "<strong>Shortcut:</strong> the scroll shortcut has its own row in the panel, under the label shortcut.",
+        "<strong>Mail, Messages, Claude, Discord, Slack:</strong> one letter per pane. A message in a conversation, or an email's header, is not offered as something to scroll on its own."
+      ],
+      "note": "Scroll mode scrolls up and down only. An area that cannot scroll may still get a letter; picking it does nothing. The log on your Mac now also records each scroll's amount and the app it went to, nothing more."
+    },
+    {
       "version": "v1.0.7",
       "date": "2026-11-06",
       "summary": "Notification Center now gets labels.",
