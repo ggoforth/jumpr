@@ -46,6 +46,42 @@ private func focusableGroup(_ frame: CGRect, _ kids: [Fake] = []) -> Fake {
     #expect(!res.areas.map(\.id).contains(article.id))
     #expect(!res.areas.map(\.id).contains(item.id))
 }
+/// A scroll area that states how large its content is, as apps built with the iPad
+/// frameworks and AppKit both do.
+private func scrollArea(_ frame: CGRect, content: CGSize?, _ kids: [Fake] = []) -> Fake {
+    let a = Fake("AXScrollArea", frame, kids); a.content = content
+    return a
+}
+// Messages' emoji picker is a scroll area (320×355, content 320×19897) over a table whose
+// first row holds the frequently-used emoji in a scroll area of their own (320×257,
+// content 320×257), 5 pt below the picker's top-left corner. Both got a letter at one
+// corner, and the outline framed the section, which has nothing to scroll.
+@Test func aScrollAreaInsideAnotherWhoseContentIsNoTallerThanItIsNotAnArea() {
+    let section = scrollArea(r(400, 105, 320, 257), content: CGSize(width: 320, height: 257),
+                             [Fake("AXList", r(400, 105, 320, 257))])
+    let row = Fake("AXRow", r(400, 102, 320, 263), [Fake("AXCell", r(400, 105, 320, 257), [section])])
+    let picker = scrollArea(r(400, 100, 320, 355), content: CGSize(width: 320, height: 19897),
+                            [Fake("AXTable", r(400, 100, 322, 19899), [row])])
+    let res = areas(Fake("AXWindow", bounds, [picker]))
+    #expect(res.areas.map(\.id) == [picker.id])
+    #expect(picker.contentAsks == 0)   // asked of a scroll area inside another only
+}
+// Setapp's page (1384×1040) holds a row of screenshots that scrolls sideways only (1384×363,
+// content 3064×363) and a list that scrolls on its own (1100×133, content 1100×208).
+@Test func aScrollAreaInsideAnotherWithTallerContentIsStillAnArea() {
+    let shelf = scrollArea(r(0, 100, 700, 180), content: CGSize(width: 1500, height: 180))
+    let list = scrollArea(r(50, 400, 600, 133), content: CGSize(width: 600, height: 208))
+    let page = scrollArea(r(0, 0, 700, 600), content: CGSize(width: 700, height: 1723), [shelf, list])
+    #expect(areas(Fake("AXWindow", bounds, [page])).areas.map(\.id) == [page.id, list.id])
+}
+// Loopback's scroll area states no content size, and Finder's desktop states 0×0: neither
+// says there is nothing to scroll.
+@Test func aScrollAreaInsideAnotherThatStatesNoContentSizeIsStillAnArea() {
+    let silent = scrollArea(r(0, 100, 300, 200), content: nil)
+    let zero = scrollArea(r(350, 100, 300, 200), content: .zero)
+    let page = scrollArea(r(0, 0, 700, 600), content: nil, [silent, zero])
+    #expect(areas(Fake("AXWindow", bounds, [page])).areas.map(\.id) == [page.id, silent.id, zero.id])
+}
 @Test func aGroupOutsideWebContentIsNotAnAreaEvenIfItCanTakeFocus() {
     #expect(areas(Fake("AXWindow", bounds, [focusableGroup(r(0, 0, 400, 400))])).areas.isEmpty)
 }
