@@ -42,6 +42,9 @@ public protocol AXNode {
     /// Whether the element offers `AXScrollUpByPage` or `AXScrollDownByPage`. One more
     /// request, asked only of large groups outside web content and outside any area found.
     func offersPageScroll() -> Bool
+    /// How large a scroll area says its content is (`AXContentSize`); nil if it does not
+    /// say. One more request, asked only of a scroll area inside another area.
+    func contentSize() -> CGSize?
 }
 
 public struct Target: Equatable {
@@ -207,6 +210,15 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
         // an area of its own: Mail's message body sits in the pane that scrolls the header
         // and the body together.
         if let outer = inArea, !result.areas[outer].rect.insetBy(dx: -6, dy: -6).contains(frame) { return outer }
+        // A scroll area inside another that says its content is no taller than itself has
+        // nothing to scroll up or down, and a wheel event there scrolls the area around it:
+        // it is that area's content too. The frequently-used emoji in Messages' picker sit
+        // in one (320×257, content 320×257) at the top-left corner of the picker's own
+        // (320×355, content 320×19897); Setapp's row of screenshots scrolls sideways only.
+        // One that states no size, or 0×0 as Finder's desktop does, has not said so.
+        // One more request, and a scroll area inside another is rare.
+        if role == "AXScrollArea", inArea != nil, let content = node.contentSize(),
+           content.height > 0, content.height <= frame.height + 1 { return inArea }
         let corner = CGPoint(x: r.minX + 12, y: r.minY + 12)
         let area = Area(id: node.id, rect: r, pid: pid, window: window, aim: aim, anchor: onTop(corner) ? r.origin : aim)
         // Nested areas of one size are one area to a person: keep the innermost, the one

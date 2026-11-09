@@ -129,6 +129,10 @@ final class AXElementNode: AXNode {
         axActionNames(element)?.contains("AXPress") == true
     }
 
+    func contentSize() -> CGSize? {
+        axCopy(element, "AXContentSize").flatMap(axSize)
+    }
+
     func offersPageScroll() -> Bool {
         guard let actions = axActionNames(element) else { return false }
         return actions.contains("AXScrollDownByPage") || actions.contains("AXScrollUpByPage")
