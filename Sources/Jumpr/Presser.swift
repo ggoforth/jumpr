@@ -13,13 +13,13 @@ final class Presser {
 
     /// The completion also gets the raw `AXError` that `AXPress` returned, or nil if it
     /// was not called.
-    func press(_ t: Target, completion: @escaping (PressResult, Int32?) -> Void) {
+    func press(_ t: Target, kind: ClickKind = .plain, completion: @escaping (PressResult, Int32?) -> Void) {
         guard let el = axElement(t.id) else {
             DispatchQueue.main.async { completion(.skipped, nil) }
             return
         }
         scanner.perform(pid: t.pid, background: false) { [scanner] in
-            let (result, axError) = Presser.run(t, element: el, scanner: scanner)
+            let (result, axError) = Presser.run(t, kind: kind, element: el, scanner: scanner)
             DispatchQueue.main.async { completion(result, axError) }
         }
     }
@@ -41,7 +41,7 @@ final class Presser {
     }
 
     /// Runs on the app's queue.
-    private static func run(_ t: Target, element el: AXUIElement,
+    private static func run(_ t: Target, kind: ClickKind, element el: AXUIElement,
                             scanner: Scanner) -> (PressResult, axError: Int32?) {
         guard pressDecision(scanned: t.rect, current: axFrame(el)) == .press else { return (.skipped, nil) }
 
@@ -57,8 +57,10 @@ final class Presser {
         }
 
         var axError: Int32?
-        // Web content never needs the action list: it is clicked regardless.
-        if usesAXPress(role: t.role, actions: t.inWeb ? nil : axActionNames(el), inWeb: t.inWeb) {
+        // Web content never needs the action list: it is clicked regardless. Nor does any
+        // click but a plain one.
+        let actions = t.inWeb || kind != .plain ? nil : axActionNames(el)
+        if usesAXPress(role: t.role, actions: actions, inWeb: t.inWeb, kind: kind) {
             let err = AXUIElementPerformAction(el, kAXPressAction as CFString).rawValue
             axError = err
             switch afterAXPress(err) {
@@ -73,7 +75,7 @@ final class Presser {
         // The raise (and a failed press) may have moved or closed it: check again, from now.
         let fresh = axFrame(el)
         guard pressDecision(scanned: t.rect, current: fresh) == .press, let fresh else { return (.skipped, axError) }
-        click(at: clickPoint(visible: t.rect, current: fresh))
+        click(at: clickPoint(visible: t.rect, current: fresh), kind: kind)
         return (.clicked, axError)
     }
 
@@ -120,12 +122,22 @@ final class Presser {
         log(String(format: "press: pid %d not in front after %.0f ms, clicking anyway", t.pid, (now() - t0) * 1000))
     }
 
-    private static func click(at p: CGPoint) {
+    private static func click(at p: CGPoint, kind: ClickKind) {
         let src = CGEventSource(stateID: .hidSystemState)
-        for type in [CGEventType.mouseMoved, .leftMouseDown, .leftMouseUp] {
+        for ev in clickEvents(kind) {
+            let type: CGEventType = switch ev.phase {
+            case .move: .mouseMoved
+            case .down: ev.right ? .rightMouseDown : .leftMouseDown
+            case .up: ev.right ? .rightMouseUp : .leftMouseUp
+            }
             guard let e = CGEvent(mouseEventSource: src, mouseType: type, mouseCursorPosition: p,
-                                  mouseButton: .left) else { continue }
-            e.flags = []  // a modifier still held from typing the label must not ride along
+                                  mouseButton: ev.right ? .right : .left) else { continue }
+            // Stated, never inherited: a modifier still held from typing the label must not
+            // ride along, and a ⌘-click must carry ⌘ whether or not the key is still down.
+            e.flags = CGEventFlags(rawValue: ev.held)
+            // Only the second press of a double-click is counted, so a plain click stays
+            // the event it has always been.
+            if ev.count > 1 { e.setIntegerValueField(.mouseEventClickState, value: Int64(ev.count)) }
             e.post(tap: .cghidEventTap)
         }
     }

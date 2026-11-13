@@ -111,13 +111,14 @@ keyTap.onDisabled = {
     }
 }
 let presser = Presser(scanner: scanner)
-controller.onMatched = { target in
+controller.onMatched = { target, kind in
     let t0 = now()
-    presser.press(target) { result, axError in
+    presser.press(target, kind: kind) { result, axError in
         // The raw AXPress error whenever it was not success (e.g. on a click fallback).
         let ax = axError.map { $0 == 0 ? "" : " (axpress=\($0))" } ?? ""
         let app = NSRunningApplication(processIdentifier: target.pid)?.localizedName ?? "pid \(target.pid)"
-        log(String(format: "→ %@ %@ %.0f ms%@ in %@", target.role, "\(result)", (now() - t0) * 1000, ax, app))
+        let click = kind == .plain ? "" : " \(kind)"  // right, command or double
+        log(String(format: "→ %@ %@%@ %.0f ms%@ in %@", target.role, "\(result)", click, (now() - t0) * 1000, ax, app))
         presser.openedMenu(target, result: result) { opened in
             guard opened else { return }
             // Label the menu the press just opened, unless a session started meanwhile.

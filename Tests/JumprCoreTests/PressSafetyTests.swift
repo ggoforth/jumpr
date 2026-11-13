@@ -133,3 +133,43 @@ import CoreGraphics
     #expect(!usesAXPress(role: "AXLink", actions: nil, inWeb: true))
     #expect(usesAXPress(role: "AXButton", actions: ["AXPress"], inWeb: false))
 }
+
+// JUM-104: `AXPress` is a left press and nothing else, so a right-click, a ⌘-click and a
+// double-click are always real clicks, even on a button that offers the action.
+
+@Test func onlyAPlainClickUsesAXPress() {
+    #expect(usesAXPress(role: "AXButton", actions: ["AXPress"], kind: .plain))
+    #expect(!usesAXPress(role: "AXButton", actions: ["AXPress"], kind: .right))
+    #expect(!usesAXPress(role: "AXButton", actions: ["AXPress"], kind: .command))
+    #expect(!usesAXPress(role: "AXButton", actions: nil, kind: .double))
+}
+
+@Test func aPlainClickIsAMoveThenOneLeftPress() {
+    #expect(clickEvents(.plain) == [
+        ClickEvent(.move), ClickEvent(.down), ClickEvent(.up),
+    ])
+}
+
+@Test func aRightClickPressesTheRightButton() {
+    #expect(clickEvents(.right) == [
+        ClickEvent(.move), ClickEvent(.down, right: true), ClickEvent(.up, right: true),
+    ])
+}
+
+// A browser reads ⌘ from the click itself to open a link in a new tab.
+@Test func aCommandClickCarriesCommandOnEveryEvent() {
+    #expect(clickEvents(.command) == [
+        ClickEvent(.move, held: Modifiers.command),
+        ClickEvent(.down, held: Modifiers.command),
+        ClickEvent(.up, held: Modifiers.command),
+    ])
+}
+
+// An app tells a double-click from two clicks by the count on the second press, not by timing.
+@Test func aDoubleClickIsTwoPressesCountedOneThenTwo() {
+    #expect(clickEvents(.double) == [
+        ClickEvent(.move),
+        ClickEvent(.down, count: 1), ClickEvent(.up, count: 1),
+        ClickEvent(.down, count: 2), ClickEvent(.up, count: 2),
+    ])
+}

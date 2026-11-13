@@ -78,13 +78,20 @@ final class KeyTap {
     }
 
     private func key(code: Int64, flags: UInt64, event: CGEvent) -> Key {
-        if flags & Self.commandControlOption != 0 { return .modified }
+        var letter: Character? {
+            guard let s = NSEvent(cgEvent: event)?.charactersIgnoringModifiers?.uppercased(), s.count == 1,
+                  let c = s.first, Labels.alphabet.contains(c) else { return nil }
+            return c
+        }
+        if flags & Self.commandControlOption != 0 {
+            // A label letter keeps its modifiers: the session decides whether it is a click
+            // of another kind or the shortcut it looks like (`Key.chord`).
+            if let letter { return .chord(letter, held: flags & Modifiers.mask) }
+            return .modified
+        }
         if code == Self.escape { return .escape }
         if code == Self.delete { return .backspace }
-        if let s = NSEvent(cgEvent: event)?.charactersIgnoringModifiers?.uppercased(), s.count == 1,
-           let c = s.first, Labels.alphabet.contains(c) {
-            return .character(c, shift: flags & Modifiers.shift != 0)
-        }
+        if let letter { return .character(letter, shift: flags & Modifiers.shift != 0) }
         return .other
     }
 }
