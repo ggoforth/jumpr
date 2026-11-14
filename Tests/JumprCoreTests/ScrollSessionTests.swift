@@ -83,6 +83,9 @@ private func session(outlined: Area? = nil) -> ScrollSession {
     var s = session(outlined: list)
     #expect(s.handle(.escape) == .leave)
     #expect(s.handle(.modified) == .passThrough)
+    // JUM-104: a letter with ⌘ or ⌥ now reaches the sessions as a chord. In scroll mode it is
+    // still only a shortcut: ⌘J must not scroll.
+    #expect(s.handle(.chord("J", held: Modifiers.command)) == .passThrough)
     #expect(s.handle(.other) == .swallow)
     #expect(s.handle(.backspace) == .swallow)
     #expect(s.handle(.character("Q")) == .swallow)   // a letter no area has

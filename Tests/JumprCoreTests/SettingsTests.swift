@@ -98,3 +98,63 @@ private let noLookup: (Int64) -> String? = { _ in nil }
     #expect(Keys.showReadout == "showReadout")
     #expect(Keys.showAdvancedSettings == "showAdvancedSettings")
 }
+
+// The key held on a label's last letter for each kind of click, set in the panel.
+
+@Test func theDefaultClickKeysAreShiftCommandOptionControl() {
+    let keys = ClickKeys.default
+    #expect(keys.modifier(for: .right) == .shift)
+    #expect(keys.modifier(for: .command) == .command)
+    #expect(keys.modifier(for: .double) == .option)
+    #expect(keys.modifier(for: .shift) == .control)
+    #expect(ClickKeys(stored: nil) == .default)
+}
+
+@Test func clickKeysRoundTripThroughTheirStoredForm() {
+    var keys = ClickKeys.default
+    keys.set(.control, for: .double)
+    keys.set(nil, for: .command)
+    #expect(ClickKeys(stored: keys.stored) == keys)
+    #expect(ClickKeys(stored: ClickKeys.default.stored) == .default)
+}
+
+// A stored value is the whole truth: a click it does not name has no key, so "None" in the
+// panel survives a relaunch.
+@Test func aClickTheStoredValueLeavesOutHasNoKey() {
+    let keys = ClickKeys(stored: "right=control,shift=shift")
+    #expect(keys.modifier(for: .right) == .control)
+    #expect(keys.modifier(for: .shift) == .shift)
+    #expect(keys.modifier(for: .command) == nil)
+    #expect(keys.modifier(for: .double) == nil)
+    #expect(ClickKeys(stored: "").kind(held: Modifiers.shift) == nil)
+}
+
+// `defaults write` can store anything. Nonsense is dropped, and a key named twice goes to
+// the click that named it first, so one key never means two clicks.
+@Test func aBadStoredClickKeyIsDroppedAndAKeyIsNeverSharedByTwoClicks() {
+    let keys = ClickKeys(stored: "right=shift,double=shift,plain=option,command=hyper,nonsense")
+    #expect(keys.modifier(for: .right) == .shift)
+    #expect(keys.modifier(for: .double) == nil)
+    #expect(keys.modifier(for: .command) == nil)
+    #expect(keys.kind(held: Modifiers.option) == nil)
+}
+
+// Choosing a key another click already has swaps the two rather than leaving one without.
+@Test func settingAKeyAnotherClickHasSwapsTheTwo() {
+    var keys = ClickKeys.default
+    keys.set(.shift, for: .shift)
+    #expect(keys.modifier(for: .shift) == .shift)
+    #expect(keys.modifier(for: .right) == .control)
+    keys.set(nil, for: .right)
+    keys.set(.shift, for: .right)  // right had no key to give back
+    #expect(keys.modifier(for: .right) == .shift)
+    #expect(keys.modifier(for: .shift) == nil)
+}
+
+@Test func onlyOneModifierHeldAlonePicksAClick() {
+    let keys = ClickKeys.default
+    #expect(keys.kind(held: Modifiers.option) == .double)
+    #expect(keys.kind(held: Modifiers.option | Modifiers.command) == nil)
+    #expect(keys.kind(held: 0) == nil)
+    #expect(keys.kind(held: Modifiers.option | 0x100) == .double)  // flags that are not modifiers
+}

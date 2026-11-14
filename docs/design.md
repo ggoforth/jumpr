@@ -23,7 +23,7 @@ The package has two targets. `JumprCore` is pure logic: no AppKit, no accessibil
 | `TreeWalk.swift` | The tree walk: clickable roles, clipping, the depth cap, the covered-row rule; areas to scroll; the web-tree timing rules |
 | `Geometry.swift` | `WindowStack`: the on-screen windows front to back, which window is on top at a point, which apps to scan |
 | `Labels.swift` | The label alphabet, label length, label placement (scroll mode's too), `LabelPool` |
-| `LabelSession.swift` | What each key does while labels are up |
+| `LabelSession.swift` | What each key does while labels are up, the kinds of click, and which key gives which (`ClickKeys`) |
 | `ScrollSession.swift` | What each key does in scroll mode; area letters; where a session starts; the wheel amounts |
 | `PressSafety.swift` | Pressing rules: whether to press at all, `AXPress` or click, where to click, when a click may be sent |
 | `Settings.swift` | `Hotkey`, `RGB`, the label size clamp, and `Keys`, the names of every preference |
@@ -145,10 +145,12 @@ An app "hosts web content" if it is on the built-in Chromium list, on the built-
 - **Idle.** The tap looks only for the hotkey and the scroll shortcut and passes everything else through untouched. Both are always swallowed; auto-repeats of them are ignored.
 - **Labels up or scroll mode on** (`capturing`). Plain keys go to `LabelSession`, or in scroll mode to `ScrollSession` (see [Scroll mode](#scroll-mode)). For labels:
   - a letter that extends a label narrows (labels that no longer match are hidden); one that completes a label matches; one that matches nothing is swallowed
+  - what is held on the letter that completes a label picks the click (`ClickKind`): nothing a click, and by default ⇧ a right-click, ⌘ a ⌘-click, ⌥ a double-click and ⌃ a ⇧-click (a click with ⇧ held, which selects from the selected row to this one). ⇧ on an earlier letter only narrows. ⇧ is the right-click in Vimac and Homerow, and ⌘ the ⌘-click in Homerow, Shortcat and Wooshy; ⌥ for the double-click is Jumpr's own, since a ⌃-click is already a right-click on macOS, and the ⇧-click took ⌃, the one key left
+  - the key for each of those four clicks is a setting (`ClickKeys`, the `clickKeys` preference, four rows in the panel). A key gives one click at most: choosing a key another click has swaps the two. A click set to None cannot be reached, and its old key goes back to being a shortcut; ⇧ with no click set clicks plainly
   - Backspace undoes a letter
   - Esc cancels; the hotkey cancels too (it reaches the controller as a second trigger)
   - any other plain key is swallowed
-  - keys with ⌘, ⌃ or ⌥ pass through to the system, so shortcuts keep working while labels are up
+  - keys with ⌘, ⌃ or ⌥ pass through to the system, so shortcuts keep working while labels are up. The one exception is one of them alone, with a click set for it, on a letter that completes a label (`Key.chord`), which is the click above. With two-letter labels and nothing typed no letter completes one, so ⌘Q still quits
 - **The handler never blocks**: no accessibility calls, no scans. The hotkey's work runs on the main queue's next turn.
 - **Re-enabled if switched off.** If the system disables the tap (timeout or user input), it is re-enabled at once and trust is checked again.
 - **Hotkey recorder.** While the panel's recorder is recording, the tap is suspended (`suspended`) so the keys reach the recorder. Recording ends whenever the panel closes or stops being key, so the tap is never left suspended. A combination without ⌘, ⌃ or ⌥ is rejected (`Hotkey.isValid`). The hotkey is stored as `keyCode:modifiers` and applied live.
@@ -160,7 +162,7 @@ An app "hosts web content" if it is on the built-in Chromium list, on the built-
 
 1. **Check it is still there.** Re-read the element's frame. If the element is gone, or no longer overlaps the rectangle it had when it was scanned, do nothing (`pressDecision`). The label is not the reference: it hangs beside small targets.
 2. **Bring its app forward.** If the element belongs to a window: ask the app to be frontmost through accessibility (`AXFrontmost`, which macOS 27 ignores), make the public activation request (`Activation.activate`), and raise the window (`AXRaise`).
-3. **Choose `AXPress` or a click** (`usesAXPress`). Text fields, text areas and combo boxes always get a click, which puts the caret in them. Web content (`inWeb`) always gets a click: it can answer success to `AXPress` and do nothing, so only a real click is trustworthy there. Anything else uses `AXPress` if it offers that action, and is clicked if it does not.
+3. **Choose `AXPress` or a click** (`usesAXPress`). Text fields, text areas and combo boxes always get a click, which puts the caret in them. Web content (`inWeb`) always gets a click: it can answer success to `AXPress` and do nothing, so only a real click is trustworthy there. Anything else uses `AXPress` if it offers that action, and is clicked if it does not. A right-click, a ⌘-click, a double-click and a ⇧-click always get a click: `AXPress` is a left press and nothing else.
 4. **`AXPress`** (`afterAXPress`). Success counts as pressed. So does "cannot complete": apps answer that way while tracking a menu the press just opened. "Invalid element" means it is gone: do nothing. Any other error falls back to a click.
 5. **Wait until the app is really in front** (`waitUntilForward`, `clickReadiness`). A click on a window that is not in front only brings it forward; browsers do not pass that first click on to the page. So before a click into a window, Jumpr waits until the app says it is frontmost and the window is its main window. Activation is cooperative since macOS 14, so the request escalates in steps, each checked before the next:
    1. the public request already made in step 2, given 0.15 s
@@ -168,10 +170,10 @@ An app "hosts web content" if it is on the built-in Chromium list, on the built-
    3. a direct request to the window server, marked as user generated (`Activation.windowServer`), 0.3 s. This is a private call that window switchers use; its symbols are looked up at run time, so a macOS that drops them costs only this step.
 
    Once the app is in front, the window is raised again and Jumpr waits a further 50 ms for the window server to catch up. If it never comes, Jumpr clicks anyway and says so in the log. With no window to wait for (a menu bar extra whose `AXPress` failed), the click follows a fixed 40 ms pause instead.
-6. **Click once.** Re-read the frame, since the raise or a failed press may have moved or closed it, and check again as in step 1. Then post one synthetic click at the center of the part that was visible when scanned, as it is now (`clickPoint`), with modifier flags cleared so a key still held from typing the label does not ride along. One click, never two: an app that does pass the first click on would get a double click.
+6. **Click once.** Re-read the frame, since the raise or a failed press may have moved or closed it, and check again as in step 1. Then post one synthetic click at the center of the part that was visible when scanned, as it is now (`clickPoint`), with modifier flags cleared so a key still held from typing the label does not ride along. One click, never two: an app that does pass the first click on would get a double click. The events come from `clickEvents`: a right-click uses the right button, a ⌘-click says ⌘ is held on every event and a ⇧-click says ⇧ is, and a double-click is two presses with the second counted 2, which is how an app tells it from two clicks. Only that second press has its count set, so a plain click is the event it always was.
 7. **Label the opened menu.** If a menu bar item or menu item was pressed and is now selected (its menu or submenu opened), Jumpr triggers again 0.1 s later, unless a session has started meanwhile (`relabelsAfterPress`). Otherwise every menu would take two hotkey presses. Menu bar extras share the menu bar item role but open panels, so they are relabelled only if selected.
 
-The log records each press: role, result (`pressed`, `clicked` or `skipped`), time, the raw `AXPress` error when it was not success, and which activation step worked.
+The log records each press: role, result (`pressed`, `clicked` or `skipped`), the kind of click when it was not a plain one (`right`, `command`, `double` or `shift`), time, the raw `AXPress` error when it was not success, and which activation step worked.
 
 ## Scroll mode
 
@@ -218,7 +220,7 @@ While nothing is outlined the scroll keys do nothing. Any scroll hides the lette
 
 **The log** is `~/Library/Logs/Jumpr.log`: launch, trust, pause, lock, tree switching, each trigger's readout lines, each press, scroll mode turning on and off with the reason, each app's area count and time, each scroll (app and amount), updates. It names apps and element roles; Jumpr never reads element text. Past about 1 MB (`LogFile.cap`) it moves to `Jumpr.log.1`, replacing the one there, and starts again, so a copy left running for months cannot fill a disk.
 
-**Preferences** (names in `Keys`): `hotkey`, `scrollHotkey`, `labelSize`, `labelColor`, `labelTextColor`, `labelTextMode` (`auto` or `color`), `paused`, `showReadout`, `showAdvancedSettings`, and `webHostApps`, which is not a setting but Jumpr's remembered list of web-hosting apps. Sparkle keeps its own settings. Both shortcuts, readout and pause changes apply live through `DefaultsWatcher`, including changes made with `defaults write`; label settings apply on the next trigger.
+**Preferences** (names in `Keys`): `hotkey`, `scrollHotkey`, `clickKeys` (for example `right=shift,command=command,double=option,shift=control`; a click left out has no key), `labelSize`, `labelColor`, `labelTextColor`, `labelTextMode` (`auto` or `color`), `paused`, `showReadout`, `showAdvancedSettings`, and `webHostApps`, which is not a setting but Jumpr's remembered list of web-hosting apps. Sparkle keeps its own settings. Both shortcuts, readout and pause changes apply live through `DefaultsWatcher`, including changes made with `defaults write`; label settings and the click keys apply on the next trigger.
 
 ## Updates
 
@@ -245,6 +247,9 @@ Jumpr has no Dock icon and is rarely the active app, so a scheduled update alert
 - Scroll mode gives a letter to every area the tree shows, including ones with nothing to scroll; picking one does nothing. Only a scroll area inside another area is asked how large its content is; asking every scroll area would retire most of this, once content sizes are counted across more apps. It does not switch web trees on or look again the way a trigger does, so a web-based app whose tree is not built yet may show no areas until a trigger has woken it.
 - Scroll mode scrolls vertically only. Scrolling relies on the app scrolling whatever is under the event's position, as it would under the pointer.
 - If both shortcuts are set to the same combination, the label hotkey wins and scroll mode cannot be reached.
+- While labels are up, ⌘ or ⌥ with a letter that completes a label is a click, not the shortcut. That takes a letter typed first, or a trigger with one-letter labels.
+- The menu a right-click opens is not labelled: only a menu opened by `AXPress` on a menu bar item or menu item is (step 7 of Pressing). Whether a trigger labels an open context menu at all has not been checked. The arrow keys work in it.
+- The three other clicks are checked by hand only. Not yet checked: whether ⌥, still held from the label, changes how an app comes forward.
 - `JumprCore` is unit-tested; the app shell in `Sources/Jumpr` has no unit tests and is checked by running the app.
 
 ## Ideas not built

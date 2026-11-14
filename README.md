@@ -30,7 +30,7 @@ What Jumpr does with it:
 
 - It reads the screen on your Mac to place labels. What it reads is not recorded, stored or sent anywhere.
 - It does not record your screen.
-- It keeps a small activity log on your Mac (`~/Library/Logs/Jumpr.log`). The log has timings, the names of the apps Jumpr looked at, the kind of control and app for each press, and the app and amount of each scroll in scroll mode. It has no window contents, no on-screen text and nothing you type. If you attach it to an issue, it shows which apps you had open.
+- It keeps a small activity log on your Mac (`~/Library/Logs/Jumpr.log`). The log has timings, the names of the apps Jumpr looked at, the kind of control, the kind of click and the app for each press, and the app and amount of each scroll in scroll mode. It has no window contents, no on-screen text and nothing you type. If you attach it to an issue, it shows which apps you had open.
 
 ## Using it
 
@@ -44,11 +44,23 @@ What Jumpr does with it:
 | Esc | Cancels |
 | The hotkey again | Cancels |
 
+Hold a key on the last letter of a label for another kind of click:
+
+| Hold on the last letter | Click |
+|---|---|
+| ⇧ | Right-click |
+| ⌘ | ⌘-click, which opens a link in a new tab |
+| ⌥ | Double-click |
+| ⌃ | ⇧-click, which selects from the selected row to this one |
+
+Those are the keys Jumpr starts with. The panel lets you give each click another key, or none.
+
 Click the menu bar icon for Jumpr's panel. It has a switch that turns Jumpr on and off (off is a pause: the hotkey does nothing), a preview of the labels, Check for Updates…, Report a Problem and Quit.
 
 The panel is also where you change:
 
 - The hotkey, and the scroll shortcut
+- The key for each kind of click. Choosing a key another click has swaps the two.
 - Label size, label color and letter color (Auto picks black or white, whichever reads better on the label)
 - Start at login (off until you turn it on)
 - Whether Jumpr checks for updates on its own
@@ -122,6 +134,8 @@ Things to know when you work on it:
 - A web-based app that was covered by other windows when Jumpr started gets its labels when the app first comes to the front. If you uncover it some other way, the first press may show few labels for it and the next is complete.
 - Menu bar icons are found by remembering which apps own one. If an app adds its icon later, it has no label until Jumpr next checks (at unlock, resume, or when an app launches or first comes to the front).
 - While a password field has keyboard focus, macOS keeps keystrokes from reaching Jumpr, so neither the hotkey nor Esc works.
+- The menu a right-click opens gets no labels of its own. Use the arrow keys in it.
+- While labels are up, ⌘, ⌥ or ⌃ with the letter that completes a label clicks instead of running that shortcut, unless that key's click is set to None.
 - Jumpr turns on accessibility information in web-based apps so it can see them. When you Pause or Quit, it turns off everything it turned on, including anything another tool had turned on too. If Jumpr loses the Accessibility permission while it runs, it can't turn them off, and they stay on until those apps quit.
 
 ## Reporting a problem

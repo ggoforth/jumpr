@@ -135,6 +135,8 @@ public enum Keys {
     public static let hotkey = "hotkey"
     /// Scroll mode's shortcut, stored as `hotkey` is.
     public static let scrollHotkey = "scrollHotkey"
+    /// The key held on a label's last letter for each kind of click (`ClickKeys.stored`).
+    public static let clickKeys = "clickKeys"
     public static let showReadout = "showReadout"
     public static let paused = "paused"
     /// Shows the timing readout switch in the panel (hidden by default).

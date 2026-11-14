@@ -10,7 +10,7 @@ import JumprCore
 /// session is active (`isCurrent`). Scans already queued for a stale generation stop
 /// early through `isStale`, which reads `sharedGeneration`.
 final class Controller {
-    var onMatched: (Target) -> Void = { _ in }
+    var onMatched: (Target, ClickKind) -> Void = { _, _ in }
     let readout = Readout()
     private(set) var isActive = false
     /// Identifies the current session; changes on every trigger and cancel.
@@ -177,7 +177,9 @@ final class Controller {
         isActive = true
         tap.capturing = capture
 
-        session = LabelSession()
+        // Read on each trigger, as the label style is, so a change in the panel or by
+        // `defaults write` holds from the next press of the hotkey.
+        session = LabelSession(clickKeys: ClickKeys(stored: UserDefaults.standard.string(forKey: Keys.clickKeys)))
         placed = [:]
         placedIDs = []
         overflow = 0
@@ -380,10 +382,10 @@ final class Controller {
         case .cancelled:
             cancel()
             return true
-        case .matched(let label):
+        case .matched(let label, let kind):
             let hit = placed[label]
             cancel()
-            if let hit { onMatched(hit.target) }
+            if let hit { onMatched(hit.target, kind) }
             return true
         }
     }

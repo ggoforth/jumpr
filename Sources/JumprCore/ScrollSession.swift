@@ -92,7 +92,7 @@ public struct ScrollSession {
 
     public mutating func handle(_ key: Key) -> Outcome {
         switch key {
-        case .modified: return .passThrough
+        case .modified, .chord: return .passThrough
         case .escape: return .leave
         case .other: return .swallow
         case .backspace:
