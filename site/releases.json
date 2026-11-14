@@ -1,6 +1,18 @@
 {
   "releases": [
     {
+      "version": "v1.2.0",
+      "date": "2026-11-14",
+      "summary": "Right-click, ⌘-click, double-click and ⇧-click from a label: hold a key on the label's last letter.",
+      "bullets": [
+        "<strong>More kinds of click:</strong> hold ⇧ on the last letter of a label for a right-click, ⌘ for a ⌘-click (a link opens in a new tab), ⌥ for a double-click, or ⌃ for a ⇧-click, which selects from the selected row to this one. With nothing held it clicks as before.",
+        "<strong>Your keys:</strong> the panel has a row for each of those clicks. Give it another key, or None to switch it off. Choosing a key another click has swaps the two.",
+        "<strong>Messages:</strong> every emoji showing in the emoji picker has a label. Before, only two rows did.",
+        "<strong>Scroll mode:</strong> an area inside another that has nothing to scroll no longer gets a letter. In Messages' emoji picker the whole picker is outlined, not one section of it."
+      ],
+      "note": "While labels are up, ⌘, ⌥ or ⌃ with the letter that completes a label now clicks instead of running that shortcut, unless that key's click is set to None. The menu a right-click opens gets no labels of its own; use the arrow keys in it. The log on your Mac now also records the kind of each click, nothing more."
+    },
+    {
       "version": "v1.1.0",
       "date": "2026-11-07",
       "summary": "Scroll mode: scroll any area on any display from the keyboard, with your pointer left where it is.",
