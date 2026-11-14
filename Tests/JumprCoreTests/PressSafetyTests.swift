@@ -173,3 +173,12 @@ import CoreGraphics
         ClickEvent(.down, count: 2), ClickEvent(.up, count: 2),
     ])
 }
+
+// A list reads ⇧ from the click itself to select from the selected row down to this one.
+@Test func aShiftClickCarriesShiftOnEveryEvent() {
+    #expect(clickEvents(.shift) == [
+        ClickEvent(.move, held: Modifiers.shift),
+        ClickEvent(.down, held: Modifiers.shift),
+        ClickEvent(.up, held: Modifiers.shift),
+    ])
+}

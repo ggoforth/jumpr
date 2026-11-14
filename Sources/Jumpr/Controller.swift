@@ -177,7 +177,9 @@ final class Controller {
         isActive = true
         tap.capturing = capture
 
-        session = LabelSession()
+        // Read on each trigger, as the label style is, so a change in the panel or by
+        // `defaults write` holds from the next press of the hotkey.
+        session = LabelSession(clickKeys: ClickKeys(stored: UserDefaults.standard.string(forKey: Keys.clickKeys)))
         placed = [:]
         placedIDs = []
         overflow = 0

@@ -20,6 +20,7 @@ struct PanelView: View {
     @AppStorage(Keys.labelTextMode) private var textMode: String?
     @AppStorage(Keys.hotkey) private var hotkeyStored = Hotkey.default.stored
     @AppStorage(Keys.scrollHotkey) private var scrollHotkeyStored = Hotkey.defaultScroll.stored
+    @AppStorage(Keys.clickKeys) private var clickKeysStored: String?
     @AppStorage(Keys.showReadout) private var showReadout = false
     @AppStorage(Keys.showAdvancedSettings) private var showAdvanced = false
 
@@ -62,6 +63,8 @@ struct PanelView: View {
                            hotkey: Binding(get: { Hotkey(stored: scrollHotkeyStored) ?? .defaultScroll },
                                            set: { scrollHotkeyStored = $0.stored }),
                            accent: labelColor, onRecording: onRecording)
+            ClickKeyRows(stored: $clickKeysStored)
+            Divider()
             settingSwitches
             Divider()
             footer
@@ -253,6 +256,51 @@ struct Keycaps: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(keys.joined())
+    }
+}
+
+/// The key held on a label's last letter for each kind of click, one row a click. Choosing a
+/// key another click has swaps the two, so the rows never show one key twice. Read by the
+/// controller on the next trigger.
+private struct ClickKeyRows: View {
+    @Binding var stored: String?
+
+    private var keys: ClickKeys { ClickKeys(stored: stored) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Hold on a label's last letter").fontWeight(.semibold)
+            ForEach(ClickKind.settable, id: \.self) { kind in
+                HStack {
+                    Text(Self.title(kind))
+                    Spacer()
+                    Picker(Self.title(kind), selection: Binding(
+                        get: { keys.modifier(for: kind) },
+                        set: { modifier in
+                            var changed = keys
+                            changed.set(modifier, for: kind)
+                            stored = changed.stored
+                        })) {
+                        Text("None").tag(ClickModifier?.none)
+                        ForEach(ClickModifier.allCases, id: \.self) { Text($0.symbol).tag(ClickModifier?.some($0)) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+                }
+                .frame(minHeight: 26)
+            }
+        }
+    }
+
+    private static func title(_ kind: ClickKind) -> String {
+        switch kind {
+        case .right: "Right-click"
+        case .command: "⌘-click"
+        case .double: "Double-click"
+        case .shift: "⇧-click"
+        case .plain: "Click"
+        }
     }
 }
 

@@ -117,7 +117,7 @@ controller.onMatched = { target, kind in
         // The raw AXPress error whenever it was not success (e.g. on a click fallback).
         let ax = axError.map { $0 == 0 ? "" : " (axpress=\($0))" } ?? ""
         let app = NSRunningApplication(processIdentifier: target.pid)?.localizedName ?? "pid \(target.pid)"
-        let click = kind == .plain ? "" : " \(kind)"  // right, command or double
+        let click = kind == .plain ? "" : " \(kind)"  // right, command, double or shift
         log(String(format: "→ %@ %@%@ %.0f ms%@ in %@", target.role, "\(result)", click, (now() - t0) * 1000, ax, app))
         presser.openedMenu(target, result: result) { opened in
             guard opened else { return }

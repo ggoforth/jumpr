@@ -82,12 +82,50 @@ import Testing
     #expect(s.handle(.chord("Q", held: Modifiers.option)) == .passThrough)
 }
 
-// ⌘⇧S, ⌘⌥S and ⌃S are shortcuts and nothing else, even on a letter that completes a label.
-@Test func twoModifiersOrControlOnTheLastLetterPassThrough() {
+// ⌘⇧S and ⌘⌥S are shortcuts and nothing else, even on a letter that completes a label.
+@Test func twoModifiersOnTheLastLetterPassThrough() {
     var s = LabelSession(); s.labels = ["AS"]
     _ = s.handle(.character("A"))
     #expect(s.handle(.chord("S", held: Modifiers.command | Modifiers.shift)) == .passThrough)
     #expect(s.handle(.chord("S", held: Modifiers.command | Modifiers.option)) == .passThrough)
-    #expect(s.handle(.chord("S", held: Modifiers.control)) == .passThrough)
+    #expect(s.handle(.chord("S", held: Modifiers.control | Modifiers.shift)) == .passThrough)
     #expect(s.typed == "A")
+}
+
+// Greg, 2026-11-13, in Watchflows' flow list: a click selects the first row and a double-click
+// opens it, but nothing selected the rows down to a lower one, which a ⇧-click does. ⇧ was
+// taken by the right-click, so the ⇧-click got the one key left.
+@Test func controlOnTheLastLetterShiftClicks() {
+    var s = LabelSession(); s.labels = ["AA", "AS"]
+    _ = s.handle(.character("A"))
+    #expect(s.handle(.chord("S", held: Modifiers.control)) == .matched("AS", .shift))
+}
+
+// The same day: "can we add these to our keyboard shortcuts in the menu bar app, so we can
+// set them?" The key for each click is a setting, and the session follows it.
+@Test func theKeySetForAClickPicksThatClick() {
+    var keys = ClickKeys.default
+    keys.set(.shift, for: .shift)  // ⇧ is the ⇧-click; the right-click takes ⌃ in exchange
+    var s = LabelSession(clickKeys: keys); s.labels = ["AS", "AD"]
+    _ = s.handle(.character("A"))
+    #expect(s.handle(.character("S", shift: true)) == .matched("AS", .shift))
+    #expect(s.handle(.chord("D", held: Modifiers.control)) == .matched("AD", .right))
+}
+
+@Test func aClickWithNoKeyLeavesItsOldKeyAShortcut() {
+    var keys = ClickKeys.default
+    keys.set(nil, for: .command)
+    var s = LabelSession(clickKeys: keys); s.labels = ["AS"]
+    _ = s.handle(.character("A"))
+    #expect(s.handle(.chord("S", held: Modifiers.command)) == .passThrough)
+    #expect(s.typed == "A")
+}
+
+// ⇧ with no click set for it is a capital letter and nothing more, as on an earlier letter.
+@Test func shiftWithNoClickSetForItClicksPlainly() {
+    var keys = ClickKeys.default
+    keys.set(nil, for: .right)
+    var s = LabelSession(clickKeys: keys); s.labels = ["AS"]
+    _ = s.handle(.character("A"))
+    #expect(s.handle(.character("S", shift: true)) == .matched("AS", .plain))
 }

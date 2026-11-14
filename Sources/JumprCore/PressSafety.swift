@@ -80,11 +80,16 @@ public struct ClickEvent: Equatable {
 
 /// The mouse events that make one click of `kind`, in order, all at the same point.
 /// - A modifier still held from typing the label must not ride along, so `held` is stated
-///   for every event: nothing, except ⌘ for a ⌘-click. A browser reads it from the click.
+///   for every event: nothing, except ⌘ for a ⌘-click and ⇧ for a ⇧-click. A browser or a
+///   list reads it from the click.
 /// - A double-click is two presses, the second counted 2: an app tells it from two single
 ///   clicks by that count, not by timing.
 public func clickEvents(_ kind: ClickKind) -> [ClickEvent] {
-    let held = kind == .command ? Modifiers.command : 0
+    let held: UInt64 = switch kind {
+    case .command: Modifiers.command
+    case .shift: Modifiers.shift
+    case .plain, .right, .double: 0
+    }
     let right = kind == .right
     func press(_ count: Int) -> [ClickEvent] {
         [ClickEvent(.down, right: right, count: count, held: held),
