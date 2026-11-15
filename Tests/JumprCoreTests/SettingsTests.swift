@@ -158,3 +158,9 @@ private let noLookup: (Int64) -> String? = { _ in nil }
     #expect(keys.kind(held: 0) == nil)
     #expect(keys.kind(held: Modifiers.option | 0x100) == .double)  // flags that are not modifiers
 }
+
+// The panel's menu for a click names its key in full, as "⌃ Control". As bare symbols, five
+// to a row and four rows deep, the keys were the clutter that split the panel into tabs.
+@Test func eachClickKeyHasANameToGoWithItsSymbol() {
+    #expect(ClickModifier.allCases.map(\.name) == ["Shift", "Command", "Option", "Control"])
+}

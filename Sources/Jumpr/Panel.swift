@@ -298,9 +298,10 @@ struct Keycaps: View {
     }
 }
 
-/// The key held on a label's last letter for each kind of click, one row a click. Choosing a
-/// key another click has swaps the two, so the rows never show one key twice. Read by the
-/// controller on the next trigger.
+/// The key held on a label's last letter for each kind of click: one row a click, one menu
+/// a row. Each row had a five-way picker, twenty segments in a column, which is what split
+/// the panel into tabs. Choosing a key another click has swaps the two, so the rows never
+/// show one key twice. Read by the controller on the next trigger.
 private struct ClickKeyRows: View {
     @Binding var stored: String?
 
@@ -309,6 +310,10 @@ private struct ClickKeyRows: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Hold on a label's last letter").fontWeight(.semibold)
+            Text("Each kind of click takes one key, or none.")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 2)
             ForEach(ClickKind.settable, id: \.self) { kind in
                 HStack {
                     Text(Self.title(kind))
@@ -321,11 +326,14 @@ private struct ClickKeyRows: View {
                             stored = changed.stored
                         })) {
                         Text("None").tag(ClickModifier?.none)
-                        ForEach(ClickModifier.allCases, id: \.self) { Text($0.symbol).tag(ClickModifier?.some($0)) }
+                        ForEach(ClickModifier.allCases, id: \.self) {
+                            Text("\($0.symbol) \($0.name)").tag(ClickModifier?.some($0))
+                        }
                     }
-                    .pickerStyle(.segmented)
+                    .pickerStyle(.menu)
                     .labelsHidden()
-                    .fixedSize()
+                    // One width, so the four menus line up whatever each one shows.
+                    .frame(width: 130)
                 }
                 .frame(minHeight: 26)
             }
@@ -335,9 +343,9 @@ private struct ClickKeyRows: View {
     private static func title(_ kind: ClickKind) -> String {
         switch kind {
         case .right: "Right-click"
-        case .command: "⌘-click"
+        case .command: "Command-click"
         case .double: "Double-click"
-        case .shift: "⇧-click"
+        case .shift: "Shift-click"
         case .plain: "Click"
         }
     }

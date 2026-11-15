@@ -50,6 +50,15 @@ public enum ClickModifier: String, CaseIterable, Equatable {
         case .control: "⌃"
         }
     }
+
+    public var name: String {
+        switch self {
+        case .shift: "Shift"
+        case .command: "Command"
+        case .option: "Option"
+        case .control: "Control"
+        }
+    }
 }
 
 /// Which key, held on the letter that completes a label, gives which click. A key gives one
