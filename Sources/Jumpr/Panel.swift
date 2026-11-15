@@ -66,14 +66,10 @@ struct PanelView: View {
     // MARK: Tabs
 
     @ViewBuilder private var appearance: some View {
-        SwatchPicker(title: "Label color", first: Palette.labelColors, more: Palette.moreLabelColors,
-                     selectedHex: labelRGB.hex, fieldHex: labelRGB.hex,
-                     pick: { labelHex = $0 })
-        SwatchPicker(title: "Letter color", first: Palette.letterColors, more: Palette.moreLetterColors,
-                     autoSelected: letters == .auto,
-                     selectedHex: letterHex, fieldHex: letters.color(on: labelRGB).hex,
-                     pick: { textHex = $0; textMode = LetterMode.color.rawValue },
-                     pickAuto: { textMode = LetterMode.auto.rawValue })
+        PalettePicker(label: labelRGB, letters: letters,
+                      pickLabel: { labelHex = $0 },
+                      pickLetters: { textHex = $0; textMode = LetterMode.color.rawValue },
+                      pickAuto: { textMode = LetterMode.auto.rawValue })
         sizeSlider
     }
 
@@ -100,11 +96,6 @@ struct PanelView: View {
             .disabled(!updater.canCheckForUpdates)
         }
         .frame(minHeight: 26)
-    }
-
-    private var letterHex: String? {
-        if case .color(let c) = letters { return c.hex }
-        return nil
     }
 
     // MARK: Header and banners
@@ -185,24 +176,15 @@ struct PanelView: View {
     // MARK: Size and switches
 
     private var sizeSlider: some View {
-        VStack(spacing: 6) {
-            HStack {
-                Text("Label size").fontWeight(.semibold)
-                Spacer()
-                Text("\(Int(clampLabelSize(size))) pt").foregroundStyle(.secondary).monospacedDigit()
+        HStack(spacing: 12) {
+            Text("Label size").fontWeight(.semibold)
+            // No `step`: a stepped slider draws a tick for each of its 23 values. Whole
+            // points come from rounding instead.
+            Slider(value: Binding(get: { clampLabelSize(size) }, set: { size = $0.rounded() }), in: 10...32) {
+                Text("Label size")
             }
-            HStack(spacing: 10) {
-                Text("A").font(.system(size: 10, weight: .bold, design: .monospaced)).foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
-                // No `step`: a stepped slider draws a tick for each of its 23 values. Whole
-                // points come from rounding instead.
-                Slider(value: Binding(get: { clampLabelSize(size) }, set: { size = $0.rounded() }), in: 10...32) {
-                    Text("Label size")
-                }
-                .labelsHidden()
-                Text("A").font(.system(size: 20, weight: .bold, design: .monospaced)).foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
-            }
+            .labelsHidden()
+            Text("\(Int(clampLabelSize(size))) pt").foregroundStyle(.secondary).monospacedDigit()
         }
     }
 
@@ -421,89 +403,148 @@ private struct LabelPreview: View {
     }
 }
 
-/// A row of preset colours, six more behind "More", and an "Exact color" field. With
-/// `pickAuto`, the first choice is Auto rather than a colour.
-private struct SwatchPicker: View {
-    let title: String
-    let first: [Swatch]
-    let more: [Swatch]
-    var autoSelected = false
-    /// The stored colour; the swatch with this hex shows the ring. Nil while on Auto.
-    let selectedHex: String?
-    /// What the exact-colour field shows when nothing is being typed.
-    let fieldHex: String
-    let pick: (String) -> Void
-    var pickAuto: (() -> Void)?
+/// One palette for two colours. "Label" and "Letters" above it say which one a swatch, the
+/// hex field, White and Black change. Before it each colour had its own row of presets, a
+/// second row behind "More" and an exact-colour field, which was most of the panel's height.
+private struct PalettePicker: View {
+    let label: RGB
+    let letters: Letters
+    let pickLabel: (String) -> Void
+    let pickLetters: (String) -> Void
+    let pickAuto: () -> Void
 
-    @State private var expanded = false
-    /// What is typed in the field while it is not yet six digits.
+    private enum Target { case label, letters }
+
+    @State private var target = Target.label
+    /// What is typed in the hex field while it is not yet six digits.
     @State private var draft: String?
+
+    private var labelColor: Color { Color(label) }
+    private var letterColor: Color { Color(letters.color(on: label)) }
+
+    /// The stored colour of what is being changed; the swatch with this hex shows the ring.
+    /// Nil for letters on Auto.
+    private var selectedHex: String? {
+        switch target {
+        case .label: return label.hex
+        case .letters:
+            if case .color(let c) = letters { return c.hex }
+            return nil
+        }
+    }
+
+    /// What the hex field shows when nothing is being typed: on Auto, the colour Auto gives.
+    private var fieldHex: String { target == .label ? label.hex : letters.color(on: label).hex }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(title).fontWeight(.semibold)
-                Spacer()
-                Button { expanded.toggle() } label: {
-                    HStack(spacing: 3) {
-                        Text(expanded ? "Fewer" : "More")
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 9, weight: .bold))
-                            .rotationEffect(.degrees(expanded ? 180 : 0))
-                    }
+            targets
+            VStack(spacing: 4) {
+                ForEach(Array(Palette.rows.enumerated()), id: \.offset) { _, row in
+                    HStack(spacing: 4) { ForEach(row, id: \.hex) { swatch($0) } }
                 }
-                .buttonStyle(.plain)
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .accessibilityLabel(expanded ? "Fewer \(title.lowercased())s" : "More \(title.lowercased())s")
             }
             HStack(spacing: 8) {
-                if let pickAuto {
-                    cell(name: "Automatic", selected: autoSelected) {
-                        draft = nil
-                        pickAuto()
-                    } fill: { AutoSwatch() }
-                }
-                ForEach(first, id: \.hex) { swatch($0) }
-            }
-            if expanded {
-                HStack(spacing: 8) { ForEach(more, id: \.hex) { swatch($0) } }
-                exactField
+                if target == .letters { autoButton }
+                hexField
+                Spacer()
+                swatch(Palette.white).frame(width: 28)
+                swatch(target == .label ? Palette.labelBlack : Palette.letterBlack).frame(width: 28)
             }
         }
     }
 
-    private func swatch(_ s: Swatch) -> some View {
-        cell(name: s.name, selected: !autoSelected && selectedHex == s.hex) {
-            draft = nil
-            pick(s.hex)
-        } fill: { Color(RGB(hex: s.hex)!) }
+    // Underlined, not filled: a second filled bar under the panel's tabs would read as the
+    // same control twice.
+    private var targets: some View {
+        HStack(spacing: 0) {
+            targetTab(.label, "Label", value: "#\(label.hex)") { labelColor }
+            if case .color(let c) = letters {
+                targetTab(.letters, "Letters", value: "#\(c.hex)") { Color(c) }
+            } else {
+                targetTab(.letters, "Letters", value: "Auto") {
+                    HStack(spacing: 0) {
+                        Color.black
+                        Color.white
+                    }
+                }
+            }
+        }
+        .background(alignment: .bottom) { Color.primary.opacity(0.1).frame(height: 1) }
     }
 
-    private func cell<Fill: View>(name: String, selected: Bool, action: @escaping () -> Void,
-                                  @ViewBuilder fill: () -> Fill) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 9)
-        return Button(action: action) {
-            fill()
-                .frame(maxWidth: .infinity)
-                .frame(height: 30)
-                .clipShape(shape)
-                .overlay(shape.strokeBorder(Color.gray.opacity(0.45)))
-                .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(selected ? Color.primary : .clear, lineWidth: 2)
-                    .padding(-4))
-                .contentShape(shape)
+    private func targetTab<Chip: View>(_ tab: Target, _ title: String, value: String,
+                                       @ViewBuilder chip: () -> Chip) -> some View {
+        let selected = target == tab
+        let shape = RoundedRectangle(cornerRadius: 4)
+        return Button {
+            target = tab
+            draft = nil
+        } label: {
+            HStack(spacing: 6) {
+                chip()
+                    .frame(width: 14, height: 14)
+                    .clipShape(shape)
+                    .overlay(shape.strokeBorder(Color.gray.opacity(0.45)))
+                Text(title)
+                    .fontWeight(selected ? .semibold : .regular)
+                    .foregroundStyle(Color.primary.opacity(selected ? 1 : 0.8))
+                Text(value).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 30)
+            .overlay(alignment: .bottom) { (selected ? labelColor : Color.clear).frame(height: 2) }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(name)
+        .accessibilityLabel("\(title) color, \(value)")
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
-    private var exactField: some View {
-        HStack(spacing: 8) {
-            Text("Exact color").foregroundStyle(.secondary)
-            Spacer()
+    private func swatch(_ s: Swatch) -> some View {
+        let selected = selectedHex == s.hex
+        let shape = RoundedRectangle(cornerRadius: 5)
+        return Button {
+            draft = nil
+            pick(s.hex)
+        } label: {
+            Color(RGB(hex: s.hex)!)
+                .frame(height: 22)
+                .clipShape(shape)
+                .overlay(shape.strokeBorder(Color.gray.opacity(0.3)))
+                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(selected ? Color.primary : .clear, lineWidth: 2)
+                    .padding(-3))
+                .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(s.name)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    /// Auto is not a colour, so it sits beside the hex field and only for the letters.
+    /// Selected, it is drawn as a label is: the label colour, with the letters Auto gives.
+    private var autoButton: some View {
+        let selected = letters == .auto
+        return Button {
+            draft = nil
+            pickAuto()
+        } label: {
+            Text("Auto")
+                .fontWeight(.semibold)
+                .foregroundStyle(selected ? letterColor : Color.primary)
+                .padding(.horizontal, 10)
+                .frame(height: 24)
+                .background(selected ? labelColor : Color.primary.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Automatic")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private var hexField: some View {
+        HStack(spacing: 5) {
             Text("#").font(.system(size: 13, design: .monospaced)).foregroundStyle(.secondary)
-            TextField("Exact color", text: Binding(
+            TextField("Hex color", text: Binding(
                 get: { draft ?? fieldHex },
                 set: { typed in
                     let clean = HexDraft.clean(typed)
@@ -517,26 +558,15 @@ private struct SwatchPicker: View {
                 .labelsHidden()
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 12, design: .monospaced))
-                .frame(width: 86)
+                .frame(width: 80)
         }
     }
-}
 
-/// The Auto choice: half black, half white, named on a small plate so the word reads on both
-/// halves. It says "whichever fits".
-private struct AutoSwatch: View {
-    var body: some View {
-        HStack(spacing: 0) {
-            Color.black
-            Color.white
+    private func pick(_ hex: String) {
+        switch target {
+        case .label: pickLabel(hex)
+        case .letters: pickLetters(hex)
         }
-        .overlay(
-            Text("Auto")
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(.primary)
-                .padding(.horizontal, 4)
-                .padding(.vertical, 1)
-                .background(Color(nsColor: .windowBackgroundColor), in: RoundedRectangle(cornerRadius: 4)))
     }
 }
 

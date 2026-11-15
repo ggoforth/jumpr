@@ -11,25 +11,35 @@ public struct Swatch: Equatable {
     }
 }
 
-/// The panel's preset colours: for each picker, a first row and six more behind "More".
+/// The panel's colours, one palette for the label and for its letters: ten hues across, in
+/// a light, a vivid and a deep row. The vivid row is the ten colours the presets offered
+/// before the palette, so a colour chosen then still shows as selected.
 public enum Palette {
-    public static let labelColors = [
-        Swatch("Yellow", "FFD60A"), Swatch("Orange", "FF9F0A"), Swatch("Green", "30D158"),
-        Swatch("Sky", "64D2FF"), Swatch("Blue", "0A84FF"), Swatch("Pink", "FF375F"),
+    public static let rows: [[Swatch]] = [
+        [
+            Swatch("Light red", "FF9993"), Swatch("Light orange", "FFCA78"), Swatch("Light yellow", "FFE878"),
+            Swatch("Light green", "8DE6A3"), Swatch("Light mint", "ABE7E5"), Swatch("Light sky", "AAE6FF"),
+            Swatch("Light blue", "78BBFF"), Swatch("Light indigo", "A6A5F1"), Swatch("Light purple", "DCA4F8"),
+            Swatch("Light pink", "FF91A7"),
+        ],
+        [
+            Swatch("Red", "FF453A"), Swatch("Orange", "FF9F0A"), Swatch("Yellow", "FFD60A"),
+            Swatch("Green", "30D158"), Swatch("Mint", "66D4CF"), Swatch("Sky", "64D2FF"),
+            Swatch("Blue", "0A84FF"), Swatch("Indigo", "5E5CE6"), Swatch("Purple", "BF5AF2"),
+            Swatch("Pink", "FF375F"),
+        ],
+        [
+            Swatch("Deep red", "B8322A"), Swatch("Deep orange", "B87207"), Swatch("Deep yellow", "B89A07"),
+            Swatch("Deep green", "23963F"), Swatch("Deep mint", "499995"), Swatch("Deep sky", "4897B8"),
+            Swatch("Deep blue", "075FB8"), Swatch("Deep indigo", "4442A6"), Swatch("Deep purple", "8A41AE"),
+            Swatch("Deep pink", "B82844"),
+        ],
     ]
-    public static let moreLabelColors = [
-        Swatch("Red", "FF453A"), Swatch("Purple", "BF5AF2"), Swatch("Indigo", "5E5CE6"),
-        Swatch("Mint", "66D4CF"), Swatch("White", "FFFFFF"), Swatch("Black", "1C1C1E"),
-    ]
-    /// The first row's other five; Auto, which is not a colour, comes before them.
-    public static let letterColors = [
-        Swatch("Black", "000000"), Swatch("White", "FFFFFF"), Swatch("Yellow", "FFD60A"),
-        Swatch("Blue", "0A84FF"), Swatch("Red", "FF453A"),
-    ]
-    public static let moreLetterColors = [
-        Swatch("Orange", "FF9F0A"), Swatch("Green", "30D158"), Swatch("Sky", "64D2FF"),
-        Swatch("Pink", "FF375F"), Swatch("Purple", "BF5AF2"), Swatch("Indigo", "5E5CE6"),
-    ]
+    public static let white = Swatch("White", "FFFFFF")
+    /// A black label has been this dark grey since the presets, and black letters true black.
+    /// Each keeps its value so a stored choice still shows as selected.
+    public static let labelBlack = Swatch("Black", "1C1C1E")
+    public static let letterBlack = Swatch("Black", "000000")
 }
 
 extension RGB {
@@ -78,7 +88,7 @@ public enum Letters: Equatable {
     }
 }
 
-/// What is typed into an "Exact color" field.
+/// What is typed into the panel's hex field.
 public enum HexDraft {
     /// Only hex digits, at most six, uppercased: a pasted "#ff9f0a" becomes "FF9F0A".
     public static func clean(_ typed: String) -> String {
