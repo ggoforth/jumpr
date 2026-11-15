@@ -23,6 +23,8 @@ struct PanelView: View {
     @AppStorage(Keys.clickKeys) private var clickKeysStored: String?
     @AppStorage(Keys.showReadout) private var showReadout = false
     @AppStorage(Keys.showAdvancedSettings) private var showAdvanced = false
+    /// Not stored: the panel opens on Appearance after each launch.
+    @State private var tab = PanelTab.appearance
 
     private static let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
     private static let issues = URL(string: "https://github.com/ggoforth/jumpr/issues")!
@@ -47,31 +49,57 @@ struct PanelView: View {
             if onboarding.trusted && !onboarding.needsRelaunch { hint }
             LabelPreview(size: clampLabelSize(size), label: labelColor, letters: letterColor)
                 .opacity(on ? 1 : 0.45)
-            SwatchPicker(title: "Label color", first: Palette.labelColors, more: Palette.moreLabelColors,
-                         selectedHex: labelRGB.hex, fieldHex: labelRGB.hex,
-                         pick: { labelHex = $0 })
-            SwatchPicker(title: "Letter color", first: Palette.letterColors, more: Palette.moreLetterColors,
-                         autoSelected: letters == .auto,
-                         selectedHex: letterHex, fieldHex: letters.color(on: labelRGB).hex,
-                         pick: { textHex = $0; textMode = LetterMode.color.rawValue },
-                         pickAuto: { textMode = LetterMode.auto.rawValue })
-            sizeSlider
-            Divider()
-            HotkeyRecorder(hotkey: hotkeyBinding, accent: labelColor, onRecording: onRecording)
-            // Applied live by main's watcher on the default, as `defaults write` would be.
-            HotkeyRecorder(title: "Scroll shortcut",
-                           hotkey: Binding(get: { Hotkey(stored: scrollHotkeyStored) ?? .defaultScroll },
-                                           set: { scrollHotkeyStored = $0.stored }),
-                           accent: labelColor, onRecording: onRecording)
-            ClickKeyRows(stored: $clickKeysStored)
-            Divider()
-            settingSwitches
+            TabBar(selection: $tab, fill: labelColor, text: letterColor)
+            switch tab {
+            case .appearance: appearance
+            case .shortcuts: shortcuts
+            case .general: general
+            }
             Divider()
             footer
         }
         .frame(width: 320)
         .padding(EdgeInsets(top: 14, leading: 14, bottom: 12, trailing: 14))
         .tint(labelColor)
+    }
+
+    // MARK: Tabs
+
+    @ViewBuilder private var appearance: some View {
+        SwatchPicker(title: "Label color", first: Palette.labelColors, more: Palette.moreLabelColors,
+                     selectedHex: labelRGB.hex, fieldHex: labelRGB.hex,
+                     pick: { labelHex = $0 })
+        SwatchPicker(title: "Letter color", first: Palette.letterColors, more: Palette.moreLetterColors,
+                     autoSelected: letters == .auto,
+                     selectedHex: letterHex, fieldHex: letters.color(on: labelRGB).hex,
+                     pick: { textHex = $0; textMode = LetterMode.color.rawValue },
+                     pickAuto: { textMode = LetterMode.auto.rawValue })
+        sizeSlider
+    }
+
+    @ViewBuilder private var shortcuts: some View {
+        HotkeyRecorder(title: "Show labels", hotkey: hotkeyBinding, accent: labelColor, onRecording: onRecording)
+        // Applied live by main's watcher on the default, as `defaults write` would be.
+        HotkeyRecorder(title: "Scroll",
+                       hotkey: Binding(get: { Hotkey(stored: scrollHotkeyStored) ?? .defaultScroll },
+                                       set: { scrollHotkeyStored = $0.stored }),
+                       accent: labelColor, onRecording: onRecording)
+        ClickKeyRows(stored: $clickKeysStored)
+    }
+
+    @ViewBuilder private var general: some View {
+        settingSwitches
+        HStack {
+            Text("Version \(Self.version)")
+            Spacer()
+            Button("Check for Updates…") {
+                close()
+                updater.checkForUpdates()
+            }
+            .controlSize(.small)
+            .disabled(!updater.canCheckForUpdates)
+        }
+        .frame(minHeight: 26)
     }
 
     private var letterHex: String? {
@@ -202,12 +230,6 @@ struct PanelView: View {
 
     private var footer: some View {
         HStack(spacing: 14) {
-            Button("Check for Updates…") {
-                close()
-                updater.checkForUpdates()
-            }
-            .foregroundStyle(.secondary)
-            .disabled(!updater.canCheckForUpdates)
             Button("Report a Problem") {
                 close()
                 NSWorkspace.shared.open(Self.issues)
@@ -236,6 +258,41 @@ struct PanelView: View {
 extension Color {
     /// Through sRGB, as the overlay draws it.
     init(_ c: RGB) { self.init(.sRGB, red: c.r, green: c.g, blue: c.b) }
+}
+
+/// The panel's sections. One long screen had grown to about 900 pt once each kind of click
+/// got a key, so everything under the preview is split three ways.
+private enum PanelTab: String, CaseIterable {
+    case appearance = "Appearance", shortcuts = "Shortcuts", general = "General"
+}
+
+/// The tabs, drawn by hand: a system segmented control cannot fill its selection with the
+/// label colour, and here what is selected looks like a label.
+private struct TabBar: View {
+    @Binding var selection: PanelTab
+    let fill: Color
+    let text: Color
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(PanelTab.allCases, id: \.self) { tab in
+                let selected = tab == selection
+                Button { selection = tab } label: {
+                    Text(tab.rawValue)
+                        .fontWeight(selected ? .semibold : .regular)
+                        .foregroundStyle(selected ? text : Color.primary.opacity(0.8))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 24)
+                        .background(selected ? fill : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+        }
+        .padding(2)
+        .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+    }
 }
 
 /// A hotkey drawn as one small key per modifier and the key.
