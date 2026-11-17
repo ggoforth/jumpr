@@ -24,6 +24,9 @@ The package has two targets. `JumprCore` is pure logic: no AppKit, no accessibil
 | `Geometry.swift` | `WindowStack`: the on-screen windows front to back, which window is on top at a point, which apps to scan |
 | `Labels.swift` | The label alphabet, label length, label placement (scroll mode's too), `LabelPool` |
 | `LabelSession.swift` | What each key does while labels are up, the kinds of click, and which key gives which (`ClickKeys`) |
+| `PersistentMode.swift` | Persistent mode's rules: which press ends it, the settle moments, which apps a settle window scans, what follows a reconcile, when a session with no labels ends |
+| `PressSequence.swift` | The order of presses in one session: a press in flight, and the label held behind it |
+| `Reconcile.swift` | One rescan of an app turned into keep, move, remove and add; labels another window now covers |
 | `ScrollSession.swift` | What each key does in scroll mode; area letters; where a session starts; the wheel amounts |
 | `PressSafety.swift` | Pressing rules: whether to press at all, `AXPress` or click, where to click, when a click may be sent |
 | `Settings.swift` | `Hotkey`, `RGB`, the label size clamp, and `Keys`, the names of every preference |
@@ -33,7 +36,7 @@ The package has two targets. `JumprCore` is pure logic: no AppKit, no accessibil
 | `UpdatePolicy.swift` | Whether a build carries a real update feed and key |
 | **`Sources/Jumpr`** | |
 | `main.swift` | Wires everything together: pause, quit, trust changes, debug signals |
-| `Controller.swift` | One trigger end to end: window list, scans, painting, typing, cancelling; the web look-again pass |
+| `Controller.swift` | One trigger end to end: window list, scans, painting, typing, cancelling; the web look-again pass; persistent mode's settle window and reconcile |
 | `Scanner.swift` | Runs accessibility work on each app's own serial queue; scans an app's windows and system pieces |
 | `AX.swift` | Thin wrappers over the accessibility API, the per-request timeout, `AXElementNode` |
 | `TreeRegistry.swift` | Switches web-based apps' accessibility trees on, and back off |
@@ -80,7 +83,7 @@ hotkey (event tap, main run loop)
 
 **Nothing accessibility-related runs on the main thread.** The event tap's callback runs on the main run loop and must return at once; if it stalls, typing stalls system-wide. An accessibility request is answered on the target app's own main thread and can take as long as that app is busy. So every accessibility call goes through an app's scan queue, and the main thread only reads the window list, paints and handles keys.
 
-The same session ends on Esc, the hotkey, a match, a display change (overlays are rebuilt), a Space change, a screen lock, and Pause.
+The same session ends on Esc, the hotkey, a match, a display change (overlays are rebuilt), a Space change, a screen lock, and Pause. It also ends once no labels are left and nothing pending could add some, for example when an app quit and took the last ones with it. In persistent mode a match does not end it, and four things do: a matched text field, a right-click, secure input, and no labels left (see [Persistent mode](#persistent-mode)).
 
 ## Scanning
 
@@ -149,6 +152,8 @@ An app "hosts web content" if it is on the built-in Chromium list, on the built-
   - the key for each of those four clicks is a setting (`ClickKeys`, the `clickKeys` preference, four rows in the panel). A key gives one click at most: choosing a key another click has swaps the two. A click set to None cannot be reached, and its old key goes back to being a shortcut; ⇧ with no click set clicks plainly
   - Backspace undoes a letter
   - Esc cancels; the hotkey cancels too (it reaches the controller as a second trigger)
+  - Space switches persistent mode on, and again off (see [Persistent mode](#persistent-mode)). Tab, while it is on, refreshes the labels; with it off, Tab is swallowed like any other plain key
+  - a held key's auto-repeats type nothing, in persistent mode or not: a repeated letter is swallowed, so a label like `AA` takes two taps, and repeats of Space and Tab are swallowed too. A repeated shortcut passes through as before, unless it would pick a label. Backspace repeats. Holding the last letter in persistent mode otherwise typed it again and again, narrowing and then pressing other labels until the key came up
   - any other plain key is swallowed
   - keys with ⌘, ⌃ or ⌥ pass through to the system, so shortcuts keep working while labels are up. The one exception is one of them alone, with a click set for it, on a letter that completes a label (`Key.chord`), which is the click above. With two-letter labels and nothing typed no letter completes one, so ⌘Q still quits
 - **The handler never blocks**: no accessibility calls, no scans. The hotkey's work runs on the main queue's next turn.
@@ -171,9 +176,63 @@ An app "hosts web content" if it is on the built-in Chromium list, on the built-
 
    Once the app is in front, the window is raised again and Jumpr waits a further 50 ms for the window server to catch up. If it never comes, Jumpr clicks anyway and says so in the log. With no window to wait for (a menu bar extra whose `AXPress` failed), the click follows a fixed 40 ms pause instead.
 6. **Click once.** Re-read the frame, since the raise or a failed press may have moved or closed it, and check again as in step 1. Then post one synthetic click at the center of the part that was visible when scanned, as it is now (`clickPoint`), with modifier flags cleared so a key still held from typing the label does not ride along. One click, never two: an app that does pass the first click on would get a double click. The events come from `clickEvents`: a right-click uses the right button, a ⌘-click says ⌘ is held on every event and a ⇧-click says ⇧ is, and a double-click is two presses with the second counted 2, which is how an app tells it from two clicks. Only that second press has its count set, so a plain click is the event it always was.
-7. **Label the opened menu.** If a menu bar item or menu item was pressed and is now selected (its menu or submenu opened), Jumpr triggers again 0.1 s later, unless a session has started meanwhile (`relabelsAfterPress`). Otherwise every menu would take two hotkey presses. Menu bar extras share the menu bar item role but open panels, so they are relabelled only if selected.
+7. **Label the opened menu.** If a menu bar item or menu item was pressed and is now selected (its menu or submenu opened), Jumpr triggers again 0.1 s later, unless a session has started meanwhile (`relabelsAfterPress`). Otherwise every menu would take two hotkey presses. Menu bar extras share the menu bar item role but open panels, so they are relabelled only if selected. The rule does not run for a press that kept a persistent session: its settle window scans the pressed app, where the opened menu's items are new targets (see [Persistent mode](#persistent-mode)).
 
 The log records each press: role, result (`pressed`, `clicked` or `skipped`), the kind of click when it was not a plain one (`right`, `command`, `double` or `shift`), time, the raw `AXPress` error when it was not success, and which activation step worked.
+
+## Persistent mode
+
+Without it, a run of presses takes one hotkey press per step: open a site, press Play now, press Start game. Persistent mode keeps the labels up across presses and, after each, brings them in line with what changed, so one trigger carries the whole run. A thing that did not change keeps its letters, and the menu bar, toolbars and other apps stay labelled while a page reloads.
+
+**Turning it on.** While labels are up, Space switches it on, and Space again switches it off (`LabelSession`). Each trigger starts with it off; it is not remembered. While it is on, the menu bar icon is drawn filled with the J knocked out, as in scroll mode (`StatusItem.holdsHighlight`). The log says `persistent: on` and `persistent: off`. With it off, everything is as described in the rest of this document.
+
+**A press** (`PressSequence`). A full label matches. The session is not cancelled: what was typed is cleared and every label shows again. The press goes through `Presser` as in [Pressing](#pressing), with the click the held key picked, and starting it makes any settle moments still pending stale. When `Presser` reports, whatever the result, a settle window starts. Keys stay captured the whole time.
+
+- **A label typed while a press is in flight is held**, and pressed when that press reports. One is held at a time; a later one replaces it. A label that would end the mode is held too: pressed at once, a search field typed mid-press in another app raced the first press. The log says `persistent: held`.
+- **Space switching the mode off** drops the settle moments still pending and leaves the labels as they are. A held label is not dropped: it was typed, so it is pressed when the press in flight reports, and ends the session as any match does with the mode off (the log says `held` for one held then). With nothing held, the report starts no settle window.
+- **Two presses end the mode first** and take the plain path (`endsPersistentMode`), both decided by role or click, never by app. A target whose role is a text field (`Roles.text`: text field, text area, combo box), in web content or not: the next keys are for the field, and with the session up they would be swallowed as label letters. And a right-click: the menu it opens is not labelled, and its arrow keys and Return would be swallowed. Web text that can take focus (each day in a date picker) is a control, not a text field, so the run goes on.
+
+**The settle window.** A press changes the screen after the app has answered: a menu opens, a page swaps, a window comes forward. So Jumpr looks again at fixed moments after the press reports (`Settle.moments`): 0.15, 0.5, 1.0, 2.0 and 3.5 s. They are one-shot delays caused by the press, not a timer; after the last, nothing runs until the next press. At each moment, on the main thread:
+
+1. If secure input is on (`IsSecureEventInputEnabled`), the session ends: Jumpr can no longer hear Esc.
+2. Read the window list again, as a trigger does.
+3. Drop the labels, in apps not on this moment's list (step 4), whose window is gone or whose target's centre is no longer on top (`coveredLabels`). This is geometry on the window list, with no accessibility call, and covers a new window opening over another app. A label with no window (the menu bar, extras, the Dock) is left alone.
+4. Scan the apps the window watches (`settleApps`): every app pressed into since the last window finished, the app in front at each press, the app in front at each shortcut that passed through, and the app in front now, never Jumpr. The app that was in front before a press is scanned because its menu bar labels have no window, so step 3 cannot drop them when another app comes forward. Each scan goes through `Scanner.scanApp` on the app's own queue, at the priority of a scan the user is waiting on, with the usual budget and request timeout. An app whose previous reconcile scan is still running is skipped at this moment.
+5. Reconcile each scanned app as its results arrive (below), then decide what follows.
+
+A window has finished when its last moment has fired and every scan it started, at any of its moments, has answered (`SettleWindow`). A new press, a new window, Space switching the mode off and every cancel make the moments still pending stale: `settleID` sits beside `generation` under the same rule, so a callback from an older window is dropped before it touches the overlays or the session, and a queued scan stops early.
+
+The moments are the starting values chosen before any measurement, checked on 2026-11-16 on one Mac (macOS 27.0, a development build) with 13 presses in persistent mode across two apps, both web content: a Chromium-based browser and an Electron app. Native apps (Finder, Mail) and Safari have not been measured yet. The latest moment at which a reconcile changed anything was 0.15 s for 4 presses, 0.5 s for 5, 1.0 s for 1 and 2.0 s for 1 (one label); 2 presses changed nothing. The 3.5 s moment ran 9 times and changed nothing; it is kept until native apps are measured. One reconcile took a median 27 ms in the browser (17 to 79 ms over 29) and 49 ms in the Electron app (33 to 103 ms over 27); none of the 56 was incomplete. A plain trigger is not slower: a median 88 ms over 13 triggers, against 103 ms before persistent mode was added, on the same Mac with about 20 apps and 170 to 250 labels.
+
+**Reconcile** (`Reconcile`, pure). It takes the labels placed in one app (element, letters, target rectangle) and compares the scan's targets with them by element identity:
+
+| Scan says | Result |
+|---|---|
+| Same element, same rectangle | Keep |
+| Same element, new rectangle | Move the label; same letters |
+| Element no longer there | Remove, only if the scan was complete |
+| New element | Add, with letters from the pool |
+
+Adds and moves are painted as each window's result arrives. Removals wait for the app's last result, because a target missing from one window's result may be in another's. If, after a removal, no label starts with what was typed, the typed letters are cleared and every label shows (`clearTypedIfNothingMatches`); otherwise every key would be swallowed until Backspace. Each reconcile writes one log line: `reconcile <app>: kept K moved M removed R added A, T ms`, ending in `incomplete` when the scan was.
+
+**Completeness.** A scan is complete only if everything in it answered. It is not complete if the app gave no result at all, if a window could be matched to no window-server ID, if a walk ran out of budget, or if an element's request failed inside a walk, which skips that element's subtree (`WalkResult.unanswered`). A reconcile from an incomplete scan adds and moves but removes nothing: a partial answer says nothing about what it did not reach, and a busy app would otherwise lose labels it still has.
+
+**Letters.** The label length is fixed for the session, as for a trigger. A removed label's letters go back to the pool (`LabelPool.release`), but letters never handed out in this session come first, and released ones only after those, oldest first: a button that just vanished (Play turning into Pause) must not have its letters land on another button a moment later. If the pool runs out, the targets left without letters are counted per app, each scan's count replacing that app's last. After a reconcile, if that count calls for longer labels than the ones in use, Jumpr runs one fresh trigger with persistent mode kept on, sized from the new count, and a settle window follows over the apps the old one watched (`afterReconcile`, `Controller.refresh`). If it does not, the run carries on with what fits, since a fresh trigger would only run out again. A press in flight, and a label held behind it, carry across the refresh (`PressSequence.carried`), and that press's report starts the window.
+
+**What ends it.** Everything that ends a session ends this one too (see [The trigger, end to end](#the-trigger-end-to-end)), except a match. Four things end it that do not end a plain session, each decided by role or by a system flag, never by app, and each writes its reason to the log:
+
+- a matched text field: `persistent: ended, text field`
+- a right-click: `persistent: ended, right-click`
+- secure input, found on at a settle moment or a Tab: `persistent: ended, secure input`. Jumpr reads only the system's yes or no.
+- no labels left, with nothing pending that could add some: no trigger scans still out, no settle window running, no press in flight (`endsForWantOfLabels`): `persistent: ended, no labels`. A page swap removes the old page's labels at one moment and the new page's arrive at the next, so this waits. The same rule ends a plain session (`cancelled: no labels`), including one left with no labels after Space switched the mode off. When an app quits while labels are up, its labels go at once, in either mode, rather than waiting for a settle moment.
+
+Focus moving into a text field by some other route does not end the mode. A search icon that opens a field, or ⌘L, leaves the labels up: press Esc, then type. A rule that ended the mode on any such move was left out: a chat app puts focus in its message box after every press, so the run would end after one step, and there is no count across apps to support it.
+
+**Changes Jumpr did not press.**
+
+- A shortcut that passes through (a key with ⌘, ⌃ or ⌥: ⌘T, ⌘W, ⌘Tab) starts a settle window for the app in front, as a press does. A held shortcut that repeats restarts the window.
+- Tab refreshes: one reconcile, straight away, across every app a trigger would scan, with the same comparison and the same check for secure input. It replaces any settle window in progress. It is for changes made with the mouse or trackpad.
+- Nothing else is watched. A page that changes by itself, a mouse click or a scroll leaves labels that may be stale until the next press, shortcut or Tab.
 
 ## Scroll mode
 
@@ -218,7 +277,7 @@ While nothing is outlined the scroll keys do nothing. Any scroll hides the lette
 
 **Start at login** is opt-in: off until the user turns it on in the panel, backed by `SMAppService.mainApp`, and Jumpr only reads its state otherwise.
 
-**The log** is `~/Library/Logs/Jumpr.log`: launch, trust, pause, lock, tree switching, each trigger's readout lines, each press, scroll mode turning on and off with the reason, each app's area count and time, each scroll (app and amount), updates. It names apps and element roles; Jumpr never reads element text. Past about 1 MB (`LogFile.cap`) it moves to `Jumpr.log.1`, replacing the one there, and starts again, so a copy left running for months cannot fill a disk.
+**The log** is `~/Library/Logs/Jumpr.log`: launch, trust, pause, lock, tree switching, each trigger's readout lines, each press, persistent mode turning on and off, each label held behind a press, each reconcile (app, counts and time) and why persistent mode ended, scroll mode turning on and off with the reason, each app's area count and time, each scroll (app and amount), updates. It names apps and element roles; Jumpr never reads element text. Past about 1 MB (`LogFile.cap`) it moves to `Jumpr.log.1`, replacing the one there, and starts again, so a copy left running for months cannot fill a disk.
 
 **Preferences** (names in `Keys`): `hotkey`, `scrollHotkey`, `clickKeys` (for example `right=shift,command=command,double=option,shift=control`; a click left out has no key), `labelSize`, `labelColor`, `labelTextColor`, `labelTextMode` (`auto` or `color`), `paused`, `showReadout`, `showAdvancedSettings`, and `webHostApps`, which is not a setting but Jumpr's remembered list of web-hosting apps. Sparkle keeps its own settings. Both shortcuts, readout and pause changes apply live through `DefaultsWatcher`, including changes made with `defaults write`; label settings and the click keys apply on the next trigger.
 
@@ -249,6 +308,18 @@ Jumpr has no Dock icon and is rarely the active app, so a scheduled update alert
 - If both shortcuts are set to the same combination, the label hotkey wins and scroll mode cannot be reached.
 - While labels are up, ⌘ or ⌥ with a letter that completes a label is a click, not the shortcut. That takes a letter typed first, or a trigger with one-letter labels.
 - The menu a right-click opens is not labelled: only a menu opened by `AXPress` on a menu bar item or menu item is (step 7 of Pressing). Whether a trigger labels an open context menu at all has not been checked. The arrow keys work in it.
+- In persistent mode, changes made with the mouse or trackpad are not seen until the next press, shortcut or Tab.
+- A page that takes longer than the settle window (3.5 s) gets its labels on Tab.
+- If secure input begins after the settle window has closed, the labels stay up, and neither Esc nor the hotkey reaches Jumpr, until focus leaves the password field.
+- A press that opens a text field without being one (a search icon) leaves the labels up. Esc, then type.
+- A right-click ends persistent mode, because the menu it opens is not labelled.
+- An element an app rebuilds gets a new identity and so new letters, even if it looks the same.
+- In persistent mode, labels cover the page while it is being read. Nothing is done about this yet.
+- A second Tab while the first refresh is still scanning does less than one: it makes the first refresh's results stale, and skips every app whose scan from it is still running.
+- A refresh, or a settle window's last moment, skips an app whose earlier scan is still running, so what that app shows afterwards waits for the next press or Tab.
+- The look-again pass after a trigger uses the trigger's window list, so in its first seconds it can add back a label that a newly opened window covers.
+- Tab, or a shortcut that passes through, while a press is in flight starts a settle window whose moments fire during the press.
+- A ⌘-letter held after a ⌘-click match passes through to the app on repeat, as it did before persistent mode.
 - The three other clicks are checked by hand only. Not yet checked: whether ⌥, still held from the label, changes how an app comes forward.
 - `JumprCore` is unit-tested; the app shell in `Sources/Jumpr` has no unit tests and is checked by running the app.
 
