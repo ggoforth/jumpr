@@ -51,9 +51,6 @@ final class Controller {
     private var pendingApps = 0
     /// Whether a press is in flight and the label typed meanwhile (`PressSequence`).
     private var presses = PressSequence()
-    /// The generation a press in flight was made under when a refresh (`refresh`) replaced
-    /// its session: its report names that generation and still belongs to this session.
-    private var carriedPress: Int?
     /// The apps the next settle window scans, and whether the current one has finished.
     private var settle = SettleWindow()
     /// Identifies the current settle window, beside `generation` and under the same rule: a
@@ -572,12 +569,11 @@ final class Controller {
 
     /// `Presser` reported on a press made under `generation`. A press from an earlier
     /// session, or one made as the session ended (today's path cancels first), finds no
-    /// current session and does nothing, unless a refresh carried it over (`carriedPress`).
+    /// current session and does nothing, unless a refresh carried it over (`refresh`).
     /// The held label, if any, is pressed now; with none held, the settle window starts, or
     /// with the mode switched off meanwhile nothing more is coming for this press.
     func pressFinished(generation gen: Int) {
-        guard isCurrent(gen) || (isActive && gen == carriedPress) else { return }
-        carriedPress = nil
+        guard isActive, presses.counts(report: gen, session: generation) else { return }
         // `.hold` never comes from a report: nothing is in flight to wait for.
         guard let step = presses.reported(persistent: session.persistent), case .press(let m, let keeps) = step else {
             if session.persistent { startSettle() } else { endIfNoLabels() }
@@ -723,14 +719,17 @@ final class Controller {
     private func refresh(touched: Set<Int32>) {
         lastTotal = placed.count + overflow  // the fresh trigger sizes from this
         let inFlight = presses
-        let pressGeneration = presses.inFlight ? (carriedPress ?? generation) : nil
+        let from = generation
         cancel()
         trigger(persistent: true)
         guard isActive else { return }  // paused, locked, or nothing to scan
         presses = inFlight
-        carriedPress = pressGeneration
+        presses.carried(from: from, into: generation)
         touched.forEach { settle.touch($0) }
-        startSettle()
+        // With a press in flight its report starts the window, as `press` arranges: moments
+        // firing mid-press queue scans behind it, and those scans, still running, made the
+        // report's window skip the app at its first moment.
+        if !presses.inFlight { startSettle() }
     }
 
     // MARK: - Colours
@@ -768,7 +767,6 @@ final class Controller {
         // scroll shortcut cancels labels on its way in.
         if session.persistent { onPersistentChanged(false) }
         presses.reset()
-        carriedPress = nil
         settle.reset()
         session = LabelSession()
         pendingApps = 0

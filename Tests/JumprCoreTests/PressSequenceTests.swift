@@ -99,3 +99,62 @@ private func match(_ id: Int, role: String = "AXButton", kind: ClickKind = .plai
     #expect(p.held == nil)
     #expect(p.matched(match(3), persistent: true) == .press(match(3), keepsSession: true))
 }
+
+// MARK: - A press carried across a refresh
+
+// Tab during a press in flight; Tab's reconcile finds the letters run out and the labels
+// refresh, so the session at generation 3 becomes one at 5. The press was started under 3
+// and its report names 3: it is still this session's press.
+@Test func aPressCarriedAcrossARefreshStillReportsToTheSession() {
+    var p = PressSequence()
+    _ = p.matched(match(1), persistent: true)
+    p.carried(from: 3, into: 5)
+    #expect(p.counts(report: 3, session: 5))
+    #expect(p.counts(report: 5, session: 5))
+}
+
+// The fresh labels ran out again before the press reported: a second refresh, 5 to 7. The
+// report still names 3, the generation the press was started under.
+@Test func aSecondRefreshKeepsTheGenerationThePressWasStartedUnder() {
+    var p = PressSequence()
+    _ = p.matched(match(1), persistent: true)
+    p.carried(from: 3, into: 5)
+    p.carried(from: 5, into: 7)
+    #expect(p.counts(report: 3, session: 7))
+    #expect(!p.counts(report: 5, session: 7))
+}
+
+// Esc, then the hotkey again: a press from the old session reports into the new one. It was
+// never carried, so it does not count.
+@Test func aReportFromAnOlderSessionThatWasNeverCarriedDoesNotCount() {
+    var p = PressSequence()
+    _ = p.matched(match(1), persistent: true)
+    #expect(!p.counts(report: 3, session: 5))
+}
+
+// The carried press, then Esc: any other cancel forgets it, and its late report finds nothing.
+@Test func afterAResetTheCarriedPressIsGoneAndItsLateReportDoesNotCount() {
+    var p = PressSequence()
+    _ = p.matched(match(1), persistent: true)
+    p.carried(from: 3, into: 5)
+    p.reset()
+    #expect(!p.counts(report: 3, session: 5))
+}
+
+// The carried press reports: nothing is in flight, and a second report under its generation
+// no longer counts.
+@Test func nothingIsLeftInFlightOnceTheCarriedPressReports() {
+    var p = PressSequence()
+    _ = p.matched(match(1), persistent: true)
+    p.carried(from: 3, into: 5)
+    #expect(p.reported(persistent: true) == nil)
+    #expect(!p.inFlight)
+    #expect(!p.counts(report: 3, session: 5))
+}
+
+// A refresh with nothing in flight carries nothing: an old report still does not count.
+@Test func aRefreshWithNoPressInFlightCarriesNothing() {
+    var p = PressSequence()
+    p.carried(from: 3, into: 5)
+    #expect(!p.counts(report: 3, session: 5))
+}
