@@ -74,7 +74,7 @@ let panel = NSHostingController(rootView: PanelView(
     },
     onHotkey: { applyHotkey($0) },  // usually already applied by `hotkeyWatcher`
     onboarding: onboarding, loginItem: loginItem, updater: updaterController))
-// The popover follows the panel's size as banners and "More" come and go.
+// The popover follows the panel's size as banners come and go and the tab changes.
 panel.sizingOptions = [.preferredContentSize]
 statusItem.panel = panel
 statusItem.willShow = { loginItem.refresh() }  // the status can change outside Jumpr

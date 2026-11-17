@@ -6,7 +6,7 @@ import SwiftUI
 /// combination. While recording, `onRecording(true)` has suspended Jumpr's own key
 /// listener so the keys reach the panel.
 struct HotkeyRecorder: View {
-    var title = "Shortcut"
+    let title: String
     @Binding var hotkey: Hotkey
     var accent: Color
     var onRecording: (Bool) -> Void

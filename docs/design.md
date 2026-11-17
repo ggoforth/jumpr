@@ -30,7 +30,7 @@ The package has two targets. `JumprCore` is pure logic: no AppKit, no accessibil
 | `ScrollSession.swift` | What each key does in scroll mode; area letters; where a session starts; the wheel amounts |
 | `PressSafety.swift` | Pressing rules: whether to press at all, `AXPress` or click, where to click, when a click may be sent |
 | `Settings.swift` | `Hotkey`, `RGB`, the label size clamp, and `Keys`, the names of every preference |
-| `LabelColor.swift` | The panel's preset colours, the letter colour (`Letters`, including Auto: black or white by relative luminance) and the exact-colour field's input |
+| `LabelColor.swift` | The panel's palette (`Palette`: ten hues in a light, a vivid and a deep row, shared by the label and its letters), the letter colour (`Letters`, including Auto: black or white by relative luminance) and the hex field's input |
 | `DisplayGeometry.swift` | Conversion between AppKit's bottom-left display frames and the global top-left coordinates used everywhere else |
 | `LogFile.swift` | The log size cap and when to rotate |
 | `UpdatePolicy.swift` | Whether a build carries a real update feed and key |
@@ -50,7 +50,7 @@ The package has two targets. `JumprCore` is pure logic: no AppKit, no accessibil
 | `Activation.swift` | Ways to bring another app forward, mildest first |
 | `Readout.swift` | Per-trigger timing, always logged, optionally drawn on screen |
 | `Onboarding.swift` | The Accessibility permission; `LoginItem` (start at login) |
-| `Panel.swift`, `HotkeyRecorder.swift` | The panel under the menu bar icon, which holds every setting (the only SwiftUI), and its hotkey recorder |
+| `Panel.swift`, `HotkeyRecorder.swift` | The panel under the menu bar icon, which holds every setting on three tabs, Appearance, Shortcuts and General, under a header and preview that stay put (the only SwiftUI), and its hotkey recorder. The open tab is not stored |
 | `StatusItem.swift` | The menu bar icon and the popover that shows the panel; the icon drawn filled while Jumpr has the keys |
 | `UpdaterController.swift` | Sparkle |
 | `PowerSource.swift` | Tracks whether the screen is locked, asleep or showing the screen saver |
@@ -149,7 +149,7 @@ An app "hosts web content" if it is on the built-in Chromium list, on the built-
 - **Labels up or scroll mode on** (`capturing`). Plain keys go to `LabelSession`, or in scroll mode to `ScrollSession` (see [Scroll mode](#scroll-mode)). For labels:
   - a letter that extends a label narrows (labels that no longer match are hidden); one that completes a label matches; one that matches nothing is swallowed
   - what is held on the letter that completes a label picks the click (`ClickKind`): nothing a click, and by default ⇧ a right-click, ⌘ a ⌘-click, ⌥ a double-click and ⌃ a ⇧-click (a click with ⇧ held, which selects from the selected row to this one). ⇧ on an earlier letter only narrows. ⇧ is the right-click in Vimac and Homerow, and ⌘ the ⌘-click in Homerow, Shortcat and Wooshy; ⌥ for the double-click is Jumpr's own, since a ⌃-click is already a right-click on macOS, and the ⇧-click took ⌃, the one key left
-  - the key for each of those four clicks is a setting (`ClickKeys`, the `clickKeys` preference, four rows in the panel). A key gives one click at most: choosing a key another click has swaps the two. A click set to None cannot be reached, and its old key goes back to being a shortcut; ⇧ with no click set clicks plainly
+  - the key for each of those four clicks is a setting (`ClickKeys`, the `clickKeys` preference, four rows on the panel's Shortcuts tab, one menu each). A key gives one click at most: choosing a key another click has swaps the two. A click set to None cannot be reached, and its old key goes back to being a shortcut; ⇧ with no click set clicks plainly
   - Backspace undoes a letter
   - Esc cancels; the hotkey cancels too (it reaches the controller as a second trigger)
   - Space switches persistent mode on, and again off (see [Persistent mode](#persistent-mode)). Tab, while it is on, refreshes the labels; with it off, Tab is swallowed like any other plain key
