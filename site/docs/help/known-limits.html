@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Known limits: Jumpr docs</title>
+  <meta name="description" content="What Jumpr can't label, click or hear yet, and what to do instead.">
+  <meta name="color-scheme" content="light dark">
+  <link rel="canonical" href="https://getjumpr.app/docs/help/known-limits.html">
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../../site.css">
+  <link rel="stylesheet" href="../docs.css">
+  <script src="../../analytics.js" defer></script>
+  <script src="../docs.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="site-header docs-header">
+    <a class="brand" href="../../index.html" aria-label="Jumpr home"><span class="brand-mark" aria-hidden="true">J</span>Jumpr</a>
+    <nav class="header-nav" aria-label="Site">
+      <a class="header-link" href="../index.html" aria-current="page">Docs</a>
+      <a class="header-link wide" href="../../changelog.html">Changelog</a>
+      <a class="header-link wide" href="https://github.com/ggoforth/jumpr">GitHub</a>
+      <a class="header-link" href="https://github.com/ggoforth/jumpr/releases/latest/download/Jumpr.zip">Download</a>
+    </nav>
+  </header>
+
+  <div class="docs" id="docs">
+    <button class="docs-menu" id="docs-menu" type="button" aria-controls="docs-side" aria-expanded="false"><b>Browse docs</b><span>Known limits</span></button>
+    <nav class="docs-side" id="docs-side" aria-label="Docs"><a href="../index.html">Overview</a><a href="../getting-started.html">Getting started</a><p class="docs-group"><a href="../using/index.html">Using Jumpr</a></p><a href="../using/labels-and-keys.html">Labels and keys</a><a href="../using/kinds-of-click.html">Kinds of click</a><a href="../using/persistent-mode.html">Persistent mode</a><a href="../using/scrolling.html">Scrolling</a><a href="../using/the-panel.html">The panel</a><p class="docs-group"><a href="index.html">Help</a></p><a href="accessibility.html">The Accessibility permission</a><a href="updates.html">Updates</a><a href="known-limits.html" aria-current="page">Known limits</a><a href="reporting-a-problem.html">Reporting a problem</a></nav>
+    <main class="docs-content" id="main">
+      <header class="docs-hero">
+        <div>
+          <p class="docs-crumb"><i aria-hidden="true"></i>Help</p>
+          <h1>Known limits</h1>
+          <p class="docs-lede">What Jumpr can't label, click or hear yet, and what to do instead.</p>
+        </div>
+        <button class="docs-copy" id="docs-copy" type="button" data-md="known-limits.md" title="Copy this page as Markdown, to paste into any AI">Copy for AI</button>
+      </header>
+      <div class="docs-main">
+        <article class="docs-article">
+<h2 id="labels">Labels</h2>
+<ul><li>Widgets on the desktop have no labels.</li><li>While Notification Center is open, windows behind it on that display have no labels, because a click outside it only closes it.</li><li>Menu bar icons are found by remembering which apps own one. If an app adds its icon later, it has no label until Jumpr next checks: at unlock, when Jumpr resumes, or when an app launches or first comes to the front.</li><li>The menu a right-click opens gets no labels of its own. Use the arrow keys in it.</li><li>A menu opened by a pop-up button or menu button gets no labels either.</li><li>An element an app does not show to accessibility can't get a label.</li></ul>
+<h2 id="keys">Keys</h2>
+<ul><li>While a password field has keyboard focus, macOS keeps keystrokes from reaching Jumpr, so neither the hotkey nor <kbd>Esc</kbd> works.</li><li>While labels are up, <kbd>⌘</kbd>, <kbd>⌥</kbd> or <kbd>⌃</kbd> with the letter that completes a label clicks instead of running that shortcut, unless that key's click is set to <strong>None</strong>.</li></ul>
+<h2 id="web-pages-and-web-based-apps">Web pages and web-based apps</h2>
+<ul><li>Web pages in a browser can take a moment to get their labels the first time, because browsers build that information on request. The labels arrive while the others are still up.</li><li>A web-based app that was covered by other windows when Jumpr started gets its labels when the app first comes to the front. If you uncover it some other way, the first press may show few labels for it and the next is complete.</li><li>Jumpr turns on accessibility information in web-based apps so it can see them. When you pause or quit, it turns off everything it turned on, including anything another tool had turned on too. If Jumpr loses the Accessibility permission while it runs, it can't turn them off, and they stay on until those apps quit.</li></ul>
+<h2 id="persistent-mode">Persistent mode</h2>
+<ul><li>Changes made with the mouse or trackpad are not seen until the next label click, shortcut or <kbd>Tab</kbd>.</li><li>An element an app rebuilds gets new letters, even if it looks the same.</li><li>Labels cover the page while you read it.</li></ul>
+<h2 id="scroll-mode">Scroll mode</h2>
+<ul><li>Every area gets a letter, including ones with nothing to scroll. Picking one does nothing.</li><li>Scroll mode scrolls up and down only.</li><li>A web-based app may show no areas until you have pressed the label hotkey once.</li></ul>
+
+<footer class="docs-foot"><a href="updates.html" class="prev"><small>← Previous</small>Updates</a><a href="reporting-a-problem.html" class="next"><small>Next →</small>Reporting a problem</a></footer>
+        </article>
+        <aside class="docs-toc" aria-label="On this page"><h2>On this page</h2><a href="#labels">Labels</a><a href="#keys">Keys</a><a href="#web-pages-and-web-based-apps">Web pages and web-based apps</a><a href="#persistent-mode">Persistent mode</a><a href="#scroll-mode">Scroll mode</a></aside>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

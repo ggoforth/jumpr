@@ -23,5 +23,7 @@ jobs:
         run: swift --version
       - name: Check the release notes
         run: swift scripts/release-notes.swift check
+      - name: Check the built docs
+        run: node scripts/build-docs.mjs --check
       - name: Run the tests
         run: swift test

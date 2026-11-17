@@ -38,47 +38,13 @@ What Jumpr does with it:
 2. Type the two letters of the label you want. Each letter you type hides the labels that don't match.
 3. When the letters match, Jumpr clicks.
 
-| Key | What it does |
-|---|---|
-| Backspace | Undoes the last letter |
-| Esc | Cancels |
-| The hotkey again | Cancels |
-| Space | Turns persistent mode on, or off again |
-| Tab | In persistent mode, updates the labels after a change you made with the mouse |
+The [docs](https://getjumpr.app/docs/) cover the rest:
 
-Persistent mode is for a run of clicks, such as opening a site, then Play, then Start. While it is on, the labels stay up after each click and update to match what the click changed. Things that did not change keep their letters, and the menu bar icon is shown filled. Esc ends it, and so does clicking into a text field, clicking a button that opens a menu, or a right-click, so the keys go back to you.
-
-Hold a key on the last letter of a label for another kind of click:
-
-| Hold on the last letter | Click |
-|---|---|
-| ⇧ | Right-click |
-| ⌘ | ⌘-click, which opens a link in a new tab |
-| ⌥ | Double-click |
-| ⌃ | ⇧-click, which selects from the selected row to this one |
-
-Those are the keys Jumpr starts with. The panel lets you give each click another key, or none.
-
-Click the menu bar icon for Jumpr's panel. At the top it has a switch that turns Jumpr on and off (off is a pause: the hotkey does nothing) and a preview of the labels. At the bottom are Report a Problem and Quit. Between them are three tabs:
-
-- **Appearance:** label color, letter color and label size. One palette serves both colors: choose Label or Letters above it, then a color. Auto letters are black or white, whichever reads better on the label.
-- **Shortcuts:** the hotkey, the scroll shortcut, and the key for each kind of click. Choosing a key another click has swaps the two.
-- **General:** Start at login (off until you turn it on), whether Jumpr checks for updates on its own, and Check for Updates…
-
-### Scrolling
-
-Press ⌘⇧J to turn on scroll mode. Every scrollable area on every display gets a letter, and the one you scrolled last in that window (or the one holding the keyboard focus) is already outlined. Your pointer never moves.
-
-| Key | What it does |
-|---|---|
-| J / K | Scrolls the outlined area down / up a line |
-| D / U | Half the area's height down / up |
-| G / Shift G | To the top / the bottom |
-| An area's letter | Outlines that area instead |
-| F | Brings the letters back |
-| Esc, or ⌘⇧J again | Leaves scroll mode |
-
-Holding a key keeps scrolling. While scroll mode is on, Jumpr takes the keys and the menu bar icon is shown filled; shortcuts with ⌘, ⌃ or ⌥ still work. A click anywhere, switching apps, locking the screen or pausing Jumpr also leaves it.
+- [Labels and keys](https://getjumpr.app/docs/using/labels-and-keys.html): every key that works while labels are up.
+- [Kinds of click](https://getjumpr.app/docs/using/kinds-of-click.html): right-click, ⌘-click, double-click and ⇧-click.
+- [Persistent mode](https://getjumpr.app/docs/using/persistent-mode.html): keep the labels up for a run of clicks.
+- [Scrolling](https://getjumpr.app/docs/using/scrolling.html): scroll any area from the keyboard.
+- [The panel](https://getjumpr.app/docs/using/the-panel.html): colors, label size, shortcuts and the switch that pauses Jumpr.
 
 ## Updates
 
@@ -121,6 +87,7 @@ Things to know when you work on it:
 - A build from source is a development build. It shows version 0.1.0, never updates itself, and shares the bundle ID, preferences and log of an installed Jumpr. `make run` stops the installed copy; reopen it from Applications when you are done.
 - macOS ties the Accessibility permission to the signature. If you also have the released Jumpr installed, its entry in System Settings does not cover your build: remove the entry and add your build, or run `tccutil reset Accessibility com.greggoforth.jumpr` and grant it again.
 - [docs/design.md](docs/design.md) explains how it works: the scan, web content, labels, keys and pressing.
+- The docs on the website are written in `docs-src/`, one Markdown file per page. `make docs` builds them into `site/docs/` (it needs Node, and no packages); [docs-src/README.md](docs-src/README.md) says how to write a page.
 - The logic lives in `Sources/JumprCore` and is covered by `make test`. `Sources/Jumpr` is the app around it (windows, the key listener, accessibility calls) and has no unit tests.
 - Start Jumpr with `JUMPR_DEBUG_LABELS=1` in its environment to log every label's position. That also logs the label letters you type, so leave it off otherwise.
 
@@ -128,15 +95,7 @@ Things to know when you work on it:
 
 ## Known limits
 
-- Widgets on the desktop have no labels.
-- While Notification Center is open, windows behind it on that display have no labels, because a click outside it only closes it.
-- Web pages in a browser can take a moment to get their labels the first time, because browsers build that information on request.
-- A web-based app that was covered by other windows when Jumpr started gets its labels when the app first comes to the front. If you uncover it some other way, the first press may show few labels for it and the next is complete.
-- Menu bar icons are found by remembering which apps own one. If an app adds its icon later, it has no label until Jumpr next checks (at unlock, resume, or when an app launches or first comes to the front).
-- While a password field has keyboard focus, macOS keeps keystrokes from reaching Jumpr, so neither the hotkey nor Esc works.
-- The menu a right-click opens gets no labels of its own. Use the arrow keys in it.
-- While labels are up, ⌘, ⌥ or ⌃ with the letter that completes a label clicks instead of running that shortcut, unless that key's click is set to None.
-- Jumpr turns on accessibility information in web-based apps so it can see them. When you Pause or Quit, it turns off everything it turned on, including anything another tool had turned on too. If Jumpr loses the Accessibility permission while it runs, it can't turn them off, and they stay on until those apps quit.
+What Jumpr cannot label or click yet, and why, is in the docs: [Known limits](https://getjumpr.app/docs/help/known-limits.html).
 
 ## Reporting a problem
 
