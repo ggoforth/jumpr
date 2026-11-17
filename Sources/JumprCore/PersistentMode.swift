@@ -42,10 +42,12 @@ public enum AfterReconcile: Equatable {
 /// Decides, once an app's reconcile is done, whether the run goes on.
 /// A pool that ran out (`overflow`) left targets with no letters; a fresh trigger gives
 /// everything letters at a length sized for the new count. No labels left ends the session
-/// only at the last moment: a page swap removes the old page's labels at one moment and its
-/// new labels arrive at the next.
-public func afterReconcile(overflow: Int, labelsLeft: Int, lastMoment: Bool) -> AfterReconcile {
+/// only once the settle window has finished, the last app of its last moment answered: a
+/// page swap removes the old page's labels at one moment and its new labels arrive at the
+/// next, and an app that answers first with nothing placed says nothing about another app
+/// still scanning in the same moment.
+public func afterReconcile(overflow: Int, labelsLeft: Int, windowFinished: Bool) -> AfterReconcile {
     if overflow > 0 { return .refresh }
-    if lastMoment && labelsLeft == 0 { return .end }
+    if windowFinished && labelsLeft == 0 { return .end }
     return .carryOn
 }

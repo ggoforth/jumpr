@@ -38,19 +38,20 @@ import Testing
 // A page that loads a long list mid-run can need more labels than the pool holds: once that
 // app's reconcile is done, one fresh trigger gives everything letters at a longer length.
 @Test func aPoolThatRanOutRefreshesTheLabelsOnceTheAppIsReconciled() {
-    #expect(afterReconcile(overflow: 3, labelsLeft: 40, lastMoment: false) == .refresh)
-    #expect(afterReconcile(overflow: 1, labelsLeft: 0, lastMoment: true) == .refresh)
+    #expect(afterReconcile(overflow: 3, labelsLeft: 40, windowFinished: false) == .refresh)
+    #expect(afterReconcile(overflow: 1, labelsLeft: 0, windowFinished: true) == .refresh)
 }
 
 // Pressing the last labelled button (a dialog's OK that closes it) leaves nothing to type at;
 // a capturing session would only swallow keys, as a trigger with no labels cancels today.
-@Test func noLabelsLeftOnceTheSettleWindowEndsEndsTheSession() {
-    #expect(afterReconcile(overflow: 0, labelsLeft: 0, lastMoment: true) == .end)
-    #expect(afterReconcile(overflow: 0, labelsLeft: 5, lastMoment: true) == .carryOn)
+@Test func noLabelsLeftOnceEveryAppInTheSettleWindowHasAnsweredEndsTheSession() {
+    #expect(afterReconcile(overflow: 0, labelsLeft: 0, windowFinished: true) == .end)
+    #expect(afterReconcile(overflow: 0, labelsLeft: 5, windowFinished: true) == .carryOn)
 }
 
-// A page swap removes the old page's labels at 0.15 s and its new labels arrive at 0.5 s:
-// an empty screen at an early moment does not end the session.
-@Test func noLabelsLeftBeforeTheLastMomentLetsTheSettleWindowGoOn() {
-    #expect(afterReconcile(overflow: 0, labelsLeft: 0, lastMoment: false) == .carryOn)
+// A page swap removes the old page's labels at 0.15 s and its new labels arrive at 0.5 s;
+// and at the last moment Finder may answer with nothing placed while Safari, scanned in the
+// same moment, has not answered yet. Neither ends the session: only the whole window can.
+@Test func noLabelsLeftBeforeEveryAppInTheSettleWindowHasAnsweredLetsItGoOn() {
+    #expect(afterReconcile(overflow: 0, labelsLeft: 0, windowFinished: false) == .carryOn)
 }

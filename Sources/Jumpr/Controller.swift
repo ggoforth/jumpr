@@ -614,7 +614,9 @@ final class Controller {
                                            name, rec.kept, moved, removed, added, (now() - t0) * 1000,
                                            rec.complete ? "" : " incomplete"))
                                 left -= 1
-                                switch afterReconcile(overflow: overflow, labelsLeft: placed.count, lastMoment: last) {
+                                // The window has finished once every app of its last moment answered.
+                                let finished = last && left == 0
+                                switch afterReconcile(overflow: overflow, labelsLeft: placed.count, windowFinished: finished) {
                                 case .refresh:
                                     lastTotal = placed.count + overflow  // the fresh trigger sizes from this
                                     cancel()
@@ -623,14 +625,15 @@ final class Controller {
                                     log("persistent: ended, no labels")
                                     cancel()
                                 case .carryOn:
-                                    if last && left == 0 { settleEnded() }
+                                    if finished { touched = [] }
                                 }
                             })
         }
     }
 
-    /// The last moment of a settle window is done: what was touched has been looked at, and a
-    /// session with nothing left to type at ends, as a trigger with no labels does.
+    /// The last moment of a settle window started no scan, so it has finished here: what was
+    /// touched has been looked at, and a session with nothing left to type at ends, as a
+    /// trigger with no labels does.
     private func settleEnded() {
         touched = []
         if placed.isEmpty {
