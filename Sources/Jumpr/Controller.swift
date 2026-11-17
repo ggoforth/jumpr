@@ -627,6 +627,7 @@ final class Controller {
             var moved = 0
             var added = 0
             var removed = 0
+            var results = 0
             let t0 = now()
             scanner.scanApp(pid: pid, stack: stack, screens: screens, frontPid: front, isDock: isDock, background: false,
                             isStale: { [sharedGeneration, sharedSettleID] in
@@ -634,6 +635,7 @@ final class Controller {
                             },
                             each: { [weak self] s in
                                 guard let self, isCurrent(gen), settleID == id else { return }  // stale: drop
+                                results += 1
                                 if s.incomplete { rec.noteIncomplete() }
                                 CATransaction.begin()
                                 CATransaction.setDisableActions(true)
@@ -655,7 +657,9 @@ final class Controller {
                                 guard let self else { return }
                                 scanning.remove(pid)
                                 guard isCurrent(gen), settleID == id else { return }  // stale: drop
-                                if !complete { rec.noteIncomplete() }
+                                // No result at all: the app-level request failed fast, so the
+                                // scan saw none of the app and says nothing about its labels.
+                                if !complete || results == 0 { rec.noteIncomplete() }
                                 // Removals wait for the app's last window: a target missing
                                 // from one window's result may be in another's.
                                 for label in rec.removals() where placed[label]?.target.id == ids[label] {

@@ -82,7 +82,7 @@ final class Scanner {
     /// `pid`'s queue (inside `perform`), never from the main thread.
     func appWindows(pid: Int32) -> [(id: WindowID, element: AXUIElement)] {
         guard let a = axMulti(axApp(pid), windowsAttr), a.count == 1 else { return [] }
-        return resolveWindows(axElements(a[0]), pid: pid, stack: nil)
+        return resolveWindows(axElements(a[0]), pid: pid, stack: nil).wins
     }
 
     /// Every window of the app plus its system pieces, under one per-app budget.
@@ -116,7 +116,7 @@ final class Scanner {
                 return
             }
 
-            let wins = resolveWindows(axElements(a[0]), pid: pid, stack: stack)
+            let (wins, unresolved) = resolveWindows(axElements(a[0]), pid: pid, stack: stack)
             let ids = Set(wins.map(\.id))
             for w in wins {
                 if isStale() { cut = true; return }
@@ -128,9 +128,13 @@ final class Scanner {
                 }
             }
             if isStale() { cut = true; return }
-            deliver(scanSystem(pid: pid, app: app, isDock: false, isFront: pid == frontPid,
-                               pieces: (axElementValue(a[1]), axElementValue(a[2])),
-                               screens: screens, stack: stack, deadline: deadline))
+            var system = scanSystem(pid: pid, app: app, isDock: false, isFront: pid == frontPid,
+                                    pieces: (axElementValue(a[1]), axElementValue(a[2])),
+                                    screens: screens, stack: stack, deadline: deadline)
+            // A window that could not be named was not scanned, so the app's scan is not
+            // complete: a reconcile must not remove the labels that window may still have.
+            system.unanswered += unresolved
+            deliver(system)
         }
     }
 
@@ -155,7 +159,7 @@ final class Scanner {
                 }
                 return
             }
-            let wins = resolveWindows(axElements(a[0]), pid: pid, stack: stack)
+            let wins = resolveWindows(axElements(a[0]), pid: pid, stack: stack).wins
             let ids = Set(wins.map(\.id))
             for w in wins {
                 if isStale() { cut = true; return }
@@ -181,11 +185,12 @@ final class Scanner {
     private let appAttrs = ["AXWindows", "AXMenuBar", "AXExtrasMenuBar"] as CFArray
 
     /// Window IDs from `_AXUIElementGetWindow`; on error, the same app's on-screen window
-    /// whose bounds match the element's frame (within 1 pt per edge).
-    private func resolveWindows(_ elements: [AXUIElement], pid: Int32,
-                                stack: WindowStack?) -> [(id: WindowID, element: AXUIElement)] {
+    /// whose bounds match the element's frame (within 1 pt per edge). `unresolved`: windows
+    /// neither way could name, which are left out.
+    private func resolveWindows(_ elements: [AXUIElement], pid: Int32, stack: WindowStack?)
+        -> (wins: [(id: WindowID, element: AXUIElement)], unresolved: Int) {
         var fallback = stack
-        return elements.compactMap { el in
+        let wins: [(id: WindowID, element: AXUIElement)] = elements.compactMap { el in
             axTimed(el)
             var id = CGWindowID(0)
             if _AXUIElementGetWindow(el, &id) == .success, id != 0 { return (id, el) }
@@ -194,6 +199,7 @@ final class Scanner {
             guard let f = axFrame(el), let w = s.wins.first(where: { $0.pid == pid && sameWindowFrame($0.bounds, f) }) else { return nil }
             return (w.id, el)
         }
+        return (wins, elements.count - wins.count)
     }
 
     private func scanWindow(pid: Int32, id: WindowID, element: AXUIElement?, appWindows: Set<WindowID>,
