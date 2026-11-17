@@ -44,6 +44,9 @@ final class Presser {
     private static func run(_ t: Target, kind: ClickKind, element el: AXUIElement,
                             scanner: Scanner) -> (PressResult, axError: Int32?) {
         guard pressDecision(scanned: t.rect, current: axFrame(el)) == .press else { return (.skipped, nil) }
+        // An action on our own process runs here, on this queue, not on main (JUM-117), so
+        // Jumpr performs none on itself: its own controls are clicked (`usesAXPress`).
+        let own = t.pid == getpid()
 
         var raised: AXUIElement?
         if let wid = t.window {  // bring the owning app + window forward first
@@ -51,16 +54,16 @@ final class Presser {
             if err != .success { log("press: asking pid \(t.pid) forward failed (ax=\(err.rawValue))") }
             Activation.activate(t.pid)  // macOS 27 ignores the accessibility request; ask publicly too
             if let w = scanner.appWindows(pid: t.pid).first(where: { $0.id == wid })?.element {
-                AXUIElementPerformAction(w, kAXRaiseAction as CFString)
+                if !own { AXUIElementPerformAction(w, kAXRaiseAction as CFString) }
                 raised = w
             }
         }
 
         var axError: Int32?
-        // Web content never needs the action list: it is clicked regardless. Nor does any
-        // click but a plain one.
-        let actions = t.inWeb || kind != .plain ? nil : axActionNames(el)
-        if usesAXPress(role: t.role, actions: actions, inWeb: t.inWeb, kind: kind) {
+        // Web content and Jumpr's own controls never need the action list: they are clicked
+        // regardless. Nor does any click but a plain one.
+        let actions = t.inWeb || own || kind != .plain ? nil : axActionNames(el)
+        if usesAXPress(role: t.role, actions: actions, inWeb: t.inWeb, kind: kind, ownProcess: own) {
             let err = AXUIElementPerformAction(el, kAXPressAction as CFString).rawValue
             axError = err
             switch afterAXPress(err) {
@@ -114,7 +117,7 @@ final class Presser {
         for step in steps {
             step.ask()
             guard inFront(within: step.limit) else { continue }
-            if let window { AXUIElementPerformAction(window, kAXRaiseAction as CFString) }
+            if let window, t.pid != getpid() { AXUIElementPerformAction(window, kAXRaiseAction as CFString) }
             usleep(50_000)  // the app says it is active; let the window server catch up
             log(String(format: "press: pid %d came forward in %.0f ms (%@)", t.pid, (now() - t0) * 1000, step.name))
             return

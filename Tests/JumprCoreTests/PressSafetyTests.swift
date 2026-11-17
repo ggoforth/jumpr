@@ -144,6 +144,19 @@ import CoreGraphics
     #expect(!usesAXPress(role: "AXButton", actions: nil, kind: .double))
 }
 
+// JUM-117: typing the label of a colour swatch in Jumpr's own panel crashed Jumpr. `AXPress`
+// on our own process is served on the calling thread, the scan queue, and SwiftUI's button
+// action trapped off the main actor. Our own controls get a real click instead.
+
+@Test func aButtonInJumprsOwnPanelIsClickedNotPressed() {
+    #expect(!usesAXPress(role: "AXButton", actions: ["AXPress"], ownProcess: true))
+    #expect(!usesAXPress(role: "AXButton", actions: nil, ownProcess: true))
+}
+
+@Test func theSameButtonInAnotherAppIsStillPressed() {
+    #expect(usesAXPress(role: "AXButton", actions: ["AXPress"], ownProcess: false))
+}
+
 @Test func aPlainClickIsAMoveThenOneLeftPress() {
     #expect(clickEvents(.plain) == [
         ClickEvent(.move), ClickEvent(.down), ClickEvent(.up),

@@ -25,10 +25,15 @@ public func pressDecision(scanned: CGRect, current: CGRect?) -> PressDecision {
 ///   nothing. Dia does not even offer the action; Linear offers it, answers success, and
 ///   does not navigate. Only a real click is trustworthy there.
 /// - Any click but a plain one is a real click: `AXPress` is a left press and nothing else.
+/// - Jumpr's own controls (`ownProcess`) always get a click. An accessibility action on our
+///   own process is not sent anywhere: it is served on the calling thread, the scan queue,
+///   not main. A colour swatch in the panel crashed Jumpr that way (JUM-117): SwiftUI's
+///   button action trapped off the main actor. A click reaches it on main, like any click.
 /// - Elsewhere, `actions` are the element's action names (nil if they could not be read):
 ///   an element that does not offer `AXPress` is clicked.
-public func usesAXPress(role: String, actions: [String]?, inWeb: Bool = false, kind: ClickKind = .plain) -> Bool {
-    if Roles.text.contains(role) || inWeb || kind != .plain { return false }
+public func usesAXPress(role: String, actions: [String]?, inWeb: Bool = false, kind: ClickKind = .plain,
+                        ownProcess: Bool = false) -> Bool {
+    if Roles.text.contains(role) || inWeb || kind != .plain || ownProcess { return false }
     return actions?.contains("AXPress") ?? true
 }
 
