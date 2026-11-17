@@ -44,14 +44,17 @@ final class Presser {
     private static func run(_ t: Target, kind: ClickKind, element el: AXUIElement,
                             scanner: Scanner) -> (PressResult, axError: Int32?) {
         guard pressDecision(scanned: t.rect, current: axFrame(el)) == .press else { return (.skipped, nil) }
-        // An action on our own process runs here, on this queue, not on main (JUM-117), so
-        // Jumpr performs none on itself: its own controls are clicked (`usesAXPress`).
+        // An accessibility action or write on our own process runs here, on this queue, not
+        // on main (JUM-117), so Jumpr performs no action and no write on itself: its own
+        // controls are clicked (`usesAXPress`), and only the public request brings it forward.
         let own = t.pid == getpid()
 
         var raised: AXUIElement?
         if let wid = t.window {  // bring the owning app + window forward first
-            let err = AXUIElementSetAttributeValue(axApp(t.pid), kAXFrontmostAttribute as CFString, kCFBooleanTrue)
-            if err != .success { log("press: asking pid \(t.pid) forward failed (ax=\(err.rawValue))") }
+            if !own {
+                let err = AXUIElementSetAttributeValue(axApp(t.pid), kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+                if err != .success { log("press: asking pid \(t.pid) forward failed (ax=\(err.rawValue))") }
+            }
             Activation.activate(t.pid)  // macOS 27 ignores the accessibility request; ask publicly too
             if let w = scanner.appWindows(pid: t.pid).first(where: { $0.id == wid })?.element {
                 if !own { AXUIElementPerformAction(w, kAXRaiseAction as CFString) }
@@ -69,10 +72,10 @@ final class Presser {
             switch afterAXPress(err) {
             case .pressed: return (.pressed, err)
             case .skip: return (.skipped, err)
-            case .click: waitUntilForward(t, window: raised)
+            case .click: waitUntilForward(t, window: raised, own: own)
             }
         } else if t.window != nil {
-            waitUntilForward(t, window: raised)
+            waitUntilForward(t, window: raised, own: own)
         }
 
         // The raise (and a failed press) may have moved or closed it: check again, from now.
@@ -89,7 +92,7 @@ final class Presser {
     /// The app has already been asked forward through accessibility and `Activation.activate`.
     /// If it has not come by the end of a step, the next, stronger request is made (see
     /// `Activation`). The log names the step that worked.
-    private static func waitUntilForward(_ t: Target, window: AXUIElement?) {
+    private static func waitUntilForward(_ t: Target, window: AXUIElement?, own: Bool) {
         guard let wid = t.window else { usleep(40_000); return }
         let app = axApp(t.pid)
         let t0 = now()
@@ -117,7 +120,7 @@ final class Presser {
         for step in steps {
             step.ask()
             guard inFront(within: step.limit) else { continue }
-            if let window, t.pid != getpid() { AXUIElementPerformAction(window, kAXRaiseAction as CFString) }
+            if let window, !own { AXUIElementPerformAction(window, kAXRaiseAction as CFString) }
             usleep(50_000)  // the app says it is active; let the window server catch up
             log(String(format: "press: pid %d came forward in %.0f ms (%@)", t.pid, (now() - t0) * 1000, step.name))
             return
