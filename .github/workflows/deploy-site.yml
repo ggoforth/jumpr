@@ -1,0 +1,82 @@
+name: Deploy site
+
+# Publishes site/ to getjumpr.app when main changes it. The built docs under
+# site/docs/ are committed, so this is a copy: nothing is built here.
+#
+# Two things live only in the bucket and are never touched: appcast.xml (the
+# update feed, written by scripts/release.sh) and download/. Losing the appcast
+# stops every installed copy updating. The sync below excludes both, and the
+# role this runs as is denied writing or deleting them.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - '.github/workflows/deploy-site.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # signs in to AWS as the jumpr-deploy role; no key is stored
+
+# One deploy at a time, and a deploy that has started is never cut off halfway.
+concurrency:
+  group: deploy-site
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Copy site/ to the bucket and clear the CDN
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BUCKET: ${{ secrets.S3_BUCKET }}
+      DISTRIBUTION: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the built docs
+        run: node scripts/build-docs.mjs --check
+
+      - name: Sign in to AWS
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      # Every file goes up on every deploy, with "no-cache": a browser must ask
+      # the server before it uses its copy. Without it a browser kept the old
+      # stylesheet for about a day and drew the new page with it. The check is
+      # a small request that answers "not changed" when nothing has.
+      #
+      # The .webp and .md files get their type by name: the runner's own table
+      # of file types need not know either.
+      - name: Upload
+        run: |
+          aws s3 cp site/ "s3://$BUCKET/" --recursive --cache-control no-cache \
+            --exclude "*.webp" --exclude "*.md" --exclude "*.DS_Store"
+          aws s3 cp site/ "s3://$BUCKET/" --recursive --cache-control no-cache \
+            --exclude "*" --include "*.webp" --content-type image/webp
+          aws s3 cp site/ "s3://$BUCKET/" --recursive --cache-control no-cache \
+            --exclude "*" --include "*.md" --content-type "text/markdown; charset=utf-8"
+
+      # Everything is already up, so with --size-only this uploads nothing and
+      # only removes what site/ no longer has.
+      - name: Remove what site/ no longer has
+        run: |
+          aws s3 sync site/ "s3://$BUCKET/" --delete --size-only --cache-control no-cache \
+            --exclude "download/*" --exclude "appcast.xml" --exclude "*.DS_Store"
+
+      - name: Clear the CDN cache
+        run: |
+          id=$(aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION" --paths "/*" --query Invalidation.Id --output text)
+          aws cloudfront wait invalidation-completed --distribution-id "$DISTRIBUTION" --id "$id"
+
+      - name: Check the live site
+        run: |
+          for path in / /docs/ /docs/docs.css /changelog.html /privacy /appcast.xml; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "https://getjumpr.app$path")
+            echo "$code $path"
+            [ "$code" = 200 ] || { echo "::error::https://getjumpr.app$path answered $code"; exit 1; }
+          done
