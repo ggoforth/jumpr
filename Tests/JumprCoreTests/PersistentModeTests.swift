@@ -38,20 +38,134 @@ import Testing
 // A page that loads a long list mid-run can need more labels than the pool holds: once that
 // app's reconcile is done, one fresh trigger gives everything letters at a longer length.
 @Test func aPoolThatRanOutRefreshesTheLabelsOnceTheAppIsReconciled() {
-    #expect(afterReconcile(overflow: 3, labelsLeft: 40, windowFinished: false) == .refresh)
-    #expect(afterReconcile(overflow: 1, labelsLeft: 0, windowFinished: true) == .refresh)
+    #expect(afterReconcile(overflow: 3, labelsLeft: 40, pending: Pending(settleWindow: true)) == .refresh)
+    #expect(afterReconcile(overflow: 1, labelsLeft: 0, pending: Pending()) == .refresh)
 }
 
 // Pressing the last labelled button (a dialog's OK that closes it) leaves nothing to type at;
 // a capturing session would only swallow keys, as a trigger with no labels cancels today.
 @Test func noLabelsLeftOnceEveryAppInTheSettleWindowHasAnsweredEndsTheSession() {
-    #expect(afterReconcile(overflow: 0, labelsLeft: 0, windowFinished: true) == .end)
-    #expect(afterReconcile(overflow: 0, labelsLeft: 5, windowFinished: true) == .carryOn)
+    #expect(afterReconcile(overflow: 0, labelsLeft: 0, pending: Pending()) == .end)
+    #expect(afterReconcile(overflow: 0, labelsLeft: 5, pending: Pending()) == .carryOn)
 }
 
 // A page swap removes the old page's labels at 0.15 s and its new labels arrive at 0.5 s;
 // and at the last moment Finder may answer with nothing placed while Safari, scanned in the
 // same moment, has not answered yet. Neither ends the session: only the whole window can.
 @Test func noLabelsLeftBeforeEveryAppInTheSettleWindowHasAnsweredLetsItGoOn() {
-    #expect(afterReconcile(overflow: 0, labelsLeft: 0, windowFinished: false) == .carryOn)
+    #expect(afterReconcile(overflow: 0, labelsLeft: 0, pending: Pending(settleWindow: true)) == .carryOn)
+}
+
+// A Tab refresh finishes with nothing on screen while a press is in flight: the window that
+// follows the press's report may still find something.
+@Test func noLabelsLeftWhileAPressIsInFlightLetsItGoOn() {
+    #expect(afterReconcile(overflow: 0, labelsLeft: 0, pending: Pending(press: true)) == .carryOn)
+}
+
+// MARK: - A settle window's bookkeeping
+
+// A press into Finder, then ⌘T in Safari before Finder's window finished: both are scanned.
+@Test func appsTouchedAccumulateAcrossPressesAndShortcuts() {
+    var w = SettleWindow()
+    w.touch(10)
+    w.start()
+    w.touch(20)
+    w.start()
+    #expect(w.touched == [10, 20])
+}
+
+// Review of persistent mode: a slow app's scan from the 2.0 s moment was still out when the
+// 3.5 s moment's scans answered, and the window counted itself finished without it.
+@Test func aWindowWaitsForScansStartedAtEarlierMoments() {
+    var w = SettleWindow()
+    w.start()
+    w.momentFired(last: false, scansStarted: 1, pressInFlight: false)  // 2.0 s: Safari
+    w.momentFired(last: true, scansStarted: 1, pressInFlight: false)   // 3.5 s: Finder
+    w.scanAnswered(pressInFlight: false)                               // Finder answers
+    #expect(w.running)
+    w.scanAnswered(pressInFlight: false)                               // Safari answers
+    #expect(!w.running)
+}
+
+// Every app's previous scan is still out at the last moment, so it starts none: the window
+// finishes when those answer, or at once if nothing is out.
+@Test func aLastMomentThatStartsNoScanFinishesTheWindowIfNothingElseIsOut() {
+    var w = SettleWindow()
+    w.start()
+    w.momentFired(last: true, scansStarted: 0, pressInFlight: false)
+    #expect(!w.running)
+
+    w.start()
+    w.momentFired(last: false, scansStarted: 1, pressInFlight: false)
+    w.momentFired(last: true, scansStarted: 0, pressInFlight: false)
+    #expect(w.running)
+    w.scanAnswered(pressInFlight: false)
+    #expect(!w.running)
+}
+
+// A finished window forgets what it looked at, so the next press does not scan it again.
+@Test func aFinishedWindowForgetsTheAppsItLookedAt() {
+    var w = SettleWindow()
+    w.touch(10)
+    w.start()
+    w.momentFired(last: true, scansStarted: 0, pressInFlight: false)
+    #expect(w.touched.isEmpty)
+}
+
+// A press into a menu bar extra, reported just after the previous window finished: clearing
+// then would leave only the frontmost app for the window that follows the report.
+@Test func aWindowThatFinishesDuringAPressKeepsTheAppsThatPressTouched() {
+    var w = SettleWindow()
+    w.start()
+    w.touch(30)
+    w.momentFired(last: true, scansStarted: 0, pressInFlight: true)
+    #expect(!w.running)
+    #expect(w.touched == [30])
+}
+
+// A press or Space switching the mode off makes the pending moments stale: the window no
+// longer runs, and what was touched waits for the next one.
+@Test func aStoppedWindowIsNotRunningButKeepsWhatWasTouched() {
+    var w = SettleWindow()
+    w.touch(10)
+    w.start()
+    w.momentFired(last: false, scansStarted: 2, pressInFlight: false)
+    w.stop()
+    #expect(!w.running)
+    #expect(w.touched == [10])
+}
+
+// The pressed app quit: there is nothing of it left to scan.
+@Test func anAppThatQuitIsNoLongerTouched() {
+    var w = SettleWindow()
+    w.touch(10)
+    w.touch(20)
+    w.forget(10)
+    #expect(w.touched == [20])
+}
+
+@Test func resetForgetsEverything() {
+    var w = SettleWindow()
+    w.touch(10)
+    w.start()
+    w.reset()
+    #expect(!w.running)
+    #expect(w.touched.isEmpty)
+}
+
+// MARK: - Never left with nothing to type at
+
+// Review of persistent mode: the pressed app quit and took the last labels with it, and the
+// session went on swallowing every key with nothing to type at.
+@Test func aSessionWithNoLabelsAndNothingPendingEnds() {
+    #expect(endsForWantOfLabels(labelsLeft: 0, pending: Pending()))
+    #expect(!endsForWantOfLabels(labelsLeft: 1, pending: Pending()))
+}
+
+// Labels can still come: the trigger's scans, a settle window's next moment, or the window
+// that follows a press's report.
+@Test func aSessionWithNoLabelsWaitsForAnythingThatCouldAddSome() {
+    #expect(!endsForWantOfLabels(labelsLeft: 0, pending: Pending(triggerScans: true)))
+    #expect(!endsForWantOfLabels(labelsLeft: 0, pending: Pending(settleWindow: true)))
+    #expect(!endsForWantOfLabels(labelsLeft: 0, pending: Pending(press: true)))
 }

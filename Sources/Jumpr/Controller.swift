@@ -44,18 +44,13 @@ final class Controller {
     private var placedIDs = Set<ElementID>()
     private var overflow = 0
     private var pendingApps = 0
-    /// A press in persistent mode has not reported yet. A label typed meanwhile is held
-    /// (`heldMatch`) rather than pressed, which keeps presses in order and lets the settle
-    /// window follow the last one.
-    private var pressInFlight = false
-    /// The latest label typed while a press was in flight; an earlier one is replaced.
-    private var heldMatch: (Target, ClickKind)?
-    /// The apps pressed into in persistent mode, and the app in front at each press: what a
-    /// settle window will scan once the screen has had time to change.
-    private var touched = Set<Int32>()
+    /// Whether a press is in flight and the label typed meanwhile (`PressSequence`).
+    private var presses = PressSequence()
+    /// The apps the next settle window scans, and whether the current one has finished.
+    private var settle = SettleWindow()
     /// Identifies the current settle window, beside `generation` and under the same rule: a
-    /// new press, Space switching the mode off, and every cancel bump it, and a moment or
-    /// reconcile callback from an older window is dropped before it touches anything.
+    /// new press, a new window, Space switching the mode off, and every cancel bump it, and a
+    /// moment or reconcile callback from an older window is dropped before it touches anything.
     private var settleID = 0 { didSet { sharedSettleID.value = settleID } }
     /// A copy of `settleID` that the scan queues may read; written only here, on main.
     private let sharedSettleID = SharedGeneration()
@@ -138,7 +133,8 @@ final class Controller {
             if isActive {
                 for (label, p) in placed where p.target.pid == pid { remove(label) }
                 labelsRemoved()
-                touched.remove(pid)
+                settle.forget(pid)
+                endIfNoLabels()
             }
             extras.forget(pid: pid)
             // Queued behind any scan of the app still running, then the queue itself goes.
@@ -438,11 +434,24 @@ final class Controller {
                     + "label=\(Int(l.minX)),\(Int(l.minY)),\(Int(l.width)),\(Int(l.height))")
             }
         }
-        // Nothing to type at: a capturing session would only swallow keys.
-        if tap.capturing && placed.isEmpty {
-            log("cancelled: no labels")
-            cancel()
-        }
+        endIfNoLabels()
+    }
+
+    /// What could still add labels: this trigger's scans, a settle window, a press in flight.
+    private var pending: Pending {
+        Pending(triggerScans: pendingApps > 0, settleWindow: settle.running, press: presses.inFlight)
+    }
+
+    /// Nothing to type at: a capturing session would only swallow keys. Asked after anything
+    /// that can take the last labels away (`endsForWantOfLabels`).
+    private func endIfNoLabels() {
+        guard tap.capturing, endsForWantOfLabels(labelsLeft: placed.count, pending: pending) else { return }
+        endForWantOfLabels()
+    }
+
+    private func endForWantOfLabels() {
+        log(session.persistent ? "persistent: ended, no labels" : "cancelled: no labels")
+        cancel()
     }
 
     // MARK: - Keys
@@ -457,19 +466,19 @@ final class Controller {
             // delays are scheduled here, so it is cheap inside the key tap; a held shortcut
             // that repeats just restarts the window.
             if session.persistent {
-                if let front = NSWorkspace.shared.frontmostApplication?.processIdentifier { touched.insert(front) }
+                if let front = NSWorkspace.shared.frontmostApplication?.processIdentifier { settle.touch(front) }
                 startSettle()
             }
             return false
         case .swallow:
             return true
         case .persistent(let on):
-            // Switched off mid-run: the next match ends the session as today, so a label
-            // held for a press in flight must not be pressed later either.
-            // The settle moments still pending go too; the labels stay as they are.
+            // Switched off mid-run: the settle moments still pending go and the labels stay as
+            // they are. A label held for a press in flight was typed, so it is still pressed
+            // when that press reports, ending the session (`PressSequence.reported`).
             if !on {
-                heldMatch = nil
                 settleID += 1
+                settle.stop()
             }
             onPersistentChanged(on)
             log("persistent: \(on ? "on" : "off")")
@@ -481,7 +490,7 @@ final class Controller {
             let gen = generation
             DispatchQueue.main.async { [weak self] in
                 guard let self, isCurrent(gen), session.persistent else { return }  // stale: drop
-                settleID += 1  // replaces any settle window in progress
+                newSettleWindow()  // replaces any settle window in progress
                 let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
                 reconcile(pids: pidsToScan(WindowServer.snapshot(), front: front), last: true)
             }
@@ -496,15 +505,17 @@ final class Controller {
             cancel()
             return true
         case .matched(let label, let kind):
-            let hit = placed[label]
-            if session.persistent, let hit, !endsPersistentMode(role: hit.target.role, kind: kind) {
+            guard let hit = placed[label] else { cancel(); return true }
+            switch presses.matched(.init(target: hit.target, kind: kind), persistent: session.persistent) {
+            case .hold:
+                show(prefix: session.typed)
+            case .press(let m, keepsSession: true):
                 // The session cleared what was typed; the labels stay up for the next press.
                 show(prefix: "")
-                if pressInFlight { heldMatch = (hit.target, kind) } else { press(hit.target, kind) }
-                return true
+                press(m)
+            case .press(let m, keepsSession: false):
+                endAndPress(m)
             }
-            cancel()
-            if let hit { onMatched(hit.target, kind) }
             return true
         }
     }
@@ -518,29 +529,36 @@ final class Controller {
         CATransaction.flush()  // show it now, not at the next run loop pass
     }
 
-    /// A press in persistent mode; the session stays up.
-    private func press(_ t: Target, _ kind: ClickKind) {
-        pressInFlight = true
-        touched.insert(t.pid)
-        if let front = NSWorkspace.shared.frontmostApplication?.processIdentifier { touched.insert(front) }
-        onMatched(t, kind)
+    /// A press that keeps the session up. It makes the settle moments still pending stale
+    /// at once, not when it reports: a moment firing mid-press queued a scan behind the
+    /// press, and that scan, still running, made the next window's first moment skip the app.
+    private func press(_ m: PressSequence.Match) {
+        settleID += 1
+        settle.stop()
+        settle.touch(m.target.pid)
+        if let front = NSWorkspace.shared.frontmostApplication?.processIdentifier { settle.touch(front) }
+        onMatched(m.target, m.kind)
+    }
+
+    /// The press takes today's path: the session comes down first.
+    private func endAndPress(_ m: PressSequence.Match) {
+        cancel()
+        onMatched(m.target, m.kind)
     }
 
     /// `Presser` reported on a press made under `generation`. A press from an earlier
     /// session, or one made as the session ended (today's path cancels first), finds no
-    /// current session and does nothing. The held label, if any, is pressed now, unless
-    /// persistent mode was switched off meanwhile; with none held, the settle window starts.
+    /// current session and does nothing. The held label, if any, is pressed now; with none
+    /// held, the settle window starts, or with the mode switched off meanwhile nothing more
+    /// is coming for this press.
     func pressFinished(generation gen: Int) {
         guard isCurrent(gen) else { return }
-        // Cleared even when the mode is off now: switched on again, a stuck flag would hold
-        // every later label forever.
-        pressInFlight = false
-        guard let held = heldMatch else {
-            if session.persistent { startSettle() }
+        // `.hold` never comes from a report: nothing is in flight to wait for.
+        guard let step = presses.reported(persistent: session.persistent), case .press(let m, let keeps) = step else {
+            if session.persistent { startSettle() } else { endIfNoLabels() }
             return
         }
-        heldMatch = nil
-        if session.persistent { press(held.0, held.1) }
+        if keeps { press(m) } else { endAndPress(m) }
     }
 
     // MARK: - Settle window
@@ -550,17 +568,24 @@ final class Controller {
     /// the press reported. One-shot delays caused by the press, not a timer; a newer press
     /// replaces the moments still pending (`settleID`).
     private func startSettle() {
-        settleID += 1
+        let id = newSettleWindow()
         let gen = generation
-        let id = settleID
         for (n, delay) in Settle.moments.enumerated() {
             let last = n == Settle.moments.count - 1
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 guard let self, isCurrent(gen), settleID == id else { return }  // stale: drop
                 let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
-                reconcile(pids: settleApps(touched: touched, frontNow: front, excluding: getpid()), last: last)
+                reconcile(pids: settleApps(touched: settle.touched, frontNow: front, excluding: getpid()), last: last)
             }
         }
+    }
+
+    /// Replaces any settle window in progress: its moments and scans go stale.
+    @discardableResult
+    private func newSettleWindow() -> Int {
+        settleID += 1
+        settle.start()
+        return settleID
     }
 
     /// One settle moment: drop labels another window now covers, then scan `pids` again and
@@ -587,12 +612,7 @@ final class Controller {
         }
 
         let pids = pids.filter { !scanning.contains($0) }
-        // The last moment's ending checks, here when it starts no scan at all.
-        if pids.isEmpty {
-            if last { settleEnded() }
-            return
-        }
-        var left = pids.count  // apps of this moment still scanning
+        settle.momentFired(last: last, scansStarted: pids.count, pressInFlight: presses.inFlight)
         for pid in pids {
             scanning.insert(pid)
             let name = running[pid]?.localizedName ?? stack.wins.first { $0.pid == pid }?.name ?? "?"
@@ -646,42 +666,22 @@ final class Controller {
                                 log(String(format: "reconcile %@: kept %d moved %d removed %d added %d, %.0f ms%@",
                                            name, rec.kept, moved, removed, added, (now() - t0) * 1000,
                                            rec.complete ? "" : " incomplete"))
-                                left -= 1
-                                // The window has finished once every app of its last moment answered.
-                                let finished = last && left == 0
-                                switch afterReconcile(overflow: overflow, labelsLeft: placed.count, windowFinished: finished) {
+                                settle.scanAnswered(pressInFlight: presses.inFlight)
+                                switch afterReconcile(overflow: overflow, labelsLeft: placed.count, pending: pending) {
                                 case .refresh:
                                     lastTotal = placed.count + overflow  // the fresh trigger sizes from this
                                     cancel()
                                     trigger(persistent: true)
                                 case .end:
-                                    log("persistent: ended, no labels")
-                                    cancel()
+                                    endForWantOfLabels()
                                 case .carryOn:
-                                    if finished { clearTouchedUnlessPressing() }
+                                    break
                                 }
                             })
         }
-    }
-
-    /// A finished window forgets the apps it looked at, except while a press is in flight:
-    /// `touched` then holds what that press touched, and the window that follows its report
-    /// must still scan it. Case: a press into a background window or a menu bar extra,
-    /// reported just after the previous window (or a Tab refresh) finished; clearing here
-    /// would leave only the frontmost app to scan.
-    private func clearTouchedUnlessPressing() {
-        if !pressInFlight { touched = [] }
-    }
-
-    /// The last moment of a settle window started no scan, so it has finished here: what was
-    /// touched has been looked at, and a session with nothing left to type at ends, as a
-    /// trigger with no labels does.
-    private func settleEnded() {
-        clearTouchedUnlessPressing()
-        if placed.isEmpty {
-            log("persistent: ended, no labels")
-            cancel()
-        }
+        // Covered labels may have been the last, and a last moment that starts no scan may
+        // have finished the window here.
+        endIfNoLabels()
     }
 
     // MARK: - Colours
@@ -718,9 +718,8 @@ final class Controller {
         // Only when this session held the highlight: scroll mode holds it too, and the
         // scroll shortcut cancels labels on its way in.
         if session.persistent { onPersistentChanged(false) }
-        pressInFlight = false
-        heldMatch = nil
-        touched = []
+        presses.reset()
+        settle.reset()
         session = LabelSession()
         pendingApps = 0
         if wasActive {
