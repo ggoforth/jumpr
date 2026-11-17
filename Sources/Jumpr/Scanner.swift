@@ -12,8 +12,14 @@ struct WindowScan {
     let timedOut: Bool
     /// Web areas the walk met in this window, empty ones included.
     var webAreas = 0
+    /// Elements in the walk that did not answer; their subtrees were skipped.
+    var unanswered = 0
     /// Areas to scroll, from a scan for scroll mode (`Scanner.scanAreas`).
     var areas: [Area] = []
+
+    /// Whether this scan may have missed things the app still has. A rescan must not remove
+    /// labels on the strength of an incomplete scan.
+    var incomplete: Bool { timedOut || unanswered > 0 }
 
     /// Nothing scanned: the window is hidden, gone, or (`timedOut`) the app did not answer.
     static func empty(pid: Int32, window: WindowID?, startedAt: Double, ms: Double = 0,
@@ -200,7 +206,7 @@ final class Scanner {
                      scope: .window(id: id, bounds: bounds, appWindows: appWindows),
                      stack: stack, deadline: deadline, now: now, finding: finding)
         return WindowScan(pid: pid, window: id, targets: r.targets, nodes: r.nodes, startedAt: t0,
-                          ms: (now() - t0) * 1000, timedOut: r.timedOut, webAreas: r.webAreas, areas: r.areas)
+                          ms: (now() - t0) * 1000, timedOut: r.timedOut, webAreas: r.webAreas, unanswered: r.unanswered, areas: r.areas)
     }
 
     /// Dock: the whole application tree. Otherwise the menu bar (front app only) and extras.
@@ -220,14 +226,16 @@ final class Scanner {
         var targets: [Target] = []
         var nodes = 0
         var timedOut = false
+        var unanswered = 0
         for root in roots {
             let r = walk(root: AXElementNode(root), pid: pid, scope: .system(screens: screens),
                          stack: stack, deadline: deadline, now: now)
             targets += r.targets
             nodes += r.nodes
             timedOut = timedOut || r.timedOut
+            unanswered += r.unanswered
         }
         return WindowScan(pid: pid, window: nil, targets: targets, nodes: nodes, startedAt: t0,
-                          ms: (now() - t0) * 1000, timedOut: timedOut)
+                          ms: (now() - t0) * 1000, timedOut: timedOut, unanswered: unanswered)
     }
 }

@@ -8,6 +8,8 @@ final class Fake: AXNode {
     var kids: [Fake]; var selected = false; var rows: [Fake]?; var visibleKids: [Fake]?
     var pressable = false
     var focusable = false
+    /// False makes `info()` return nil, as an app does when its request times out.
+    var answers = true
     var subrole: String?
     private(set) var infoCalls = 0
     private(set) var pressAsks = 0
@@ -18,6 +20,7 @@ final class Fake: AXNode {
     }
     func info() -> NodeInfo? {
         infoCalls += 1
+        if !answers { return nil }
         return NodeInfo(role: role, frame: frame, enabled: enabled, children: kids, focusable: focusable, subrole: subrole)
     }
     func isSelected() -> Bool { selected }
@@ -207,6 +210,19 @@ private func buttonAt(depth: Int) -> Fake {
     #expect(run(Fake("AXWindow", bounds, [Fake("AXButton", r(10, 10)), web])).webAreas == 1)
     #expect(run(Fake("AXWindow", bounds, [Fake("AXButton", r(10, 10))])).webAreas == 0)
     #expect(run(Fake("AXWindow", bounds, [Fake("AXWebArea", bounds)])).webAreas == 1)   // empty: still counted
+}
+
+// A busy app times out on one element and its subtree is skipped. The scan must say so, or a
+// reconcile would remove labels the app still has.
+@Test func anElementThatDoesNotAnswerIsCounted() {
+    let silent = Fake("AXGroup", r(10, 40), [Fake("AXButton", r(10, 40))])
+    silent.answers = false
+    let res = run(Fake("AXWindow", bounds, [Fake("AXButton", r(10, 10)), silent]))
+    #expect(res.unanswered == 1)
+    #expect(res.targets.count == 1)
+    #expect(res.targets.map(\.role) == ["AXButton"])
+
+    #expect(run(Fake("AXWindow", bounds, [Fake("AXButton", r(10, 10))])).unanswered == 0)
 }
 
 // Mail's message body: the first scan found no links, the next found ten.

@@ -165,6 +165,9 @@ public struct WalkResult {
     public var timedOut: Bool
     /// `AXWebArea` nodes visited, empty ones included (see `webViewMayStillBeBuilding`).
     public var webAreas = 0
+    /// Elements whose request got no answer. Their subtree was skipped, so the walk is not a
+    /// full picture of the window: a rescan must not remove labels on the strength of it.
+    public var unanswered = 0
     /// Areas to scroll, when the walk looks for them (`Finding.areas`).
     public var areas: [Area] = []
 
@@ -242,7 +245,10 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
             return
         }
         result.nodes += 1
-        guard let info = node.info() else { return }
+        guard let info = node.info() else {
+            result.unanswered += 1
+            return
+        }
         if info.role == "AXColumn" { return }
         if info.role == "AXWebArea" { result.webAreas += 1 }
         let inWeb = inWeb || info.role == "AXWebArea"
