@@ -482,6 +482,10 @@ final class Controller {
             }
             onPersistentChanged(on)
             log("persistent: \(on ? "on" : "off")")
+            // A page swap removed every label and the moment that would add the new ones was
+            // just dropped: with nothing left to come, the session would only swallow keys.
+            // The mode is off by now, so the line is "cancelled: no labels".
+            if !on { endIfNoLabels() }
             return true
         case .refresh:
             // Tab: one reconcile across every app a trigger would scan, for changes made with
