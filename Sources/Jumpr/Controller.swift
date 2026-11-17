@@ -369,6 +369,8 @@ final class Controller {
             return false
         case .swallow:
             return true
+        case .persistent, .refresh:
+            return true  // a later change gives these their behaviour
         case .narrowed(let prefix):
             CATransaction.begin()
             CATransaction.setDisableActions(true)

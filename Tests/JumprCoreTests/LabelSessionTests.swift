@@ -129,3 +129,43 @@ import Testing
     _ = s.handle(.character("A"))
     #expect(s.handle(.character("S", shift: true)) == .matched("AS", .plain))
 }
+
+// A run of presses (a site, Play now, Start game) should take one invocation.
+@Test func spaceSwitchesPersistentModeOnAndOffAgain() {
+    var s = LabelSession(); s.labels = ["AA"]
+    #expect(s.handle(.space) == .persistent(true))
+    #expect(s.persistent)
+    #expect(s.handle(.space) == .persistent(false))
+    #expect(!s.persistent)
+}
+
+// Tab is swallowed today; outside persistent mode it must stay that way.
+@Test func tabAsksForARefreshOnlyInPersistentMode() {
+    var s = LabelSession(); s.labels = ["AA"]
+    #expect(s.handle(.tab) == .swallow)
+    _ = s.handle(.space)
+    #expect(s.handle(.tab) == .refresh)
+}
+
+// The session lives on after the press, so the letters of the last label must not narrow the next.
+@Test func aMatchInPersistentModeClearsWhatWasTyped() {
+    var s = LabelSession(persistent: true); s.labels = ["AS", "AD"]
+    _ = s.handle(.character("A"))
+    #expect(s.handle(.character("S")) == .matched("AS"))
+    #expect(s.typed == "")
+}
+
+// A page reloads after "A" was typed and every label starting with A is removed:
+// without this every key is swallowed until Backspace.
+@Test func typedLettersAreClearedWhenNoLabelStartsWithThem() {
+    var s = LabelSession(persistent: true); s.labels = ["AS", "DF"]
+    _ = s.handle(.character("A"))
+    let whileLabelsMatch = s.clearTypedIfNothingMatches()
+    #expect(!whileLabelsMatch)   // "AS" still starts with it
+    s.labels.remove("AS")
+    let afterTheyWereRemoved = s.clearTypedIfNothingMatches()
+    #expect(afterTheyWereRemoved)
+    #expect(s.typed == "")
+    let withNothingTyped = s.clearTypedIfNothingMatches()
+    #expect(!withNothingTyped)
+}
