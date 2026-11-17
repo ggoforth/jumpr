@@ -540,8 +540,11 @@ final class Controller {
         onMatched(m.target, m.kind)
     }
 
-    /// The press takes today's path: the session comes down first.
+    /// The press takes today's path: the session comes down first. In persistent mode the
+    /// reason goes to the log, as the design asks of every ending; `endsPersistentMode` is
+    /// the only rule that ends a persistent session on a press.
     private func endAndPress(_ m: PressSequence.Match) {
+        if session.persistent { log("persistent: ended, \(m.kind == .right ? "right-click" : "text field")") }
         cancel()
         onMatched(m.target, m.kind)
     }
