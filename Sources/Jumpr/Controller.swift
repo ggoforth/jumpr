@@ -448,9 +448,9 @@ final class Controller {
     // MARK: - Keys
 
     /// Called by the key tap while capturing. Returns true to swallow the key.
-    func handle(_ key: Key) -> Bool {
+    func handle(_ key: Key, isRepeat: Bool) -> Bool {
         guard isActive else { return false }
-        switch session.handle(key) {
+        switch session.handle(key, isRepeat: isRepeat) {
         case .passThrough:
             // A shortcut that goes on to the system (⌘T, ⌘W, ⌘Tab) changes the screen as a
             // press does, so it starts a settle window for the app in front. Only one-shot

@@ -99,7 +99,9 @@ keyTap.onScrollHotkey = {
         scrollController.toggle()
     }
 }
-keyTap.onKey = { scrollController.isActive ? scrollController.handle($0) : controller.handle($0) }
+keyTap.onKey = { key, isRepeat in
+    scrollController.isActive ? scrollController.handle(key) : controller.handle(key, isRepeat: isRepeat)
+}
 keyTap.onDisabled = {
     // Off the tap's callback: losing trust stops (invalidates) the tap itself.
     DispatchQueue.main.async {

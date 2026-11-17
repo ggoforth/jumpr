@@ -139,7 +139,24 @@ public struct LabelSession {
         return true
     }
 
-    public mutating func handle(_ key: Key) -> Outcome {
+    /// `isRepeat`: the key down is the system's auto-repeat of a held key. Holding the last
+    /// letter of a label in persistent mode otherwise typed it again and again, narrowing and
+    /// then pressing other labels until the key came up; a repeated letter is never typing.
+    /// A repeated chord is swallowed only where it would pick a label, so a held ⌘Z still
+    /// repeats in the app. Backspace repeats as before. Space and Tab repeats never reach
+    /// here: `KeyTap` drops them, for scroll mode too.
+    public mutating func handle(_ key: Key, isRepeat: Bool = false) -> Outcome {
+        if isRepeat {
+            switch key {
+            case .character:
+                return .swallow
+            case .chord(let c, let held):
+                let candidate = typed + String(c).uppercased()
+                return labels.contains(candidate) && clickKeys.kind(held: held) != nil ? .swallow : .passThrough
+            default:
+                break
+            }
+        }
         switch key {
         case .modified:
             return .passThrough

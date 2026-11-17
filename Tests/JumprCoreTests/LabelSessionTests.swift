@@ -178,3 +178,46 @@ import Testing
     #expect(s.handle(.chord("S", held: Modifiers.command)) == .matched("AS", .command))
     #expect(s.typed == "")
 }
+
+// Review of persistent mode: holding the S of "AS" past the repeat delay sent S again and
+// again. After the match the first repeat narrowed to "S", the next matched "SS" and pressed
+// it, and so on until the key came up. A repeated letter is never typing.
+@Test func aHeldLetterAfterAMatchInPersistentModeNeitherNarrowsNorMatches() {
+    var s = LabelSession(persistent: true); s.labels = ["AS", "SS", "SD"]
+    _ = s.handle(.character("A"))
+    #expect(s.handle(.character("S")) == .matched("AS"))
+    #expect(s.handle(.character("S"), isRepeat: true) == .swallow)
+    #expect(s.typed == "")
+    #expect(s.handle(.character("S"), isRepeat: true) == .swallow)
+    #expect(s.typed == "")
+}
+
+// The one-shot form on main: holding the A of "AA" a moment too long pressed "AA".
+@Test func aHeldFirstLetterOutsidePersistentModeDoesNotTypeTheSecondLetterOfALabel() {
+    var s = LabelSession(); s.labels = ["AA", "AS"]
+    #expect(s.handle(.character("A")) == .narrowed("A"))
+    #expect(s.handle(.character("A"), isRepeat: true) == .swallow)
+    #expect(s.typed == "A")
+}
+
+// ⌘S held on a one-letter label: the repeat would ⌘-click "S" again, once per repeat.
+@Test func aHeldChordThatWouldCompleteALabelDoesNotMatch() {
+    var s = LabelSession(persistent: true); s.labels = ["S", "D"]
+    #expect(s.handle(.chord("S", held: Modifiers.command)) == .matched("S", .command))
+    #expect(s.handle(.chord("S", held: Modifiers.command), isRepeat: true) == .swallow)
+    #expect(s.typed == "")
+}
+
+// A held ⌘Z keeps undoing in the app, as it does with no labels up.
+@Test func aHeldChordThatIsAShortcutStillPassesThrough() {
+    var s = LabelSession(persistent: true); s.labels = ["AS"]
+    #expect(s.handle(.chord("Z", held: Modifiers.command), isRepeat: true) == .passThrough)
+}
+
+// Holding Backspace still takes letters off one at a time, as it does today.
+@Test func aHeldBackspaceStillNarrows() {
+    var s = LabelSession(); s.labels = ["AAA", "ASD"]
+    _ = s.handle(.character("A"))
+    _ = s.handle(.character("S"))
+    #expect(s.handle(.backspace, isRepeat: true) == .narrowed("A"))
+}

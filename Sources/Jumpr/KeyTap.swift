@@ -17,8 +17,9 @@ final class KeyTap {
     var capturing = false
     var onHotkey: () -> Void = {}
     var onScrollHotkey: () -> Void = {}
-    /// Returns true to swallow the key.
-    var onKey: (Key) -> Bool = { _ in false }
+    /// Returns true to swallow the key. `isRepeat`: the system's auto-repeat of a held key,
+    /// which labels ignore for letters and scroll mode uses to keep scrolling.
+    var onKey: (_ key: Key, _ isRepeat: Bool) -> Bool = { _, _ in false }
     /// The system switched the tap off (it is switched back on before this is called).
     var onDisabled: () -> Void = {}
 
@@ -76,7 +77,8 @@ final class KeyTap {
             return nil
         }
         guard capturing else { return Unmanaged.passUnretained(event) }
-        return onKey(key(code: code, flags: flags, event: event)) ? nil : Unmanaged.passUnretained(event)
+        let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
+        return onKey(key(code: code, flags: flags, event: event), isRepeat) ? nil : Unmanaged.passUnretained(event)
     }
 
     private func key(code: Int64, flags: UInt64, event: CGEvent) -> Key {
