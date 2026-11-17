@@ -1,6 +1,21 @@
 {
   "releases": [
     {
+      "version": "v1.3.0",
+      "date": "2026-11-17",
+      "summary": "Persistent mode: press Space while labels are up and they stay up, so one press of the hotkey carries a run of clicks. The panel is now three tabs.",
+      "bullets": [
+        "<strong>Persistent mode:</strong> with labels up, press Space. The labels stay after each click and update to match what the click changed; what did not change keeps its letters. Space again switches it off, and Esc puts the labels away. The menu bar icon is shown filled while it is on.",
+        "<strong>Tab:</strong> in persistent mode, Tab updates the labels after a change you made with the mouse or trackpad, such as a scroll. A shortcut such as ⌘T updates them by itself.",
+        "<strong>What ends it:</strong> a click into a text field, a right-click, or a button that opens a menu ends persistent mode, so your typing and the arrow keys go where you expect. So does a password field taking the keys.",
+        "<strong>Panel:</strong> three tabs, Appearance, Shortcuts and General, in place of one long screen. The switch, the hint and the label preview stay at the top. On Shortcuts, each kind of click has one menu for its key.",
+        "<strong>Colours:</strong> one palette of thirty colours for the label and for its letters. Choose Label or Letters, then a colour. The colours you had carry over.",
+        "<strong>Fixed:</strong> typing the label of a button in Jumpr's own panel no longer quits Jumpr.",
+        "<strong>Scroll mode:</strong> the menu bar icon is shown filled while scroll mode is on. On macOS 27 it had stopped showing."
+      ],
+      "note": "Holding a letter key no longer repeats it into labels, so a label such as AA needs two taps. A menu opened from a button gets no labels of its own; in persistent mode the press ends the mode, so the arrow keys work in it. In a web page that includes a button whose menu is drawn in the page. The log on your Mac now also records each update of the labels (app, counts and time) and why persistent mode ended, nothing more."
+    },
+    {
       "version": "v1.2.0",
       "date": "2026-11-14",
       "summary": "Right-click, ⌘-click, double-click and ⇧-click from a label: hold a key on the label's last letter.",
