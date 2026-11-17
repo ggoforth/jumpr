@@ -11,6 +11,8 @@ import JumprCore
 /// early through `isStale`, which reads `sharedGeneration`.
 final class Controller {
     var onMatched: (Target, ClickKind) -> Void = { _, _ in }
+    /// Persistent mode went on or off; the menu bar icon shows it.
+    var onPersistentChanged: (Bool) -> Void = { _ in }
     let readout = Readout()
     private(set) var isActive = false
     /// Identifies the current session; changes on every trigger and cancel.
@@ -39,6 +41,14 @@ final class Controller {
     private var placedIDs = Set<ElementID>()
     private var overflow = 0
     private var pendingApps = 0
+    /// A press in persistent mode has not reported yet. A label typed meanwhile is held
+    /// (`heldMatch`) rather than pressed, so two presses never race into the same app.
+    private var pressInFlight = false
+    /// The latest label typed while a press was in flight; an earlier one is replaced.
+    private var heldMatch: (Target, ClickKind)?
+    /// The apps pressed into in persistent mode, and the app in front at each press: what a
+    /// settle window will scan once the screen has had time to change.
+    private var touched = Set<Int32>()
     private var screens: [CGRect] = []
     private var style = LabelStyle.current()
     /// Labels needed by the previous complete trigger, for sizing the next one's labels.
@@ -164,7 +174,7 @@ final class Controller {
 
     // MARK: - Trigger
 
-    func trigger(capture: Bool = true) {
+    func trigger(capture: Bool = true, persistent: Bool = false) {
         if isActive { cancel(); return }
         if tap.paused { log("trigger ignored: paused"); return }
         // Live query, not the notification-tracked state: a stale flag must never make the
@@ -179,7 +189,9 @@ final class Controller {
 
         // Read on each trigger, as the label style is, so a change in the panel or by
         // `defaults write` holds from the next press of the hotkey.
-        session = LabelSession(clickKeys: ClickKeys(stored: UserDefaults.standard.string(forKey: Keys.clickKeys)))
+        session = LabelSession(clickKeys: ClickKeys(stored: UserDefaults.standard.string(forKey: Keys.clickKeys)),
+                               persistent: persistent)
+        if persistent { onPersistentChanged(true) }
         placed = [:]
         placedIDs = []
         overflow = 0
@@ -369,14 +381,17 @@ final class Controller {
             return false
         case .swallow:
             return true
-        case .persistent, .refresh:
-            return true  // a later change gives these their behaviour
+        case .persistent(let on):
+            // Switched off mid-run: the next match ends the session as today, so a label
+            // held for a press in flight must not be pressed later either.
+            if !on { heldMatch = nil }
+            onPersistentChanged(on)
+            log("persistent: \(on ? "on" : "off")")
+            return true
+        case .refresh:
+            return true  // a later change gives Tab its behaviour
         case .narrowed(let prefix):
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            for (label, p) in placed { p.layer.isHidden = !label.hasPrefix(prefix) }
-            CATransaction.commit()
-            CATransaction.flush()  // show it now, not at the next run loop pass
+            show(prefix: prefix)
             if debugLabels {
                 log("narrowed \(prefix.isEmpty ? "-" : prefix): \(placed.keys.filter { $0.hasPrefix(prefix) }.count) of \(placed.count) shown")
             }
@@ -386,10 +401,47 @@ final class Controller {
             return true
         case .matched(let label, let kind):
             let hit = placed[label]
+            if session.persistent, let hit, !endsPersistentMode(role: hit.target.role, kind: kind) {
+                // The session cleared what was typed; the labels stay up for the next press.
+                show(prefix: "")
+                if pressInFlight { heldMatch = (hit.target, kind) } else { press(hit.target, kind) }
+                return true
+            }
             cancel()
             if let hit { onMatched(hit.target, kind) }
             return true
         }
+    }
+
+    /// Shows the labels that start with `prefix` and hides the rest.
+    private func show(prefix: String) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for (label, p) in placed { p.layer.isHidden = !label.hasPrefix(prefix) }
+        CATransaction.commit()
+        CATransaction.flush()  // show it now, not at the next run loop pass
+    }
+
+    /// A press in persistent mode; the session stays up.
+    private func press(_ t: Target, _ kind: ClickKind) {
+        pressInFlight = true
+        touched.insert(t.pid)
+        if let front = NSWorkspace.shared.frontmostApplication?.processIdentifier { touched.insert(front) }
+        onMatched(t, kind)
+    }
+
+    /// `Presser` reported on a press made under `generation`. A press from an earlier
+    /// session, or one made as the session ended (today's path cancels first), finds no
+    /// current session and does nothing. The held label, if any, is pressed now, unless
+    /// persistent mode was switched off meanwhile.
+    func pressFinished(generation gen: Int) {
+        guard isCurrent(gen) else { return }
+        // Cleared even when the mode is off now: switched on again, a stuck flag would hold
+        // every later label forever.
+        pressInFlight = false
+        guard let held = heldMatch else { return }
+        heldMatch = nil
+        if session.persistent { press(held.0, held.1) }
     }
 
     // MARK: - Colours
@@ -422,6 +474,12 @@ final class Controller {
         overlays.forEach { $0.clear() }
         CATransaction.flush()
         placed = [:]
+        // Only when this session held the highlight: scroll mode holds it too, and the
+        // scroll shortcut cancels labels on its way in.
+        if session.persistent { onPersistentChanged(false) }
+        pressInFlight = false
+        heldMatch = nil
+        touched = []
         session = LabelSession()
         pendingApps = 0
         if wasActive {

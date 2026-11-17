@@ -111,9 +111,14 @@ keyTap.onDisabled = {
     }
 }
 let presser = Presser(scanner: scanner)
+controller.onPersistentChanged = { statusItem.holdsHighlight = $0 }
 controller.onMatched = { target, kind in
     let t0 = now()
+    // Read after today's path has cancelled, so only a press in persistent mode finds its
+    // session still current when it reports.
+    let gen = controller.generation
     presser.press(target, kind: kind) { result, axError in
+        controller.pressFinished(generation: gen)
         // The raw AXPress error whenever it was not success (e.g. on a click fallback).
         let ax = axError.map { $0 == 0 ? "" : " (axpress=\($0))" } ?? ""
         let app = NSRunningApplication(processIdentifier: target.pid)?.localizedName ?? "pid \(target.pid)"

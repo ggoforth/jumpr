@@ -27,6 +27,8 @@ final class KeyTap {
 
     private static let escape: Int64 = 53
     private static let delete: Int64 = 51
+    private static let space: Int64 = 49
+    private static let tab: Int64 = 48
     private static let commandControlOption = Modifiers.command | Modifiers.control | Modifiers.option
 
     init() {}
@@ -91,6 +93,11 @@ final class KeyTap {
         }
         if code == Self.escape { return .escape }
         if code == Self.delete { return .backspace }
+        if code == Self.space || code == Self.tab {
+            // Space switches persistent mode: held down, each repeat would switch it again.
+            guard event.getIntegerValueField(.keyboardEventAutorepeat) == 0 else { return .other }
+            return code == Self.space ? .space : .tab
+        }
         if let letter { return .character(letter, shift: flags & Modifiers.shift != 0) }
         return .other
     }
