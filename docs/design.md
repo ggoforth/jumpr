@@ -176,7 +176,7 @@ An app "hosts web content" if it is on the built-in Chromium list, on the built-
 
    Once the app is in front, the window is raised again and Jumpr waits a further 50 ms for the window server to catch up. If it never comes, Jumpr clicks anyway and says so in the log. With no window to wait for (a menu bar extra whose `AXPress` failed), the click follows a fixed 40 ms pause instead.
 6. **Click once.** Re-read the frame, since the raise or a failed press may have moved or closed it, and check again as in step 1. Then post one synthetic click at the center of the part that was visible when scanned, as it is now (`clickPoint`), with modifier flags cleared so a key still held from typing the label does not ride along. One click, never two: an app that does pass the first click on would get a double click. The events come from `clickEvents`: a right-click uses the right button, a ⌘-click says ⌘ is held on every event and a ⇧-click says ⇧ is, and a double-click is two presses with the second counted 2, which is how an app tells it from two clicks. Only that second press has its count set, so a plain click is the event it always was.
-7. **Label the opened menu.** If a menu bar item or menu item was pressed and is now selected (its menu or submenu opened), Jumpr triggers again 0.1 s later, unless a session has started meanwhile (`relabelsAfterPress`). Otherwise every menu would take two hotkey presses. Menu bar extras share the menu bar item role but open panels, so they are relabelled only if selected. The rule does not run for a press that kept a persistent session: its settle window scans the pressed app, where the opened menu's items are new targets (see [Persistent mode](#persistent-mode)).
+7. **Label the opened menu.** If a menu bar item or menu item was pressed and is now selected (its menu or submenu opened), Jumpr triggers again 0.1 s later, unless a session has started meanwhile (`relabelsAfterPress`). Otherwise every menu would take two hotkey presses. Menu bar extras share the menu bar item role but open panels, so they are relabelled only if selected. The rule does not run for a press that kept a persistent session: its settle window scans the pressed app again at each settle moment, and a menu bar menu that is open is walked by that scan as it is by a trigger (see [Persistent mode](#persistent-mode)).
 
 The log records each press: role, result (`pressed`, `clicked` or `skipped`), the kind of click when it was not a plain one (`right`, `command`, `double` or `shift`), time, the raw `AXPress` error when it was not success, and which activation step worked.
 
@@ -209,7 +209,7 @@ The moments are the starting values chosen before any measurement, checked on 20
 | Scan says | Result |
 |---|---|
 | Same element, same rectangle | Keep |
-| Same element, new rectangle | Move the label; same letters |
+| Same element, new rectangle | Move the label; same letters. A new place on no display removes it |
 | Element no longer there | Remove, only if the scan was complete |
 | New element | Add, with letters from the pool |
 
@@ -217,7 +217,7 @@ Adds and moves are painted as each window's result arrives. Removals wait for th
 
 **Completeness.** A scan is complete only if everything in it answered. It is not complete if the app gave no result at all, if a window could be matched to no window-server ID because it did not answer, if a walk ran out of budget, or if an element's request failed inside a walk, which skips that element's subtree (`WalkResult.unanswered`). A window entry that answers with a frame no on-screen window has, such as Finder's desktop, is not a window and does not count. A reconcile from an incomplete scan adds and moves but removes nothing: a partial answer says nothing about what it did not reach, and a busy app would otherwise lose labels it still has.
 
-**Letters.** The label length is fixed for the session, as for a trigger. A removed label's letters go back to the pool (`LabelPool.release`), but letters never handed out in this session come first, and released ones only after those, oldest first: a button that just vanished (Play turning into Pause) must not have its letters land on another button a moment later. If the pool runs out, the targets left without letters are counted per app, each scan's count replacing that app's last. After a reconcile, if that count calls for longer labels than the ones in use, Jumpr runs one fresh trigger with persistent mode kept on, sized from the new count, and a settle window follows over the apps the old one watched (`afterReconcile`, `Controller.refresh`). If it does not, the run carries on with what fits, since a fresh trigger would only run out again. A press in flight, and a label held behind it, carry across the refresh (`PressSequence.carried`), and that press's report starts the window.
+**Letters.** The label length is fixed for the session, as for a trigger. A removed label's letters go back to the pool (`LabelPool.release`), but letters never handed out in this session come first, and released ones only after those, oldest first: a button that just vanished (Play turning into Pause) must not have its letters land on another button a moment later. If the pool runs out, the targets left without letters are counted per app, each scan's count replacing that app's last. After a reconcile, if the labels in place and the targets left without letters together call for longer labels than the ones in use, Jumpr runs one fresh trigger with persistent mode kept on, sized from the new count, and a settle window follows over the apps the old one watched (`afterReconcile`, `Controller.refresh`). If it does not, the run carries on with what fits, since a fresh trigger would only run out again. A press in flight, and a label held behind it, carry across the refresh (`PressSequence.carried`), and that press's report starts the window.
 
 **What ends it.** Everything that ends a session ends this one too (see [The trigger, end to end](#the-trigger-end-to-end)), except a match. Five things end it that do not end a plain session, each decided by role or by a system flag, never by app, and each writes its reason to the log:
 
@@ -231,7 +231,7 @@ Focus moving into a text field by some other route does not end the mode. A sear
 
 **Changes Jumpr did not press.**
 
-- A shortcut that passes through (a key with ⌘, ⌃ or ⌥: ⌘T, ⌘W, ⌘Tab) starts a settle window for the app in front, as a press does. A held shortcut that repeats restarts the window.
+- A shortcut that passes through (a key with ⌘, ⌃ or ⌥, such as ⌘T) starts a settle window for the app in front, as a press does. A held shortcut that repeats restarts the window. A switch to another app, by any means, is picked up at the next settle moment after a press or shortcut, since each moment scans the app in front at that time, or at Tab.
 - Tab refreshes: one reconcile, straight away, across every app a trigger would scan, with the same comparison and the same check for secure input. It replaces any settle window in progress. It is for changes made with the mouse or trackpad.
 - Nothing else is watched. A page that changes by itself, a mouse click or a scroll leaves labels that may be stale until the next press, shortcut or Tab.
 
@@ -317,8 +317,8 @@ Jumpr has no Dock icon and is rarely the active app, so a scheduled update alert
 - A menu opened by a pop-up button or menu button gets no labels, in plain mode or persistent mode. In persistent mode the press ends the mode, so the menu has the keys.
 - An element an app rebuilds gets a new identity and so new letters, even if it looks the same.
 - In persistent mode, labels cover the page while it is being read. Nothing is done about this yet.
-- A second Tab while the first refresh is still scanning does less than one: it makes the first refresh's results stale, and skips every app whose scan from it is still running.
-- A refresh, or a settle window's last moment, skips an app whose earlier scan is still running, so what that app shows afterwards waits for the next press or Tab.
+- A second Tab while the first Tab's scans are still running does less than one: it makes the first one's results stale, and skips every app whose scan from it is still running.
+- A Tab, or a settle window's last moment, skips an app whose earlier scan is still running, so what that app shows afterwards waits for the next press, shortcut or Tab.
 - The look-again pass after a trigger uses the trigger's window list, so in its first seconds it can add back a label that a newly opened window covers.
 - Tab, or a shortcut that passes through, while a press is in flight starts a settle window whose moments fire during the press.
 - A ⌘-letter held after a ⌘-click match passes through to the app on repeat, as it did before persistent mode.

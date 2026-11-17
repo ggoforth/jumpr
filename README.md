@@ -46,7 +46,7 @@ What Jumpr does with it:
 | Space | Turns persistent mode on, or off again |
 | Tab | In persistent mode, updates the labels after a change you made with the mouse |
 
-Persistent mode is for a run of clicks, such as opening a site, then Play, then Start. While it is on, the labels stay up after each click and update to match what the click changed, things that did not change keep their letters, and the menu bar icon is shown filled. Esc ends it, and so does clicking into a text field, clicking a button that opens a menu, or a right-click, so the keys go back to you.
+Persistent mode is for a run of clicks, such as opening a site, then Play, then Start. While it is on, the labels stay up after each click and update to match what the click changed. Things that did not change keep their letters, and the menu bar icon is shown filled. Esc ends it, and so does clicking into a text field, clicking a button that opens a menu, or a right-click, so the keys go back to you.
 
 Hold a key on the last letter of a label for another kind of click:
 

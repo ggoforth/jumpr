@@ -23,9 +23,9 @@ public func persistentModeEnding(role: String, kind: ClickKind) -> String? {
 
 /// When a settle window re-scans after a press.
 /// A press changes the screen after the app has answered, not at the moment of the press: a
-/// menu opens, a page swaps, a window comes forward. These are starting values taken from
-/// the design; a later task sets them from measurement. After the last one nothing runs
-/// until the next press.
+/// menu opens, a page swaps, a window comes forward. These are the design's starting values,
+/// measured on 2026-11-16 in two web-content apps (docs/design.md has the numbers) and kept
+/// until native apps are measured. After the last one nothing runs until the next press.
 public enum Settle {
     public static let moments: [Double] = [0.15, 0.5, 1.0, 2.0, 3.5]
 }

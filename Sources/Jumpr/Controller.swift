@@ -473,7 +473,7 @@ final class Controller {
         guard isActive else { return false }
         switch session.handle(key, isRepeat: isRepeat) {
         case .passThrough:
-            // A shortcut that goes on to the system (⌘T, ⌘W, ⌘Tab) changes the screen as a
+            // A shortcut that goes on to the system (⌘T, ⌘W) changes the screen as a
             // press does, so it starts a settle window for the app in front. Only one-shot
             // delays are scheduled here, so it is cheap inside the key tap; a held shortcut
             // that repeats just restarts the window.
