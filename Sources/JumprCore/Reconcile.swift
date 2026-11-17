@@ -12,7 +12,7 @@ public struct Reconcile {
     private let placed: [ElementID: (label: String, rect: CGRect)]
     private var seen = Set<ElementID>()
 
-    /// `placed`: letters and target rectangle of every element now labelled in those apps.
+    /// `placed`: letters and target rectangle of every element now labelled in this app.
     public init(placed: [ElementID: (label: String, rect: CGRect)]) {
         self.placed = placed
     }

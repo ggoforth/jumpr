@@ -528,7 +528,8 @@ final class Controller {
             switch presses.matched(.init(target: hit.target, kind: kind), persistent: session.persistent) {
             case .hold:
                 show(prefix: session.typed)
-                log("persistent: held")
+                // Held after Space switched the mode off too: the line must not say it is on.
+                log(session.persistent ? "persistent: held" : "held")
             case .press(let m, keepsSession: true):
                 // The session cleared what was typed; the labels stay up for the next press.
                 show(prefix: "")
