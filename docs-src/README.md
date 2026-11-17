@@ -56,6 +56,16 @@ The build stops on anything else.
 
 Raw HTML, `#` and `####` headings, and nested lists stop the build.
 
+## Figures
+
+Every page has one to three. Put the image beside the `.md` and name it after the page (`scroll-areas.webp`).
+
+- Captures are WebP at one screen pixel per image pixel. The page shows them at their own size and never enlarges them, so keep a capture under 760 px wide.
+- Stage a neutral subject: Calculator, a TextEdit document with made-up text, Jumpr's own panel. Nothing from a real desktop, and no other app's name.
+- Capture the window by its id (`screencapture -o -l <id>`) so nothing behind it is in the picture, and leave the ground transparent: the page supplies the backdrop and the shadow in light and dark.
+- A short run of steps can be an animated WebP: a few frames, each held about a second.
+- The caption says what the reader is looking at. It is also the image's alt text.
+
 ## Voice
 
 - Every fact comes from the app. If the README, `docs/design.md` or the code does not say it, it does not go in.

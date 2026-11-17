@@ -10,6 +10,8 @@ Open an issue on [GitHub](https://github.com/ggoforth/jumpr/issues). Contributio
 
 > ⚠️ **Security problems go privately.** Don't open a public issue. Follow [SECURITY.md](https://github.com/ggoforth/jumpr/blob/main/SECURITY.md) instead.
 
+![Report a Problem is at the bottom of the panel.](report-panel.webp)
+
 ## The log
 
 Jumpr keeps a small activity log on your Mac:

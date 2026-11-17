@@ -25,6 +25,8 @@ Those are the keys Jumpr starts with. On the panel's **Shortcuts** tab you can g
 
 A click set to **None** can't be reached from a label. If its key was [[⌘]], [[⌥]] or [[⌃]], that key goes back to working as a shortcut. If it was [[⇧]], [[⇧]] on the last letter gives a plain click.
 
+![The key for each kind of click, on the Shortcuts tab.](clicks-panel.webp)
+
 ## In persistent mode
 
 A right-click ends [persistent mode](persistent-mode.md), because the menu it opens gets no labels. Use the arrow keys in that menu.

@@ -17,6 +17,8 @@ When you open Jumpr without the permission, macOS asks for it and Jumpr opens it
 
 If you turn the permission off while Jumpr runs, Jumpr stops listening for the hotkey and opens its panel.
 
+![Jumpr switched on in System Settings.](accessibility-toggle.webp)
+
 ## What Jumpr does with it
 
 - It reads the screen on your Mac to place labels. What it reads is not recorded, stored or sent anywhere.

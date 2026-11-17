@@ -17,6 +17,8 @@ Both are on the panel's **General** tab:
 - Turn off whether Jumpr checks for updates on its own.
 - Click Check for Updates… to check now.
 
+![The update switch and Check for Updates… on the General tab.](updates-panel.webp)
+
 ## What it sends
 
 Checking for updates, and downloading one, is the only thing the app uses the internet for. The server sees your IP address and standard request details, such as a user agent naming Jumpr and its version.

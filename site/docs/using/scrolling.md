@@ -10,6 +10,8 @@ Press [[⌘]] [[⇧]] [[J]]. Every scrollable area on every display gets a lette
 
 Your pointer never moves. While scroll mode is on, the menu bar icon is shown filled.
 
+![Each scrollable area gets a letter, and the outlined one is the one that scrolls.](scroll-areas.webp)
+
 ## Keys in scroll mode
 
 | Key | What it does |
@@ -24,6 +26,8 @@ Your pointer never moves. While scroll mode is on, the menu bar icon is shown fi
 Holding a key keeps scrolling. Any scroll hides the letters; press [[F]] to see them again.
 
 Jumpr takes the keys while scroll mode is on. Shortcuts with [[⌘]], [[⌃]] or [[⌥]] still work.
+
+![J scrolls the outlined area a line at a time, and D half its height. The letters hide once you scroll.](scroll-run.webp)
 
 ## Leaving scroll mode
 

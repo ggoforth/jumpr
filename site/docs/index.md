@@ -7,6 +7,8 @@ Press [[⌘]] [[⇧]] [[Space]] and Jumpr puts a short label, usually two letter
 
 Jumpr is free and open source, from BaggaDonuts LLC. It needs macOS 15 or later.
 
+![Press the hotkey, type two letters, and Jumpr clicks. Here it presses 7 in Calculator.](overview-flow.webp)
+
 ## Start here
 
 1. [Download Jumpr.zip](https://github.com/ggoforth/jumpr/releases/latest/download/Jumpr.zip) and move Jumpr to your Applications folder.
