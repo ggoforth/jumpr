@@ -49,9 +49,17 @@ import Testing
 // A press into Finder and, half a second later, one into Safari: the second press starts a
 // new settle window, and Finder must still be scanned in it.
 @Test func theSettleWindowScansEveryAppTouchedSinceItLastFinished() {
-    #expect(settleApps(touched: [10, 20], frontNow: 30, excluding: 99) == [10, 20, 30])
-    #expect(settleApps(touched: [10, 99], frontNow: 10, excluding: 99) == [10])
-    #expect(settleApps(touched: [], frontNow: nil, excluding: 99) == [])
+    #expect(settleApps(touched: [10, 20], frontNow: 30) == [10, 20, 30])
+    #expect(settleApps(touched: [10], frontNow: 10) == [10])
+    #expect(settleApps(touched: [], frontNow: nil) == [])
+}
+
+// In persistent mode, the label on Jumpr's own menu bar icon opened the panel and its
+// controls got no labels: the settle window left Jumpr out, though a trigger scans it.
+@Test func theSettleWindowScansJumprItselfWhenItWasPressedOrIsInFront() {
+    let jumpr: Int32 = 99
+    #expect(settleApps(touched: [jumpr], frontNow: 10) == [10, jumpr])
+    #expect(settleApps(touched: [10], frontNow: jumpr) == [10, jumpr])
 }
 
 @Test func theSettleMomentsAreTheOnesInTheDesign() {

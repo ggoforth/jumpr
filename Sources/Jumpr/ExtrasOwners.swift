@@ -40,8 +40,9 @@ final class ExtrasOwners {
     }
 
     /// Jumpr counts too: its own icon gets a label, and so does its panel while open, since
-    /// the panel's controls sit under the icon in the tree. A request to itself is answered
-    /// by its main thread, so it must come from this queue or a scan queue, never from main.
+    /// the panel's controls sit under the icon in the tree. A request to itself is not sent
+    /// anywhere: it is served in place, on the calling thread (JUM-117). This one is a read,
+    /// asked from this queue like every other app's, never from main.
     private static func hasExtras(_ pid: Int32) -> Bool {
         axCopy(axApp(pid), "AXExtrasMenuBar") != nil
     }

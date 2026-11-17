@@ -598,7 +598,7 @@ final class Controller {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 guard let self, isCurrent(gen), settleID == id else { return }  // stale: drop
                 let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
-                reconcile(pids: settleApps(touched: settle.touched, frontNow: front, excluding: getpid()), last: last)
+                reconcile(pids: settleApps(touched: settle.touched, frontNow: front), last: last)
             }
         }
     }
