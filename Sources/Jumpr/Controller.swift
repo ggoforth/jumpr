@@ -223,9 +223,7 @@ final class Controller {
         screens = overlays.map(\.frame)
         let running = Self.runningApps()
         let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
-        var pids = stack.appsToScan(excluding: getpid(), front: front)
-        // Menu bar extras belong to apps the window list does not name (see `ExtrasOwners`).
-        pids += extras.current.subtracting(pids).sorted()
+        let pids = pidsToScan(stack, front: front)
         var names: [Int32: String] = [:]
         for w in stack.wins where names[w.pid] == nil { names[w.pid] = w.name }
         // Catch-all for apps the earlier moments missed (see `enableTrees`).
@@ -274,6 +272,14 @@ final class Controller {
                                                       bundle: bundle)
                             })
         }
+    }
+
+    /// The apps a trigger or a refresh looks at: window owners front to back, then the owners
+    /// of menu bar extras the window list does not name (see `ExtrasOwners`).
+    private func pidsToScan(_ stack: WindowStack, front: Int32?) -> [Int32] {
+        var pids = stack.appsToScan(excluding: getpid(), front: front)
+        pids += extras.current.subtracting(pids).sorted()
+        return pids
     }
 
     /// What one scan of an app met of web content: its web areas, and what there was to
@@ -446,6 +452,14 @@ final class Controller {
         guard isActive else { return false }
         switch session.handle(key) {
         case .passThrough:
+            // A shortcut that goes on to the system (⌘T, ⌘W, ⌘Tab) changes the screen as a
+            // press does, so it starts a settle window for the app in front. Only one-shot
+            // delays are scheduled here, so it is cheap inside the key tap; a held shortcut
+            // that repeats just restarts the window.
+            if session.persistent {
+                if let front = NSWorkspace.shared.frontmostApplication?.processIdentifier { touched.insert(front) }
+                startSettle()
+            }
             return false
         case .swallow:
             return true
@@ -461,7 +475,17 @@ final class Controller {
             log("persistent: \(on ? "on" : "off")")
             return true
         case .refresh:
-            return true  // a later change gives Tab its behaviour
+            // Tab: one reconcile across every app a trigger would scan, for changes made with
+            // the mouse or trackpad. The window list is read on main's next turn, not inside
+            // the key tap, as a trigger's is.
+            let gen = generation
+            DispatchQueue.main.async { [weak self] in
+                guard let self, isCurrent(gen), session.persistent else { return }  // stale: drop
+                settleID += 1  // replaces any settle window in progress
+                let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
+                reconcile(pids: pidsToScan(WindowServer.snapshot(), front: front), last: true)
+            }
+            return true
         case .narrowed(let prefix):
             show(prefix: prefix)
             if debugLabels {
