@@ -29,3 +29,23 @@ public func settleApps(touched: Set<Int32>, frontNow: Int32?, excluding me: Int3
     apps.remove(me)
     return apps.sorted()
 }
+
+/// What follows one app's reconcile in a settle window.
+public enum AfterReconcile: Equatable {
+    case carryOn
+    /// One fresh trigger, persistent mode kept on, with labels sized from the new count.
+    case refresh
+    /// Nothing left to type at.
+    case end
+}
+
+/// Decides, once an app's reconcile is done, whether the run goes on.
+/// A pool that ran out (`overflow`) left targets with no letters; a fresh trigger gives
+/// everything letters at a length sized for the new count. No labels left ends the session
+/// only at the last moment: a page swap removes the old page's labels at one moment and its
+/// new labels arrive at the next.
+public func afterReconcile(overflow: Int, labelsLeft: Int, lastMoment: Bool) -> AfterReconcile {
+    if overflow > 0 { return .refresh }
+    if lastMoment && labelsLeft == 0 { return .end }
+    return .carryOn
+}

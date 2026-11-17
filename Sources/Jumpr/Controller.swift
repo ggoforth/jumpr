@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox  // IsSecureEventInputEnabled
 import JumprCore
 
 /// Ties hotkey → scan → labels → typing. Everything here runs on the main thread;
@@ -42,13 +43,23 @@ final class Controller {
     private var overflow = 0
     private var pendingApps = 0
     /// A press in persistent mode has not reported yet. A label typed meanwhile is held
-    /// (`heldMatch`) rather than pressed, so two presses never race into the same app.
+    /// (`heldMatch`) rather than pressed, which keeps presses in order and lets the settle
+    /// window follow the last one.
     private var pressInFlight = false
     /// The latest label typed while a press was in flight; an earlier one is replaced.
     private var heldMatch: (Target, ClickKind)?
     /// The apps pressed into in persistent mode, and the app in front at each press: what a
     /// settle window will scan once the screen has had time to change.
     private var touched = Set<Int32>()
+    /// Identifies the current settle window, beside `generation` and under the same rule: a
+    /// new press, Space switching the mode off, and every cancel bump it, and a moment or
+    /// reconcile callback from an older window is dropped before it touches anything.
+    private var settleID = 0 { didSet { sharedSettleID.value = settleID } }
+    /// A copy of `settleID` that the scan queues may read; written only here, on main.
+    private let sharedSettleID = SharedGeneration()
+    /// Apps with a reconcile scan still running; a moment skips them rather than queue a
+    /// second scan behind the first.
+    private var scanning = Set<Int32>()
     private var screens: [CGRect] = []
     private var style = LabelStyle.current()
     /// Labels needed by the previous complete trigger, for sizing the next one's labels.
@@ -120,6 +131,13 @@ final class Controller {
         ) { [unowned self] note in
             guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
             let pid = app.processIdentifier
+            // A press that quit its app: its labels point at nothing, and waiting for a settle
+            // moment would leave them up until it came.
+            if isActive {
+                for (label, p) in placed where p.target.pid == pid { remove(label) }
+                CATransaction.flush()
+                touched.remove(pid)
+            }
             extras.forget(pid: pid)
             // Queued behind any scan of the app still running, then the queue itself goes.
             scanner.perform(pid: pid, background: true) { [registry] in registry.forget(pid: pid) }
@@ -332,21 +350,61 @@ final class Controller {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         for t in s.targets {
-            guard let i = Labels.screenIndex(for: CGPoint(x: t.rect.midX, y: t.rect.midY), screens: screens) else { continue }
-            guard !placedIDs.contains(t.id) else { continue }
-            guard let label = pool.next() else { overflow += 1; continue }
-            placedIDs.insert(t.id)
-            added += 1
-            let rect = Labels.frame(length: pool.length, target: t.rect, screen: screens[i],
-                                    fontSize: style.size, advance: style.advance)
-            let layer = overlays[i].add(label: label, at: rect, style: style)
-            layer.isHidden = !label.hasPrefix(session.typed)  // the user may already be typing
-            placed[label] = Placed(target: t, rect: rect, layer: layer, overlay: i)
-            session.labels.insert(label)
+            if place(t) { added += 1 }
         }
         CATransaction.commit()
         if !late { readout.note(s, name: name, paint: now() - t0) }
         return added
+    }
+
+    /// Labels one target, unless it is on no display, already labelled (the look-again pass
+    /// and a reconcile can both find it), or the pool has run out. True if a label was added.
+    private func place(_ t: Target) -> Bool {
+        guard let i = Labels.screenIndex(for: CGPoint(x: t.rect.midX, y: t.rect.midY), screens: screens) else { return false }
+        guard !placedIDs.contains(t.id) else { return false }
+        guard let label = pool.next() else { overflow += 1; return false }
+        placedIDs.insert(t.id)
+        let rect = Labels.frame(length: pool.length, target: t.rect, screen: screens[i],
+                                fontSize: style.size, advance: style.advance)
+        let layer = overlays[i].add(label: label, at: rect, style: style)
+        layer.isHidden = !label.hasPrefix(session.typed)  // the user may already be typing
+        placed[label] = Placed(target: t, rect: rect, layer: layer, overlay: i)
+        session.labels.insert(label)
+        return true
+    }
+
+    /// Takes a label off the screen and gives its letters back. Does nothing for a label no
+    /// longer placed (its app quit, or an earlier result removed it): `pool.release` does not
+    /// check, and letters released twice would later sit on two elements.
+    private func remove(_ label: String) {
+        guard let p = placed.removeValue(forKey: label) else { return }
+        overlays[p.overlay].remove(p.layer)
+        placedIDs.remove(p.target.id)
+        session.labels.remove(label)
+        pool.release(label)
+    }
+
+    /// The label's element is still there at a new rectangle (a toolbar that reflowed): same
+    /// letters, new place. On no display any more, it goes.
+    private func move(_ label: String, to t: Target) {
+        // Letters released and handed out again since the scan began belong to someone else.
+        guard let p = placed[label], p.target.id == t.id else { return }
+        guard let i = Labels.screenIndex(for: CGPoint(x: t.rect.midX, y: t.rect.midY), screens: screens) else {
+            remove(label)
+            return
+        }
+        let rect = Labels.frame(length: pool.length, target: t.rect, screen: screens[i],
+                                fontSize: style.size, advance: style.advance)
+        let layer: CALayer
+        if i == p.overlay {
+            layer = p.layer
+            overlays[i].move(layer, to: rect)
+        } else {
+            overlays[p.overlay].remove(p.layer)
+            layer = overlays[i].add(label: label, at: rect, style: style)
+        }
+        layer.isHidden = !label.hasPrefix(session.typed)
+        placed[label] = Placed(target: t, rect: rect, layer: layer, overlay: i)
     }
 
     /// Every app has answered for the current generation.
@@ -384,7 +442,11 @@ final class Controller {
         case .persistent(let on):
             // Switched off mid-run: the next match ends the session as today, so a label
             // held for a press in flight must not be pressed later either.
-            if !on { heldMatch = nil }
+            // The settle moments still pending go too; the labels stay as they are.
+            if !on {
+                heldMatch = nil
+                settleID += 1
+            }
             onPersistentChanged(on)
             log("persistent: \(on ? "on" : "off")")
             return true
@@ -433,15 +495,148 @@ final class Controller {
     /// `Presser` reported on a press made under `generation`. A press from an earlier
     /// session, or one made as the session ended (today's path cancels first), finds no
     /// current session and does nothing. The held label, if any, is pressed now, unless
-    /// persistent mode was switched off meanwhile.
+    /// persistent mode was switched off meanwhile; with none held, the settle window starts.
     func pressFinished(generation gen: Int) {
         guard isCurrent(gen) else { return }
         // Cleared even when the mode is off now: switched on again, a stuck flag would hold
         // every later label forever.
         pressInFlight = false
-        guard let held = heldMatch else { return }
+        guard let held = heldMatch else {
+            if session.persistent { startSettle() }
+            return
+        }
         heldMatch = nil
         if session.persistent { press(held.0, held.1) }
+    }
+
+    // MARK: - Settle window
+
+    /// A press changes the screen after the app has answered it: a menu opens, a page swaps,
+    /// a window comes forward. So the touched apps are scanned again at fixed moments after
+    /// the press reported. One-shot delays caused by the press, not a timer; a newer press
+    /// replaces the moments still pending (`settleID`).
+    private func startSettle() {
+        settleID += 1
+        let gen = generation
+        let id = settleID
+        for (n, delay) in Settle.moments.enumerated() {
+            let last = n == Settle.moments.count - 1
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self, isCurrent(gen), settleID == id else { return }  // stale: drop
+                let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
+                reconcile(pids: settleApps(touched: touched, frontNow: front, excluding: getpid()), last: last)
+            }
+        }
+    }
+
+    /// One settle moment: drop labels another window now covers, then scan `pids` again and
+    /// bring their labels in line with what is there now (`Reconcile`).
+    private func reconcile(pids: [Int32], last: Bool) {
+        // Jumpr can no longer hear Esc: a password field took the keys.
+        if IsSecureEventInputEnabled() {
+            log("persistent: ended, secure input")
+            cancel()
+            return
+        }
+        let gen = generation
+        let id = settleID
+        let stack = WindowServer.snapshot()
+        screens = overlays.map(\.frame)
+        let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let running = Self.runningApps()
+
+        // Apps not scanned now: geometry on the window list, no accessibility call.
+        let covered = coveredLabels(placed.mapValues(\.target), stack: stack, scanned: Set(pids))
+        if !covered.isEmpty {
+            covered.forEach(remove)
+            CATransaction.flush()
+        }
+
+        let pids = pids.filter { !scanning.contains($0) }
+        // The last moment's ending checks, here when it starts no scan at all.
+        if pids.isEmpty {
+            if last { settleEnded() }
+            return
+        }
+        var left = pids.count  // apps of this moment still scanning
+        for pid in pids {
+            scanning.insert(pid)
+            let name = running[pid]?.localizedName ?? stack.wins.first { $0.pid == pid }?.name ?? "?"
+            // A press on a Dock icon puts the Dock in `touched`; it is scanned as a trigger does.
+            let isDock = running[pid]?.bundleIdentifier == Self.dockID
+            let mine = placed.filter { $0.value.target.pid == pid }
+            // The element each label stood for when the scan began, to tell its letters from
+            // the same letters released and handed to another element meanwhile.
+            let ids = mine.mapValues(\.target.id)
+            var rec = Reconcile(placed: Dictionary(mine.map { ($0.value.target.id, (label: $0.key, rect: $0.value.target.rect)) },
+                                                   uniquingKeysWith: { a, _ in a }))
+            var moved = 0
+            var added = 0
+            var removed = 0
+            let t0 = now()
+            scanner.scanApp(pid: pid, stack: stack, screens: screens, frontPid: front, isDock: isDock, background: false,
+                            isStale: { [sharedGeneration, sharedSettleID] in
+                                sharedGeneration.value != gen || sharedSettleID.value != id
+                            },
+                            each: { [weak self] s in
+                                guard let self, isCurrent(gen), settleID == id else { return }  // stale: drop
+                                if s.incomplete { rec.noteIncomplete() }
+                                CATransaction.begin()
+                                CATransaction.setDisableActions(true)
+                                for t in s.targets {
+                                    switch rec.note(t) {
+                                    case .keep:
+                                        break
+                                    case .move(let label):
+                                        let had = placed[label] != nil
+                                        move(label, to: t)
+                                        if placed[label] != nil { moved += 1 } else if had { removed += 1 }
+                                    case .add:
+                                        if place(t) { added += 1 }
+                                    }
+                                }
+                                CATransaction.commit()
+                            },
+                            done: { [weak self] complete in
+                                guard let self else { return }
+                                scanning.remove(pid)
+                                guard isCurrent(gen), settleID == id else { return }  // stale: drop
+                                if !complete { rec.noteIncomplete() }
+                                // Removals wait for the app's last window: a target missing
+                                // from one window's result may be in another's.
+                                for label in rec.removals() where placed[label]?.target.id == ids[label] {
+                                    remove(label)
+                                    removed += 1
+                                }
+                                if session.clearTypedIfNothingMatches() { show(prefix: "") }
+                                CATransaction.flush()
+                                log(String(format: "reconcile %@: kept %d moved %d removed %d added %d, %.0f ms%@",
+                                           name, rec.kept, moved, removed, added, (now() - t0) * 1000,
+                                           rec.complete ? "" : " incomplete"))
+                                left -= 1
+                                switch afterReconcile(overflow: overflow, labelsLeft: placed.count, lastMoment: last) {
+                                case .refresh:
+                                    lastTotal = placed.count + overflow  // the fresh trigger sizes from this
+                                    cancel()
+                                    trigger(persistent: true)
+                                case .end:
+                                    log("persistent: ended, no labels")
+                                    cancel()
+                                case .carryOn:
+                                    if last && left == 0 { settleEnded() }
+                                }
+                            })
+        }
+    }
+
+    /// The last moment of a settle window is done: what was touched has been looked at, and a
+    /// session with nothing left to type at ends, as a trigger with no labels does.
+    private func settleEnded() {
+        touched = []
+        if placed.isEmpty {
+            log("persistent: ended, no labels")
+            cancel()
+        }
     }
 
     // MARK: - Colours
@@ -469,6 +664,7 @@ final class Controller {
     func cancel() {
         let wasActive = isActive
         generation += 1  // every in-flight result is now stale
+        settleID += 1  // and every settle moment still pending
         isActive = false
         tap.capturing = false
         overlays.forEach { $0.clear() }
