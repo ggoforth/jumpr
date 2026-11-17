@@ -23,6 +23,29 @@ import Testing
     }
 }
 
+// Finder's toolbar Group button (an AXMenuButton) opened its menu with no labels on it, and
+// the session still up swallowed the arrow keys and Return until Esc.
+@Test func aPressedPopUpOrMenuButtonEndsPersistentMode() {
+    #expect(endsPersistentMode(role: "AXPopUpButton", kind: .plain))
+    #expect(endsPersistentMode(role: "AXMenuButton", kind: .plain))
+    #expect(!endsPersistentMode(role: "AXButton", kind: .plain))
+}
+
+// A menu bar menu is labelled by the settle window's scan of the menu bar, so it keeps the mode.
+@Test func aPressedMenuBarItemOrMenuItemDoesNotEndPersistentMode() {
+    #expect(!endsPersistentMode(role: "AXMenuBarItem", kind: .plain))
+    #expect(!endsPersistentMode(role: "AXMenuItem", kind: .plain))
+}
+
+// The log names why the mode ended, in fixed words, as every other ending does.
+@Test func theEndingOfPersistentModeNamesItsReason() {
+    #expect(persistentModeEnding(role: "AXTextField", kind: .plain) == "text field")
+    #expect(persistentModeEnding(role: "AXButton", kind: .right) == "right-click")
+    #expect(persistentModeEnding(role: "AXPopUpButton", kind: .plain) == "menu button")
+    #expect(persistentModeEnding(role: "AXMenuButton", kind: .plain) == "menu button")
+    #expect(persistentModeEnding(role: "AXButton", kind: .plain) == nil)
+}
+
 // A press into Finder and, half a second later, one into Safari: the second press starts a
 // new settle window, and Finder must still be scanned in it.
 @Test func theSettleWindowScansEveryAppTouchedSinceItLastFinished() {

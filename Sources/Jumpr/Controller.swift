@@ -562,7 +562,9 @@ final class Controller {
     /// reason goes to the log, as the design asks of every ending; `endsPersistentMode` is
     /// the only rule that ends a persistent session on a press.
     private func endAndPress(_ m: PressSequence.Match) {
-        if session.persistent { log("persistent: ended, \(m.kind == .right ? "right-click" : "text field")") }
+        if session.persistent, let reason = persistentModeEnding(role: m.target.role, kind: m.kind) {
+            log("persistent: ended, \(reason)")
+        }
         cancel()
         onMatched(m.target, m.kind)
     }

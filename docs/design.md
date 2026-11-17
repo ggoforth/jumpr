@@ -83,7 +83,7 @@ hotkey (event tap, main run loop)
 
 **Nothing accessibility-related runs on the main thread.** The event tap's callback runs on the main run loop and must return at once; if it stalls, typing stalls system-wide. An accessibility request is answered on the target app's own main thread and can take as long as that app is busy. So every accessibility call goes through an app's scan queue, and the main thread only reads the window list, paints and handles keys.
 
-The same session ends on Esc, the hotkey, a match, a display change (overlays are rebuilt), a Space change, a screen lock, and Pause. It also ends once no labels are left and nothing pending could add some, for example when an app quit and took the last ones with it. In persistent mode a match does not end it, and four things do: a matched text field, a right-click, secure input, and no labels left (see [Persistent mode](#persistent-mode)).
+The same session ends on Esc, the hotkey, a match, a display change (overlays are rebuilt), a Space change, a screen lock, and Pause. It also ends once no labels are left and nothing pending could add some, for example when an app quit and took the last ones with it. In persistent mode a match does not end it, and five things do: a matched text field, a matched pop-up or menu button, a right-click, secure input, and no labels left (see [Persistent mode](#persistent-mode)).
 
 ## Scanning
 
@@ -190,7 +190,7 @@ Without it, a run of presses takes one hotkey press per step: open a site, press
 
 - **A label typed while a press is in flight is held**, and pressed when that press reports. One is held at a time; a later one replaces it. A label that would end the mode is held too: pressed at once, a search field typed mid-press in another app raced the first press. The log says `persistent: held`.
 - **Space switching the mode off** drops the settle moments still pending and leaves the labels as they are. A held label is not dropped: it was typed, so it is pressed when the press in flight reports, and ends the session as any match does with the mode off (the log says `held` for one held then). With nothing held, the report starts no settle window.
-- **Two presses end the mode first** and take the plain path (`endsPersistentMode`), both decided by role or click, never by app. A target whose role is a text field (`Roles.text`: text field, text area, combo box), in web content or not: the next keys are for the field, and with the session up they would be swallowed as label letters. And a right-click: the menu it opens is not labelled, and its arrow keys and Return would be swallowed. Web text that can take focus (each day in a date picker) is a control, not a text field, so the run goes on.
+- **Three presses end the mode first** and take the plain path (`endsPersistentMode`), each decided by role or click, never by app. A target whose role is a text field (`Roles.text`: text field, text area, combo box), in web content or not: the next keys are for the field, and with the session up they would be swallowed as label letters. A target whose role is a pop-up button or menu button (`Roles.opensMenu`): the menu it opens is not labelled (labelling such menus is not built), and it needs the arrow keys and Return. And a right-click, for the same reason. A menu bar item or menu item keeps the mode, since the settle window's scan of the menu bar reaches its menu. Web text that can take focus (each day in a date picker) is a control, not a text field, so the run goes on.
 
 **The settle window.** A press changes the screen after the app has answered: a menu opens, a page swaps, a window comes forward. So Jumpr looks again at fixed moments after the press reports (`Settle.moments`): 0.15, 0.5, 1.0, 2.0 and 3.5 s. They are one-shot delays caused by the press, not a timer; after the last, nothing runs until the next press. At each moment, on the main thread:
 
@@ -219,9 +219,10 @@ Adds and moves are painted as each window's result arrives. Removals wait for th
 
 **Letters.** The label length is fixed for the session, as for a trigger. A removed label's letters go back to the pool (`LabelPool.release`), but letters never handed out in this session come first, and released ones only after those, oldest first: a button that just vanished (Play turning into Pause) must not have its letters land on another button a moment later. If the pool runs out, the targets left without letters are counted per app, each scan's count replacing that app's last. After a reconcile, if that count calls for longer labels than the ones in use, Jumpr runs one fresh trigger with persistent mode kept on, sized from the new count, and a settle window follows over the apps the old one watched (`afterReconcile`, `Controller.refresh`). If it does not, the run carries on with what fits, since a fresh trigger would only run out again. A press in flight, and a label held behind it, carry across the refresh (`PressSequence.carried`), and that press's report starts the window.
 
-**What ends it.** Everything that ends a session ends this one too (see [The trigger, end to end](#the-trigger-end-to-end)), except a match. Four things end it that do not end a plain session, each decided by role or by a system flag, never by app, and each writes its reason to the log:
+**What ends it.** Everything that ends a session ends this one too (see [The trigger, end to end](#the-trigger-end-to-end)), except a match. Five things end it that do not end a plain session, each decided by role or by a system flag, never by app, and each writes its reason to the log:
 
 - a matched text field: `persistent: ended, text field`
+- a matched pop-up button or menu button, whose menu is not labelled (that is not built) and needs the arrow keys: `persistent: ended, menu button`
 - a right-click: `persistent: ended, right-click`
 - secure input, found on at a settle moment or a Tab: `persistent: ended, secure input`. Jumpr reads only the system's yes or no.
 - no labels left, with nothing pending that could add some: no trigger scans still out, no settle window running, no press in flight (`endsForWantOfLabels`): `persistent: ended, no labels`. A page swap removes the old page's labels at one moment and the new page's arrive at the next, so this waits. The same rule ends a plain session (`cancelled: no labels`), including one left with no labels after Space switched the mode off. When an app quits while labels are up, its labels go at once, in either mode, rather than waiting for a settle moment.
@@ -313,6 +314,7 @@ Jumpr has no Dock icon and is rarely the active app, so a scheduled update alert
 - If secure input begins after the settle window has closed, the labels stay up, and neither Esc nor the hotkey reaches Jumpr, until focus leaves the password field.
 - A press that opens a text field without being one (a search icon) leaves the labels up. Esc, then type.
 - A right-click ends persistent mode, because the menu it opens is not labelled.
+- A menu opened by a pop-up button or menu button gets no labels, in plain mode or persistent mode. In persistent mode the press ends the mode, so the menu has the keys.
 - An element an app rebuilds gets a new identity and so new letters, even if it looks the same.
 - In persistent mode, labels cover the page while it is being read. Nothing is done about this yet.
 - A second Tab while the first refresh is still scanning does less than one: it makes the first refresh's results stale, and skips every app whose scan from it is still running.

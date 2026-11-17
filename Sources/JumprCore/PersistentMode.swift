@@ -5,8 +5,20 @@
 /// merely takes focus (each day in a date picker is an `AXStaticText`) is a control, so it is
 /// not on the list and the run goes on. A right-click opens a menu that is not labelled, and
 /// with the session up its arrow keys and Return would be swallowed, so it ends the mode too.
+/// So does a pop-up or menu button, for the same reason: Finder's toolbar Group button opened
+/// a menu with no labels and the keys were stuck until Esc. A menu bar menu is labelled by the
+/// settle window's scan, so a menu bar item or menu item keeps the mode.
 public func endsPersistentMode(role: String, kind: ClickKind) -> Bool {
-    Roles.text.contains(role) || kind == .right
+    persistentModeEnding(role: role, kind: kind) != nil
+}
+
+/// The reason `endsPersistentMode` gives, in fixed words for the log, or nil when the press
+/// keeps the mode. A right-click is named first: on a text field it opens a menu all the same.
+public func persistentModeEnding(role: String, kind: ClickKind) -> String? {
+    if kind == .right { return "right-click" }
+    if Roles.text.contains(role) { return "text field" }
+    if Roles.opensMenu.contains(role) { return "menu button" }
+    return nil
 }
 
 /// When a settle window re-scans after a press.

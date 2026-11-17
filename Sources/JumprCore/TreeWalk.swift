@@ -99,6 +99,8 @@ public enum Finding {
 
 public enum Roles {
     public static let text: Set<String> = ["AXTextField", "AXTextArea", "AXComboBox"]
+    /// Buttons whose press opens a menu no scan reaches, so pressing one ends persistent mode.
+    public static let opensMenu: Set<String> = ["AXPopUpButton", "AXMenuButton"]
     public static let leaf: Set<String> = text.union([
         "AXButton", "AXLink", "AXCheckBox", "AXRadioButton", "AXPopUpButton", "AXMenuButton",
         "AXDisclosureTriangle", "AXSlider", "AXIncrementor", "AXColorWell", "AXDockItem",
