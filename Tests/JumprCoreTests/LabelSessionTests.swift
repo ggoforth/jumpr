@@ -169,3 +169,12 @@ import Testing
     let withNothingTyped = s.clearTypedIfNothingMatches()
     #expect(!withNothingTyped)
 }
+
+// ⌘ on the last letter in persistent mode opens a link in a new tab and the run goes on:
+// "AS" left typed would make the next "D" try "ASD" and swallow it.
+@Test func aChordMatchInPersistentModeClearsWhatWasTyped() {
+    var s = LabelSession(persistent: true); s.labels = ["AS", "AD"]
+    _ = s.handle(.character("A"))
+    #expect(s.handle(.chord("S", held: Modifiers.command)) == .matched("AS", .command))
+    #expect(s.typed == "")
+}

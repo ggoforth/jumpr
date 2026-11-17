@@ -59,3 +59,21 @@ private func win(_ id: WindowID, pid: Int32, _ r: CGRect) -> Win {
     let over = win(6, pid: 20, CGRect(x: 0, y: 0, width: 500, height: 500))
     #expect(coveredLabels(["AS": target(1, window: nil)], stack: WindowStack([over]), scanned: []) == [])
 }
+
+// A popover Safari opens over its own window is a helper window with no labels: Safari's
+// labels under it stay, as they did when it was scanned.
+@Test func anUnlabelledWindowOfTheSameAppDoesNotCoverItsLabels() {
+    let t = target(1)
+    let main = win(5, pid: 10, CGRect(x: 0, y: 0, width: 100, height: 100))
+    let popover = win(7, pid: 10, CGRect(x: 0, y: 0, width: 50, height: 50))
+    #expect(coveredLabels(["AS": t], stack: WindowStack([popover, main]), scanned: []) == [])
+}
+
+// Two Finder windows, both labelled: the one brought forward hides the other's labels.
+@Test func aLabelledWindowOfTheSameAppCoversItsSiblingsLabels() {
+    let behind = target(1, window: 5)
+    let front = target(2, x: 200, window: 7)
+    let back = win(5, pid: 10, CGRect(x: 0, y: 0, width: 100, height: 100))
+    let sibling = win(7, pid: 10, CGRect(x: 0, y: 0, width: 300, height: 100))
+    #expect(coveredLabels(["AS": behind, "AD": front], stack: WindowStack([sibling, back]), scanned: []) == ["AS"])
+}
