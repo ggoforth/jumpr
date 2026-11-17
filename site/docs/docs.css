@@ -182,20 +182,21 @@
 }
 .docs-note {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 14px;
   padding: 18px 20px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 12px;
 }
-.docs-note .docs-chip { margin-top: 3px; }
 .docs-note.warn .docs-chip { color: var(--on-yellow); background: var(--yellow); border-color: transparent; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.6); }
 
 .docs-figure { margin: 32px 0 0; }
-.docs-figure .frame { overflow: hidden; background: var(--art); border: 1px solid var(--line); border-radius: 14px; }
-.docs-figure img { display: block; width: 100%; height: auto; }
-.docs-figure .is-placeholder { display: grid; place-items: center; align-content: center; gap: 8px; min-height: 160px; border-style: dashed; border-color: var(--line-strong); }
+.docs-figure .frame { padding: 28px; background: var(--art); border: 1px solid var(--line); border-radius: 14px; }
+/* A capture is shown at its own size, never stretched: these are one-to-one screen
+   pixels and blur when enlarged. The shadow follows the capture's own outline. */
+.docs-figure img { display: block; max-width: 100%; height: auto; margin: 0 auto; border-radius: 10px; filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.3)); }
+.docs-figure .is-placeholder { display: grid; padding: 0; place-items: center; align-content: center; gap: 8px; min-height: 160px; border-style: dashed; border-color: var(--line-strong); }
 .docs-figure .file { font: 0.78rem/1.4 var(--mono); color: var(--faint); }
 .docs-figure figcaption { margin-top: 10px; font-size: 0.8rem; color: var(--faint); }
 

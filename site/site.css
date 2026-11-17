@@ -741,6 +741,8 @@ html:not(.js) .js-only, html:not(.js) .tile-btn, html:not(.js) .swatches, html:n
 .key-letter { font-family: var(--mono); font-weight: 700; }
 .key-sm { min-width: 34px; height: 34px; padding: 0 8px; font-size: 0.95rem; border-bottom-width: 3px; border-radius: 8px; box-shadow: none; }
 .key-sm.key-wide { min-width: 64px; font-size: 0.85rem; }
+/* the key being held or pressed in a still drawing */
+.key-on { color: var(--on-label); background: var(--label); border-color: rgba(0, 0, 0, 0.5); }
 
 /* --- 2. press, type, clicked --- */
 
@@ -814,7 +816,46 @@ html:not(.js) .js-only, html:not(.js) .tile-btn, html:not(.js) .swatches, html:n
 @keyframes click-ring { 0% { opacity: 0.9; box-shadow: 0 0 0 0 var(--label); } 100% { opacity: 0; box-shadow: 0 0 0 14px var(--label); } }
 @keyframes chip-hit { 0%, 100% { transform: none; } 45% { transform: scale(1.2); } }
 
-/* --- 3. the feature grid --- */
+/* --- 3. keep your hands on the keys --- */
+
+/* Three tiles from the feature grid below (.bento, .tile), a third each. */
+.keys { margin-top: 104px; }
+.t-run, .t-scroll, .t-clicks { grid-column: span 2; }
+.tile > .tile-link { align-self: flex-start; margin: 14px 12px 0; }
+.t-run.play .pop, .t-scroll.play .pop, .t-clicks.play .pop { animation-delay: 0.3s; }
+
+/* the grey lines that stand in for text in these three drawings */
+.fx-win i, .fx-pane i, .fx-target i, .fx-ctx .fx-menu i { display: block; height: 8px; border-radius: 4px; background: var(--m-skel); }
+.fx-keys { display: flex; gap: 8px; }
+/* The width rules at the end resize every .key for the steps above. A tile's
+   drawing is the same size at every width, so its small keys hold theirs. */
+.keys .key-sm { min-width: 34px; height: 34px; padding: 0 8px; font-size: 0.95rem; }
+.keys .key-sm.key-wide { min-width: 64px; font-size: 0.85rem; }
+
+/* a run of clicks: Space held, the labels still up, one of them just clicked */
+.fx-run { display: flex; align-items: center; gap: 20px; }
+.fx-win { display: grid; gap: 12px; width: 170px; padding: 14px; background: var(--m-win); border-radius: 10px; box-shadow: 0 10px 24px -14px var(--shadow); }
+.fx-win > div { display: flex; align-items: center; gap: 8px; }
+.fx-win > .is-hit { margin: -5px -6px; padding: 5px 6px; border-radius: 7px; box-shadow: 0 0 0 2px var(--label); }
+
+/* scrolling: each area has a letter, the outlined one answers J and K */
+.fx-scroll { display: grid; justify-items: center; gap: 14px; }
+.fx-panes { display: flex; gap: 10px; }
+.fx-pane { position: relative; display: grid; align-content: start; gap: 9px; width: 132px; padding: 14px 12px; background: var(--m-win); border-radius: 9px; }
+.fx-pane + .fx-pane { width: 92px; }
+.fx-pane.is-on { box-shadow: 0 0 0 2px var(--label); }
+.fx-pane .chip { position: absolute; left: 8px; top: 8px; }
+
+/* kinds of click: Shift on the last letter, and the menu a right-click opens */
+.fx-clicks { display: flex; align-items: center; gap: 20px; }
+.fx-clicks .fx-keys { gap: 6px; }
+.fx-ctx { position: relative; width: 150px; height: 128px; }
+.fx-target { position: absolute; left: 0; top: 4px; display: flex; align-items: center; width: 76px; height: 30px; padding: 0 10px; background: var(--key); border: 1px solid var(--key-edge); border-radius: 8px; }
+.fx-target i { width: 100%; }
+.fx-ctx .chip { position: absolute; left: 64px; top: 26px; }
+.fx-ctx .fx-menu { left: 40px; top: 46px; gap: 10px; width: 110px; padding: 12px; }
+
+/* --- 4. the feature grid --- */
 
 .features { margin-top: 104px; }
 .bento { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; }
@@ -1052,7 +1093,7 @@ html:not(.js) .js-only, html:not(.js) .tile-btn, html:not(.js) .swatches, html:n
 .fx-repo-meta { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--muted); font-size: 0.8rem; }
 .fx-repo-meta i { display: inline-block; width: 9px; height: 9px; margin-right: 6px; border-radius: 50%; background: var(--faint); vertical-align: -0.05em; }
 
-/* --- 4. questions --- */
+/* --- 5. questions --- */
 
 .qa { margin-top: 104px; }
 .qa-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 56px; margin: 0; }
@@ -1061,7 +1102,7 @@ html:not(.js) .js-only, html:not(.js) .tile-btn, html:not(.js) .swatches, html:n
 .qa-item dd { margin: 0; color: var(--muted); }
 .qa-item kbd { font-size: 0.8em; }
 
-/* --- 5. closing band and more apps --- */
+/* --- 6. closing band and more apps --- */
 
 .closing { margin-top: 104px; }
 .closing-band {
@@ -1104,7 +1145,7 @@ html:not(.js) .js-only, html:not(.js) .tile-btn, html:not(.js) .swatches, html:n
 .app-desc { color: var(--muted); font-size: 0.97rem; }
 .app-link { font-weight: 600; font-size: 0.95rem; text-decoration: underline; text-underline-offset: 0.2em; }
 
-/* --- 6. footer --- */
+/* --- 7. footer --- */
 
 .footer-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 32px; }
 .footer-brand { text-decoration: none; }
@@ -1116,13 +1157,15 @@ html:not(.js) .js-only, html:not(.js) .tile-btn, html:not(.js) .swatches, html:n
   .bento { grid-template-columns: repeat(2, 1fr); }
   .t-displays, .t-yours, .t-oss { grid-column: span 2; }
   .t-speed, .t-narrow, .t-menus, .t-web, .t-private { grid-column: span 1; }
+  .t-run, .t-scroll { grid-column: span 1; }
+  .t-clicks { grid-column: span 2; }
   .how-steps { --gap: 36px; }
   .key { min-width: 44px; height: 44px; padding: 0 10px; font-size: 1.1rem; }
   .key-wide { min-width: 84px; font-size: 0.85rem; }
 }
 
 @media (max-width: 760px) {
-  .how, .features, .qa, .closing { margin-top: 80px; }
+  .how, .keys, .features, .qa, .closing { margin-top: 80px; }
   .how-steps { grid-template-columns: 1fr; gap: 32px; --art-h: 124px; }
   .how-step + .how-step::before { display: none; }
   .key { min-width: 52px; height: 52px; padding: 0 12px; font-size: 1.25rem; }

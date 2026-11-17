@@ -14,6 +14,8 @@ Jumpr needs macOS 15 or later. It works with one display or several.
 
 Jumpr lives in the menu bar and has no Dock icon. Click its menu bar icon to open [the panel](using/the-panel.md).
 
+![Jumpr's panel, under its menu bar icon.](getting-started-panel.webp)
+
 ## Grant the permission
 
 macOS asks for the Accessibility permission the first time you open Jumpr. Open System Settings → Privacy & Security → Accessibility and turn on Jumpr.
@@ -29,6 +31,8 @@ macOS asks for the Accessibility permission the first time you open Jumpr. Open 
 3. When the letters match, Jumpr clicks.
 
 To close the labels without clicking, press [[Esc]].
+
+![Every key in Calculator has a label.](getting-started-labels.webp)
 
 ## Where to go next
 

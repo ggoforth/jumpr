@@ -12,6 +12,8 @@ While labels are up, press [[Space]]. Press [[Space]] again to turn it off.
 
 While it is on, the menu bar icon is shown filled. Each press of the hotkey starts with persistent mode off.
 
+![With persistent mode on, the labels stay up while Jumpr clicks ×, 6 and =.](persistent-run.webp)
+
 ## What changes
 
 After each click, the labels stay up and update to match what the click changed. Things that did not change keep their letters, and the menu bar, toolbars and other apps stay labelled while a page reloads.

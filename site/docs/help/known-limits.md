@@ -30,6 +30,8 @@ order: 3
 - An element an app rebuilds gets new letters, even if it looks the same.
 - Labels cover the page while you read it.
 
+![Labels sit on top of the window they point into.](limits-document.webp)
+
 ## Scroll mode
 
 - Every area gets a letter, including ones with nothing to scroll. Picking one does nothing.

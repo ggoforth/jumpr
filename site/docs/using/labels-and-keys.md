@@ -10,6 +10,8 @@ order: 1
 2. Type the letters of the label you want. Each letter you type hides the labels that don't match.
 3. When the letters match, Jumpr clicks.
 
+![All the labels, then only the ones that start with S after you type S.](labels-narrow.webp)
+
 Labels are letters only. All the labels on screen at once have the same length, usually two letters.
 
 When you pick a menu in the menu bar, its menu opens with labels of its own, so you can keep going without pressing the hotkey again.
