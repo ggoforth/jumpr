@@ -9,7 +9,9 @@ import JumprCore
 /// callback captures the generation it was issued under and is dropped, before it
 /// touches overlays, the session or the readout, unless it still matches and the
 /// session is active (`isCurrent`). Scans already queued for a stale generation stop
-/// early through `isStale`, which reads `sharedGeneration`.
+/// early through `isStale`, which reads `sharedGeneration`. A settle window follows the
+/// same rule with `settleID` beside `generation`: a callback from an older settle window is
+/// dropped the same way, and its queued scans stop through `sharedSettleID`.
 final class Controller {
     var onMatched: (Target, ClickKind) -> Void = { _, _ in }
     /// Persistent mode went on or off; the menu bar icon shows it.
@@ -135,7 +137,7 @@ final class Controller {
             // moment would leave them up until it came.
             if isActive {
                 for (label, p) in placed where p.target.pid == pid { remove(label) }
-                CATransaction.flush()
+                labelsRemoved()
                 touched.remove(pid)
             }
             extras.forget(pid: pid)
@@ -384,6 +386,14 @@ final class Controller {
         pool.release(label)
     }
 
+    /// After labels were removed: if what was typed now starts no label, it is cleared and
+    /// every label shows. Otherwise a removed label would leave every key swallowed until
+    /// Backspace. Flushed so the change shows at once.
+    private func labelsRemoved() {
+        if session.clearTypedIfNothingMatches() { show(prefix: "") }
+        CATransaction.flush()
+    }
+
     /// The label's element is still there at a new rectangle (a toolbar that reflowed): same
     /// letters, new place. On no display any more, it goes.
     private func move(_ label: String, to t: Target) {
@@ -549,7 +559,7 @@ final class Controller {
         let covered = coveredLabels(placed.mapValues(\.target), stack: stack, scanned: Set(pids))
         if !covered.isEmpty {
             covered.forEach(remove)
-            CATransaction.flush()
+            labelsRemoved()
         }
 
         let pids = pids.filter { !scanning.contains($0) }
@@ -608,8 +618,7 @@ final class Controller {
                                     remove(label)
                                     removed += 1
                                 }
-                                if session.clearTypedIfNothingMatches() { show(prefix: "") }
-                                CATransaction.flush()
+                                labelsRemoved()
                                 log(String(format: "reconcile %@: kept %d moved %d removed %d added %d, %.0f ms%@",
                                            name, rec.kept, moved, removed, added, (now() - t0) * 1000,
                                            rec.complete ? "" : " incomplete"))
