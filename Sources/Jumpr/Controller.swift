@@ -42,7 +42,12 @@ final class Controller {
     private var placed: [String: Placed] = [:]
     /// Elements labelled in this session, so a repeated scan of an app adds only what is new.
     private var placedIDs = Set<ElementID>()
-    private var overflow = 0
+    /// Targets left with no letters because the pool ran out, per app, as its latest scan
+    /// counted them. A reconcile or a look-again scan names the same unlabelled targets again,
+    /// so its count replaces the app's last one: added up, one page's overflow counted once per
+    /// settle moment and stepped the label length up a refresh early.
+    private var unlabelled: [Int32: Int] = [:]
+    private var overflow: Int { unlabelled.values.reduce(0, +) }
     private var pendingApps = 0
     /// Whether a press is in flight and the label typed meanwhile (`PressSequence`).
     private var presses = PressSequence()
@@ -135,6 +140,7 @@ final class Controller {
             // moment would leave them up until it came.
             if isActive {
                 for (label, p) in placed where p.target.pid == pid { remove(label) }
+                unlabelled[pid] = nil
                 labelsRemoved()
                 settle.forget(pid)
                 endIfNoLabels()
@@ -213,7 +219,7 @@ final class Controller {
         if persistent { onPersistentChanged(true) }
         placed = [:]
         placedIDs = []
-        overflow = 0
+        unlabelled = [:]
         style = LabelStyle.current()
         readout.begin()
 
@@ -245,12 +251,13 @@ final class Controller {
             }
             // Registry bookkeeping for the app, kept even if this trigger goes stale.
             var web = WebFound()
+            var missed = 0
             scanner.scanApp(pid: pid, stack: stack, screens: screens, frontPid: front, isDock: isDock, background: false,
                             isStale: { [sharedGeneration] in sharedGeneration.value != gen },
                             each: { [weak self] s in
                                 web.add(s)
                                 guard let self, isCurrent(gen) else { return }  // stale: drop
-                                receive(s, name: name)
+                                receive(s, name: name, unlabelled: &missed)
                             },
                             done: { [weak self, scanner, registry] complete in
                                 // A scan cut short by a newer trigger says nothing about the tree.
@@ -264,6 +271,7 @@ final class Controller {
                                     }
                                 }
                                 guard let self, isCurrent(gen) else { return }  // stale: drop
+                                unlabelled[pid] = missed
                                 pendingApps -= 1
                                 if pendingApps == 0 { finish() }
                                 rescanWhileTreeBuilds(pid: pid, name: name, isDock: isDock, stack: stack,
@@ -325,16 +333,18 @@ final class Controller {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
             guard let self, isCurrent(gen) else { return }
             var added = 0
+            var missed = 0
             var web = WebFound()
             scanner.scanApp(pid: pid, stack: stack, screens: screens, frontPid: front, isDock: isDock, background: false,
                             isStale: { [sharedGeneration] in sharedGeneration.value != gen },
                             each: { [weak self] s in
                                 guard let self, isCurrent(gen) else { return }
                                 web.add(s)
-                                added += receive(s, name: name, late: true)
+                                added += receive(s, name: name, late: true, unlabelled: &missed)
                             },
                             done: { [weak self] _ in
                                 guard let self, isCurrent(gen) else { return }
+                                unlabelled[pid] = missed
                                 if added > 0 {
                                     CATransaction.flush()
                                     lastTotal = placed.count + overflow
@@ -349,15 +359,16 @@ final class Controller {
 
     /// Paints one scan's targets and returns how many labels it added. Only called for the
     /// current generation. `late`: a repeated scan of an app (`rescanWhileTreeBuilds`); what
-    /// is already labelled is skipped either way, and the readout is left alone.
+    /// is already labelled is skipped either way, and the readout is left alone. `unlabelled`
+    /// counts the targets the pool had no letters for.
     @discardableResult
-    private func receive(_ s: WindowScan, name: String, late: Bool = false) -> Int {
+    private func receive(_ s: WindowScan, name: String, late: Bool = false, unlabelled: inout Int) -> Int {
         let t0 = now()
         var added = 0
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         for t in s.targets {
-            if place(t) { added += 1 }
+            if place(t, unlabelled: &unlabelled) { added += 1 }
         }
         CATransaction.commit()
         if !late { readout.note(s, name: name, paint: now() - t0) }
@@ -365,11 +376,12 @@ final class Controller {
     }
 
     /// Labels one target, unless it is on no display, already labelled (the look-again pass
-    /// and a reconcile can both find it), or the pool has run out. True if a label was added.
-    private func place(_ t: Target) -> Bool {
+    /// and a reconcile can both find it), or the pool has run out (counted in `unlabelled`).
+    /// True if a label was added.
+    private func place(_ t: Target, unlabelled: inout Int) -> Bool {
         guard let i = Labels.screenIndex(for: CGPoint(x: t.rect.midX, y: t.rect.midY), screens: screens) else { return false }
         guard !placedIDs.contains(t.id) else { return false }
-        guard let label = pool.next() else { overflow += 1; return false }
+        guard let label = pool.next() else { unlabelled += 1; return false }
         placedIDs.insert(t.id)
         let rect = Labels.frame(length: pool.length, target: t.rect, screen: screens[i],
                                 fontSize: style.size, advance: style.advance)
@@ -640,6 +652,7 @@ final class Controller {
             var added = 0
             var removed = 0
             var results = 0
+            var missed = 0
             let t0 = now()
             scanner.scanApp(pid: pid, stack: stack, screens: screens, frontPid: front, isDock: isDock, background: false,
                             isStale: { [sharedGeneration, sharedSettleID] in
@@ -660,7 +673,7 @@ final class Controller {
                                         move(label, to: t)
                                         if placed[label] != nil { moved += 1 } else if had { removed += 1 }
                                     case .add:
-                                        if place(t) { added += 1 }
+                                        if place(t, unlabelled: &missed) { added += 1 }
                                     }
                                 }
                                 CATransaction.commit()
@@ -679,6 +692,8 @@ final class Controller {
                                     removed += 1
                                 }
                                 labelsRemoved()
+                                // A partial answer says nothing about the targets it did not reach.
+                                unlabelled[pid] = rec.complete ? missed : max(missed, unlabelled[pid] ?? 0)
                                 log(String(format: "reconcile %@: kept %d moved %d removed %d added %d, %.0f ms%@",
                                            name, rec.kept, moved, removed, added, (now() - t0) * 1000,
                                            rec.complete ? "" : " incomplete"))
