@@ -48,7 +48,7 @@ The package has two targets. `JumprCore` is pure logic: no AppKit, no accessibil
 | `Readout.swift` | Per-trigger timing, always logged, optionally drawn on screen |
 | `Onboarding.swift` | The Accessibility permission; `LoginItem` (start at login) |
 | `Panel.swift`, `HotkeyRecorder.swift` | The panel under the menu bar icon, which holds every setting (the only SwiftUI), and its hotkey recorder |
-| `StatusItem.swift` | The menu bar icon and the popover that shows the panel; the icon's highlight in scroll mode |
+| `StatusItem.swift` | The menu bar icon and the popover that shows the panel; the icon drawn filled while Jumpr has the keys |
 | `UpdaterController.swift` | Sparkle |
 | `PowerSource.swift` | Tracks whether the screen is locked, asleep or showing the screen saver |
 | `Log.swift`, `DefaultsWatcher.swift`, `DistributedObserver.swift` | The log file; live reaction to preference changes; distributed notifications delivered immediately |
@@ -204,7 +204,7 @@ While nothing is outlined the scroll keys do nothing. Any scroll hides the lette
 
 **Delivery** (`Scroller`). A pixel scroll-wheel event whose position is the area's center, posted at the system's HID event tap. The event carries the position, so the pointer never moves, and it does what scrolling with the pointer there would do; it scrolled native lists, Chromium pages and Electron apps alike when measured. Posting the same event to the app's process scrolled nothing, so that route is not used. A line is 60 px and half an area is half its visible height, each sent as six events 8 ms apart so it reads as a glide; the ends are one event of a million pixels. A key repeat that arrives while the last burst is still going out sends its amount as one event instead, so a held key sends about 30 events a second rather than 180; Mail's web content stopped answering after a long hold before this. Modifier flags are cleared, so a Shift held for Shift G does not make the wheel scroll sideways.
 
-**Showing it.** The outlined area gets a 2 pt frame in the label colour between two thin dark edges, with a `SCROLL` tag at its top-left in the label's colours (`Overlay.add(outline:)`), on the existing overlays. The menu bar icon stays highlighted while scroll mode is on (`StatusItem.holdsHighlight`), as it is while the panel is open. Everything is removed the moment it leaves.
+**Showing it.** The outlined area gets a 2 pt frame in the label colour between two thin dark edges, with a `SCROLL` tag at its top-left in the label's colours (`Overlay.add(outline:)`), on the existing overlays. The menu bar icon is drawn filled, with the J knocked out, while scroll mode is on (`StatusItem.holdsHighlight`); macOS 27 no longer draws the button highlight, so the icon image is swapped instead. Everything is removed the moment it leaves.
 
 **Leaving.** Esc; the scroll shortcut again; any mouse click, including on Jumpr's own icon or panel (a global and a local monitor, installed only while it is on); the front app changing; a Space or display change; a screen lock; Pause; losing the permission; quitting; and finding no area at all once every app has answered. The label hotkey leaves scroll mode and shows labels; the scroll shortcut cancels labels and turns scroll mode on; the two never run at once. Every exit is logged with its reason.
 

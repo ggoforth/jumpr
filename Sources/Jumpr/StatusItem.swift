@@ -6,6 +6,8 @@ final class StatusItem: NSObject, NSPopoverDelegate {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let popover = NSPopover()
     private let plainImage: NSImage? = StatusItem.letterImage()
+    private let heldImage: NSImage? = StatusItem.letterImage(knockedOut: true)
+    private var updatePending = false
     private lazy var badgedImage = plainImage.map(Self.badged)
     /// Called just before the panel shows, to refresh state that can change outside Jumpr.
     var willShow: () -> Void = {}
@@ -13,11 +15,20 @@ final class StatusItem: NSObject, NSPopoverDelegate {
     /// The menu bar icon: the J from the site's logo and from Jumpr's own labels (the bold
     /// monospaced system font), with no box. Template, so the menu bar draws it white on a
     /// dark bar and black on a light one.
-    private static func letterImage() -> NSImage {
-        let font = NSFont.monospacedSystemFont(ofSize: 17, weight: .bold)
+    ///
+    /// `knockedOut` is the held icon: a filled rounded rectangle with the J cut out of it
+    /// (smaller, to sit inside the box), so it reads like the highlight the system used to
+    /// draw. See `holdsHighlight` for why it is drawn here.
+    private static func letterImage(knockedOut: Bool = false) -> NSImage {
+        let font = NSFont.monospacedSystemFont(ofSize: knockedOut ? 14 : 17, weight: .bold)
         let letter = NSAttributedString(string: "J", attributes: [.font: font, .foregroundColor: NSColor.black])
         let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { rect in
             let size = letter.size()
+            if knockedOut {
+                NSColor.black.setFill()
+                NSBezierPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), xRadius: 4, yRadius: 4).fill()
+                NSGraphicsContext.current?.compositingOperation = .destinationOut
+            }
             letter.draw(at: NSPoint(x: (rect.width - size.width) / 2, y: (rect.height - size.height) / 2))
             return true
         }
@@ -34,7 +45,7 @@ final class StatusItem: NSObject, NSPopoverDelegate {
 
     override init() {
         super.init()
-        item.button?.image = plainImage
+        updateImage()
         item.button?.target = self
         item.button?.action = #selector(toggle)
         popover.behavior = .transient
@@ -80,16 +91,30 @@ final class StatusItem: NSObject, NSPopoverDelegate {
         item.button?.highlight(holdsHighlight)
     }
 
-    /// Keeps the icon highlighted while scroll mode is on, as it is while the panel is
-    /// open: with nothing but an outline on screen, the icon says Jumpr has the keys.
+    /// Marks that Jumpr has the keys (scroll mode, persistent mode): the icon is drawn filled
+    /// with the J knocked out, as the open panel's highlight used to look. The button is still
+    /// highlighted too, because accessibility reports that as "selected" (see `showPanel`).
+    /// macOS 27 keeps that highlight state but no longer draws it: measured on 26A428,
+    /// `isHighlighted` stays true while a capture of the icon is byte-identical, and
+    /// `state = .on` is not drawn either. Swapping the image is drawn.
     var holdsHighlight = false {
-        didSet { item.button?.highlight(holdsHighlight || popover.isShown) }
+        didSet {
+            item.button?.highlight(holdsHighlight || popover.isShown)
+            updateImage()
+        }
     }
 
     /// A gentle reminder for a scheduled update Sparkle did not bring forward: a dot on the
-    /// menu bar icon (the panel shows its own banner).
+    /// menu bar icon (the panel shows its own banner). Not shown while the icon is held; it
+    /// comes back when the hold ends.
     func setUpdatePending(_ pending: Bool) {
-        item.button?.image = pending ? badgedImage : plainImage
+        updatePending = pending
+        updateImage()
+    }
+
+    /// The one place the icon's image is chosen: held, else update pending, else plain.
+    private func updateImage() {
+        item.button?.image = holdsHighlight ? heldImage : updatePending ? badgedImage : plainImage
     }
 
     /// The icon with a dot at its top right, cut out from the glyph so it reads at menu bar

@@ -78,7 +78,7 @@ Press ⌘⇧J to turn on scroll mode. Every scrollable area on every display get
 | F | Brings the letters back |
 | Esc, or ⌘⇧J again | Leaves scroll mode |
 
-Holding a key keeps scrolling. While scroll mode is on, Jumpr takes the keys and the menu bar icon stays highlighted; shortcuts with ⌘, ⌃ or ⌥ still work. A click anywhere, switching apps, locking the screen or pausing Jumpr also leaves it.
+Holding a key keeps scrolling. While scroll mode is on, Jumpr takes the keys and the menu bar icon is shown filled; shortcuts with ⌘, ⌃ or ⌥ still work. A click anywhere, switching apps, locking the screen or pausing Jumpr also leaves it.
 
 ## Updates
 
