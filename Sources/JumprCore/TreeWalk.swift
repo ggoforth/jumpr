@@ -32,13 +32,16 @@ public struct NodeInfo {
 public protocol AXNode {
     var id: ElementID { get }
     func info() -> NodeInfo?
-    func isSelected() -> Bool
+    /// Whether the element is selected. nil: the request failed (timed out, or the element could
+    /// not be read), which is not the same as "no".
+    func isSelected() -> Bool?
     func visibleRows() -> [any AXNode]?
     /// The children a collection says are on screen (`AXVisibleChildren`). One more
     /// request, asked of grids only.
     func visibleChildren() -> [any AXNode]?
     /// Whether the element offers `AXPress`. One more request, so `walk` asks sparingly.
-    func offersPress() -> Bool
+    /// nil: the request failed (timed out, or the element could not be read), not "no".
+    func offersPress() -> Bool?
     /// Whether the element offers `AXScrollUpByPage` or `AXScrollDownByPage`. One more
     /// request, asked only of large groups outside web content and outside any area found.
     func offersPageScroll() -> Bool
@@ -235,6 +238,12 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
         return result.areas.count - 1
     }
 
+    /// A failed request counts as unanswered and reads as "no", so the scan says it is incomplete.
+    func counted(_ answer: Bool?) -> Bool {
+        if answer == nil { result.unanswered += 1 }
+        return answer == true
+    }
+
     /// `inTarget`: under an element that got a label. `inList`: a list's own item.
     /// `inArea`: the index in `result.areas` of the nearest area around this node.
     func visit(_ node: any AXNode, clip: CGRect, depth: Int, inWeb: Bool, inTarget: Bool, inList: Bool,
@@ -283,7 +292,7 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
             || (inList && !inWeb && Roles.clickableAsListItem.contains(info.role))
             || (inWeb && info.focusable && Roles.clickableIfFocusable.contains(info.role))
             || (Roles.clickableIfPressable.contains(info.role) && !inWeb
-                && !(inTarget && Roles.pressableNotAskedUnderALabel.contains(info.role)) && node.offersPress()) {
+                && !(inTarget && Roles.pressableNotAskedUnderALabel.contains(info.role)) && counted(node.offersPress())) {
             let c = CGPoint(x: r.midX, y: r.midY)
             switch scope {
             case .window(let id, _, let appWindows):
@@ -299,7 +308,7 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
         let mine: Int? = result.targets.count > before ? before : nil
 
         if Roles.leaf.contains(info.role) { return }
-        if (info.role == "AXMenuBarItem" || info.role == "AXMenuItem") && !node.isSelected() { return }
+        if (info.role == "AXMenuBarItem" || info.role == "AXMenuItem") && !counted(node.isSelected()) { return }
 
         var children = info.children
         if info.role == "AXTable" || info.role == "AXOutline",

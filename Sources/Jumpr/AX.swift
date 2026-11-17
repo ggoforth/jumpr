@@ -45,15 +45,33 @@ func axMultiResult(_ el: AXUIElement, _ names: CFArray) -> (values: [AnyObject]?
 }
 
 func axCopy(_ el: AXUIElement, _ name: String) -> AnyObject? {
+    axCopyResult(el, name).value
+}
+
+func axCopyResult(_ el: AXUIElement, _ name: String) -> (value: AnyObject?, error: AXError) {
     var v: CFTypeRef?
-    return AXUIElementCopyAttributeValue(el, name as CFString, &v) == .success ? v : nil
+    let err = AXUIElementCopyAttributeValue(el, name as CFString, &v)
+    return (err == .success ? v : nil, err)
+}
+
+/// Whether the app replied at all. "No such attribute" and "no value" are replies; a timeout,
+/// a dead element or a disabled API are not.
+func axAnswered(_ err: AXError) -> Bool {
+    switch err {
+    case .success, .attributeUnsupported, .actionUnsupported, .noValue, .notImplemented: return true
+    default: return false
+    }
 }
 
 /// The actions the element offers (`AXPress`, `AXShowMenu`, …); nil if it did not answer.
 func axActionNames(_ el: AXUIElement) -> [String]? {
+    axActionNamesResult(el).names
+}
+
+func axActionNamesResult(_ el: AXUIElement) -> (names: [String]?, error: AXError) {
     var names: CFArray?
-    guard AXUIElementCopyActionNames(el, &names) == .success else { return nil }
-    return names as? [String]
+    let err = AXUIElementCopyActionNames(el, &names)
+    return (err == .success ? names as? [String] : nil, err)
 }
 
 func axPoint(_ v: AnyObject) -> CGPoint? {
@@ -113,8 +131,9 @@ final class AXElementNode: AXNode {
                         subrole: a[6] as? String)
     }
 
-    func isSelected() -> Bool {
-        (axCopy(element, "AXSelected") as? Bool) == true
+    func isSelected() -> Bool? {
+        let r = axCopyResult(element, "AXSelected")
+        return axAnswered(r.error) ? (r.value as? Bool) == true : nil
     }
 
     func visibleRows() -> [any AXNode]? {
@@ -125,8 +144,9 @@ final class AXElementNode: AXNode {
         axElements(axCopy(element, "AXVisibleChildren")).map { AXElementNode($0) }
     }
 
-    func offersPress() -> Bool {
-        axActionNames(element)?.contains("AXPress") == true
+    func offersPress() -> Bool? {
+        let r = axActionNamesResult(element)
+        return axAnswered(r.error) ? r.names?.contains("AXPress") == true : nil
     }
 
     func contentSize() -> CGSize? {

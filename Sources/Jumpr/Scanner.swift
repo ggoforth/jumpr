@@ -206,7 +206,8 @@ final class Scanner {
                      scope: .window(id: id, bounds: bounds, appWindows: appWindows),
                      stack: stack, deadline: deadline, now: now, finding: finding)
         return WindowScan(pid: pid, window: id, targets: r.targets, nodes: r.nodes, startedAt: t0,
-                          ms: (now() - t0) * 1000, timedOut: r.timedOut, webAreas: r.webAreas, unanswered: r.unanswered, areas: r.areas)
+                          ms: (now() - t0) * 1000, timedOut: r.timedOut, webAreas: r.webAreas,
+                          unanswered: r.unanswered, areas: r.areas)
     }
 
     /// Dock: the whole application tree. Otherwise the menu bar (front app only) and extras.

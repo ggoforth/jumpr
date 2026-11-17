@@ -10,6 +10,9 @@ final class Fake: AXNode {
     var focusable = false
     /// False makes `info()` return nil, as an app does when its request times out.
     var answers = true
+    /// False makes the press and selected checks return nil: the request failed.
+    var pressAnswers = true
+    var selectedAnswers = true
     var subrole: String?
     private(set) var infoCalls = 0
     private(set) var pressAsks = 0
@@ -23,10 +26,10 @@ final class Fake: AXNode {
         if !answers { return nil }
         return NodeInfo(role: role, frame: frame, enabled: enabled, children: kids, focusable: focusable, subrole: subrole)
     }
-    func isSelected() -> Bool { selected }
+    func isSelected() -> Bool? { selectedAnswers ? selected : nil }
     func visibleRows() -> [any AXNode]? { rows }
     func visibleChildren() -> [any AXNode]? { visibleKids }
-    func offersPress() -> Bool { pressAsks += 1; return pressable }
+    func offersPress() -> Bool? { pressAsks += 1; return pressAnswers ? pressable : nil }
     var pagesByAction = false
     private(set) var pageAsks = 0
     func offersPageScroll() -> Bool { pageAsks += 1; return pagesByAction }
@@ -223,6 +226,28 @@ private func buttonAt(depth: Int) -> Fake {
     #expect(res.targets.map(\.role) == ["AXButton"])
 
     #expect(run(Fake("AXWindow", bounds, [Fake("AXButton", r(10, 10))])).unanswered == 0)
+}
+
+// A busy app times out on the press check of a text element. Reading that as "no" would give
+// the element no label, and a reconcile would remove the one the app still has.
+@Test func aPressCheckThatGetsNoAnswerIsCounted() {
+    let text = Fake("AXStaticText", r(10, 10))
+    text.pressable = true
+    text.pressAnswers = false
+    let res = run(Fake("AXWindow", bounds, [text]))
+    #expect(res.unanswered == 1)
+    #expect(res.targets.isEmpty)
+}
+
+// A menu item whose selected check times out has its subtree skipped, as for "not selected",
+// but the scan must say it did not see inside.
+@Test func aSelectedCheckThatGetsNoAnswerIsCounted() {
+    let inner = Fake("AXButton", r(10, 40))
+    let item = Fake("AXMenuItem", r(10, 10), [inner])
+    item.selectedAnswers = false
+    let res = run(Fake("AXWindow", bounds, [item]))
+    #expect(res.unanswered == 1)
+    #expect(inner.infoCalls == 0)
 }
 
 // Mail's message body: the first scan found no links, the next found ten.
