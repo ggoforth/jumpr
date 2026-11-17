@@ -666,12 +666,11 @@ final class Controller {
                                 log(String(format: "reconcile %@: kept %d moved %d removed %d added %d, %.0f ms%@",
                                            name, rec.kept, moved, removed, added, (now() - t0) * 1000,
                                            rec.complete ? "" : " incomplete"))
+                                let touched = settle.touched  // before a finished window forgets them
                                 settle.scanAnswered(pressInFlight: presses.inFlight)
-                                switch afterReconcile(overflow: overflow, labelsLeft: placed.count, pending: pending) {
+                                switch afterReconcile(overflow: overflow, labelsLeft: placed.count, poolLength: pool.length, pending: pending) {
                                 case .refresh:
-                                    lastTotal = placed.count + overflow  // the fresh trigger sizes from this
-                                    cancel()
-                                    trigger(persistent: true)
+                                    refresh(touched: touched)
                                 case .end:
                                     endForWantOfLabels()
                                 case .carryOn:
@@ -682,6 +681,19 @@ final class Controller {
         // Covered labels may have been the last, and a last moment that starts no scan may
         // have finished the window here.
         endIfNoLabels()
+    }
+
+    /// The letters ran out: one fresh trigger, persistent mode kept on, sized from the new
+    /// count, then a settle window over the apps this one was watching. Running out usually
+    /// means a page is still loading, and without the window the rest of it got no labels
+    /// until Tab; a press in flight lost its window too, since the cancel makes its report stale.
+    private func refresh(touched: Set<Int32>) {
+        lastTotal = placed.count + overflow  // the fresh trigger sizes from this
+        cancel()
+        trigger(persistent: true)
+        guard isActive else { return }  // paused, locked, or nothing to scan
+        touched.forEach { settle.touch($0) }
+        startSettle()
     }
 
     // MARK: - Colours

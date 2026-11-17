@@ -38,28 +38,37 @@ import Testing
 // A page that loads a long list mid-run can need more labels than the pool holds: once that
 // app's reconcile is done, one fresh trigger gives everything letters at a longer length.
 @Test func aPoolThatRanOutRefreshesTheLabelsOnceTheAppIsReconciled() {
-    #expect(afterReconcile(overflow: 3, labelsLeft: 40, pending: Pending(settleWindow: true)) == .refresh)
-    #expect(afterReconcile(overflow: 1, labelsLeft: 0, pending: Pending()) == .refresh)
+    #expect(afterReconcile(overflow: 3, labelsLeft: 40, poolLength: 1, pending: Pending(settleWindow: true)) == .refresh)
+    #expect(afterReconcile(overflow: 30, labelsLeft: 0, poolLength: 1, pending: Pending()) == .refresh)
 }
 
 // Pressing the last labelled button (a dialog's OK that closes it) leaves nothing to type at;
 // a capturing session would only swallow keys, as a trigger with no labels cancels today.
 @Test func noLabelsLeftOnceEveryAppInTheSettleWindowHasAnsweredEndsTheSession() {
-    #expect(afterReconcile(overflow: 0, labelsLeft: 0, pending: Pending()) == .end)
-    #expect(afterReconcile(overflow: 0, labelsLeft: 5, pending: Pending()) == .carryOn)
+    #expect(afterReconcile(overflow: 0, labelsLeft: 0, poolLength: 2, pending: Pending()) == .end)
+    #expect(afterReconcile(overflow: 0, labelsLeft: 5, poolLength: 2, pending: Pending()) == .carryOn)
 }
 
 // A page swap removes the old page's labels at 0.15 s and its new labels arrive at 0.5 s;
 // and at the last moment Finder may answer with nothing placed while Safari, scanned in the
 // same moment, has not answered yet. Neither ends the session: only the whole window can.
 @Test func noLabelsLeftBeforeEveryAppInTheSettleWindowHasAnsweredLetsItGoOn() {
-    #expect(afterReconcile(overflow: 0, labelsLeft: 0, pending: Pending(settleWindow: true)) == .carryOn)
+    #expect(afterReconcile(overflow: 0, labelsLeft: 0, poolLength: 2, pending: Pending(settleWindow: true)) == .carryOn)
+}
+
+// Review of persistent mode: when the letters ran out the fresh trigger had to give a longer
+// length, or the run would refresh, run out again and refresh again. At three letters, or
+// when the new count still fits the length in use, the run carries on with what fits.
+@Test func aPoolThatRanOutRefreshesOnlyWhenALongerLengthIsAvailable() {
+    #expect(afterReconcile(overflow: 5, labelsLeft: 2000, poolLength: 3, pending: Pending()) == .carryOn)
+    #expect(afterReconcile(overflow: 5, labelsLeft: 400, poolLength: 2, pending: Pending()) == .carryOn)
+    #expect(afterReconcile(overflow: 300, labelsLeft: 400, poolLength: 2, pending: Pending()) == .refresh)
 }
 
 // A Tab refresh finishes with nothing on screen while a press is in flight: the window that
 // follows the press's report may still find something.
 @Test func noLabelsLeftWhileAPressIsInFlightLetsItGoOn() {
-    #expect(afterReconcile(overflow: 0, labelsLeft: 0, pending: Pending(press: true)) == .carryOn)
+    #expect(afterReconcile(overflow: 0, labelsLeft: 0, poolLength: 2, pending: Pending(press: true)) == .carryOn)
 }
 
 // MARK: - A settle window's bookkeeping
