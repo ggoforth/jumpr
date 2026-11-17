@@ -131,8 +131,10 @@ final class Scanner {
             var system = scanSystem(pid: pid, app: app, isDock: false, isFront: pid == frontPid,
                                     pieces: (axElementValue(a[1]), axElementValue(a[2])),
                                     screens: screens, stack: stack, deadline: deadline)
-            // A window that could not be named was not scanned, so the app's scan is not
-            // complete: a reconcile must not remove the labels that window may still have.
+            // A window that could not be named because it did not answer was not scanned, so
+            // the app's scan is not complete: a reconcile must not remove the labels that
+            // window may still have. An entry that answered with no on-screen window (Finder's
+            // desktop) is not counted, or every reconcile of Finder would remove nothing.
             system.unanswered += unresolved
             deliver(system)
         }
@@ -185,21 +187,30 @@ final class Scanner {
     private let appAttrs = ["AXWindows", "AXMenuBar", "AXExtrasMenuBar"] as CFArray
 
     /// Window IDs from `_AXUIElementGetWindow`; on error, the same app's on-screen window
-    /// whose bounds match the element's frame (within 1 pt per edge). `unresolved`: windows
-    /// neither way could name, which are left out.
+    /// whose bounds match the element's frame (within 1 pt per edge). Entries neither way
+    /// names are left out (`windowNaming`). `unresolved` counts only those whose frame
+    /// request did not answer: one that answered with a frame no on-screen window has is not
+    /// a window that can hold labels. Finder's desktop is that case: an `AXWindows` entry the
+    /// size of all displays together, with no window ID and no window-server window.
     private func resolveWindows(_ elements: [AXUIElement], pid: Int32, stack: WindowStack?)
         -> (wins: [(id: WindowID, element: AXUIElement)], unresolved: Int) {
         var fallback = stack
+        var unresolved = 0
         let wins: [(id: WindowID, element: AXUIElement)] = elements.compactMap { el in
             axTimed(el)
             var id = CGWindowID(0)
             if _AXUIElementGetWindow(el, &id) == .success, id != 0 { return (id, el) }
             let s = fallback ?? WindowServer.snapshot()
             fallback = s
-            guard let f = axFrame(el), let w = s.wins.first(where: { $0.pid == pid && sameWindowFrame($0.bounds, f) }) else { return nil }
-            return (w.id, el)
+            let f = axFrameResult(el)
+            let w = f.frame.flatMap { f in s.wins.first(where: { $0.pid == pid && sameWindowFrame($0.bounds, f) }) }
+            switch windowNaming(idFound: false, frameAnswered: f.answered, frameMatches: w != nil) {
+            case .named: return w.map { ($0.id, el) }
+            case .notOnScreen: return nil
+            case .unread: unresolved += 1; return nil
+            }
         }
-        return (wins, elements.count - wins.count)
+        return (wins, unresolved)
     }
 
     private func scanWindow(pid: Int32, id: WindowID, element: AXUIElement?, appWindows: Set<WindowID>,

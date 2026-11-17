@@ -98,3 +98,20 @@ public func sameWindowFrame(_ a: CGRect, _ b: CGRect) -> Bool {
     abs(a.minX - b.minX) <= 1 && abs(a.maxX - b.maxX) <= 1
         && abs(a.minY - b.minY) <= 1 && abs(a.maxY - b.maxY) <= 1
 }
+
+/// What an app's `AXWindows` entry is, from how it was named.
+public enum WindowNaming: Equatable {
+    /// Tied to a window-server window, by ID or by frame: it is scanned.
+    case named
+    /// It answered with a frame no on-screen window has (Finder's desktop): left out, and the
+    /// scan is still complete, since nothing on screen can hold a label for it.
+    case notOnScreen
+    /// Its frame request did not answer: left out, and the scan is incomplete, since the
+    /// window may still have labels on screen.
+    case unread
+}
+
+public func windowNaming(idFound: Bool, frameAnswered: Bool, frameMatches: Bool) -> WindowNaming {
+    if idFound || frameMatches { return .named }
+    return frameAnswered ? .notOnScreen : .unread
+}

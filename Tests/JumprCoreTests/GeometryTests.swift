@@ -88,6 +88,27 @@ private let b = w(2, 20, CGRect(x: 50, y: 0, width: 100, height: 100))
     #expect(!sameWindowFrame(f, CGRect(x: 100, y: 200, width: 800, height: 601.5)))     // bottom edge off by 1.5
 }
 
+// A window the window server names by ID, or whose frame matches one of the app's on-screen
+// windows, is scanned.
+@Test func aWindowNamedByIDOrByFrameIsScanned() {
+    #expect(windowNaming(idFound: true, frameAnswered: false, frameMatches: false) == .named)
+    #expect(windowNaming(idFound: false, frameAnswered: true, frameMatches: true) == .named)
+}
+
+// Finder lists its desktop in AXWindows: an AXScrollArea (subrole AXDesktop) the size of all
+// displays together. It has no window ID, it answers its frame, and no on-screen window has
+// that frame, so every persistent-mode reconcile of Finder came out incomplete and removed
+// nothing. Nothing on screen can hold a label for it, so it is not a window Jumpr failed to read.
+@Test func anEntryThatAnswersItsFrameAndMatchesNoWindowIsNotAWindow() {
+    #expect(windowNaming(idFound: false, frameAnswered: true, frameMatches: false) == .notOnScreen)
+}
+
+// A window whose frame request timed out may still have labels on screen: the scan that
+// skipped it must not remove them.
+@Test func anEntryWhoseFrameDidNotAnswerIsUnread() {
+    #expect(windowNaming(idFound: false, frameAnswered: false, frameMatches: false) == .unread)
+}
+
 // Jumpr's own windows stay in the snapshot: Settings (layer 0) hides what is behind it,
 // the label overlays (layer 1000) do not.
 private let me: Int32 = 77

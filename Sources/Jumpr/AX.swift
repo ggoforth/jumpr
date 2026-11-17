@@ -99,9 +99,17 @@ private let frameAttrs = ["AXPosition", "AXSize"] as CFArray
 
 /// Current position + size, `nil` if the element is dead (or has no frame).
 func axFrame(_ el: AXUIElement) -> CGRect? {
-    guard let a = axMulti(el, frameAttrs), a.count == 2,
-          let p = axPoint(a[0]), let s = axSize(a[1]) else { return nil }
-    return CGRect(origin: p, size: s)
+    axFrameResult(el).frame
+}
+
+/// The same request, and whether the app answered it (`axAnswered`): a window entry that
+/// answers with no on-screen frame is told apart from one that could not be read.
+func axFrameResult(_ el: AXUIElement) -> (frame: CGRect?, answered: Bool) {
+    let r = axMultiResult(el, frameAttrs)
+    guard let a = r.values, a.count == 2, let p = axPoint(a[0]), let s = axSize(a[1]) else {
+        return (nil, axAnswered(r.error))
+    }
+    return (CGRect(origin: p, size: s), true)
 }
 
 // AXFocusableAncestor exists in web content only (Chromium and WebKit); elsewhere it comes
