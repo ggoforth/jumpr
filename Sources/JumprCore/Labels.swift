@@ -64,6 +64,10 @@ public struct LabelPool {
     private let alphabet: [Character]
     private var index = 0
     private let total: Int
+    /// Labels given back, oldest first. Read only once `index == total`; `returnedFrom` is the
+    /// next one to hand out, so `next()` never shifts the array.
+    private var returned: [String] = []
+    private var returnedFrom = 0
 
     /// `alphabet`: scroll mode's letters leave out the keys that scroll.
     public init(length: Int, alphabet: [Character] = Labels.alphabet) {
@@ -75,9 +79,14 @@ public struct LabelPool {
         self.total = t
     }
 
-    /// Next unused label, or nil once every label of this length is handed out.
+    /// Next label: one never handed out while any remain, then released ones, oldest release
+    /// first. Nil when both are used up.
     public mutating func next() -> String? {
-        guard index < total else { return nil }
+        guard index < total else {
+            guard returnedFrom < returned.count else { return nil }
+            defer { returnedFrom += 1 }
+            return returned[returnedFrom]
+        }
         var digits: [Character] = []
         var n = index
         for _ in 0..<length {
@@ -86,5 +95,13 @@ public struct LabelPool {
         }
         index += 1
         return String(digits.reversed())
+    }
+
+    /// Gives back a label whose element left the screen. Letters never used come first, and
+    /// released ones only after those run out: a button that just vanished (Play turning into
+    /// Pause) must not have its letters land on another button a moment later, where a habit
+    /// built on the old letters would press the wrong thing.
+    public mutating func release(_ label: String) {
+        returned.append(label)
     }
 }

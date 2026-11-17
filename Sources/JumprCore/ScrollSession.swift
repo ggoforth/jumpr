@@ -94,7 +94,7 @@ public struct ScrollSession {
         switch key {
         case .modified, .chord: return .passThrough
         case .escape: return .leave
-        case .other: return .swallow
+        case .other, .space, .tab: return .swallow  // as before: scroll mode has no use for them
         case .backspace:
             guard !typed.isEmpty else { return .swallow }
             typed.removeLast()

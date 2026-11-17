@@ -6,6 +6,8 @@ public enum Key: Equatable {
     /// To the system it is a shortcut. While labels are up it can also pick the click.
     case chord(Character, held: UInt64)
     case backspace, escape, modified, other
+    /// Space switches persistent mode; Tab refreshes the labels while it is on.
+    case space, tab
 }
 
 /// The click a matched label gets, picked by what is held on the letter that completes it
@@ -118,6 +120,10 @@ public struct ClickKeys: Equatable {
 
 public enum Outcome: Equatable {
     case passThrough, swallow, narrowed(String), cancelled, matched(String, ClickKind = .plain)
+    /// Space was pressed; the value is the mode it switched to.
+    case persistent(Bool)
+    /// Tab in persistent mode: the labels should be scanned again.
+    case refresh
 }
 
 /// What each key does while labels are on screen. The hotkey is not one of them: the key
@@ -126,10 +132,40 @@ public struct LabelSession {
     public private(set) var typed: String = ""
     public var labels: Set<String> = []
     private let clickKeys: ClickKeys
+    /// Whether the labels stay up after a press, so a run of presses takes one invocation.
+    public private(set) var persistent: Bool
 
-    public init(clickKeys: ClickKeys = .default) { self.clickKeys = clickKeys }
+    public init(clickKeys: ClickKeys = .default, persistent: Bool = false) {
+        self.clickKeys = clickKeys
+        self.persistent = persistent
+    }
 
-    public mutating func handle(_ key: Key) -> Outcome {
+    /// A page can reload while letters are typed and take every label that started with
+    /// them; without this every key is swallowed until Backspace. True if it cleared them.
+    public mutating func clearTypedIfNothingMatches() -> Bool {
+        guard !typed.isEmpty, !labels.contains(where: { $0.hasPrefix(typed) }) else { return false }
+        typed = ""
+        return true
+    }
+
+    /// `isRepeat`: the key down is the system's auto-repeat of a held key. Holding the last
+    /// letter of a label in persistent mode otherwise typed it again and again, narrowing and
+    /// then pressing other labels until the key came up; a repeated letter is never typing.
+    /// A repeated chord is swallowed only where it would pick a label, so a held ⌘Z still
+    /// repeats in the app. Backspace repeats as before. Space and Tab repeats never reach
+    /// here: `KeyTap` drops them, for scroll mode too.
+    public mutating func handle(_ key: Key, isRepeat: Bool = false) -> Outcome {
+        if isRepeat {
+            switch key {
+            case .character:
+                return .swallow
+            case .chord(let c, let held):
+                let candidate = typed + String(c).uppercased()
+                return labels.contains(candidate) && clickKeys.kind(held: held) != nil ? .swallow : .passThrough
+            default:
+                break
+            }
+        }
         switch key {
         case .modified:
             return .passThrough
@@ -137,6 +173,11 @@ public struct LabelSession {
             return .cancelled
         case .other:
             return .swallow
+        case .space:
+            persistent.toggle()
+            return .persistent(persistent)
+        case .tab:
+            return persistent ? .refresh : .swallow
         case .backspace:
             guard !typed.isEmpty else { return .swallow }
             typed.removeLast()
@@ -147,10 +188,13 @@ public struct LabelSession {
             // quits with labels up.
             let candidate = typed + String(c).uppercased()
             guard labels.contains(candidate), let kind = clickKeys.kind(held: held) else { return .passThrough }
+            if persistent { typed = "" }
             return .matched(candidate, kind)
         case .character(let c, let shift):
             let candidate = typed + String(c).uppercased()
             if labels.contains(candidate) {
+                // The session lives on after the press, so these letters must not narrow the next.
+                if persistent { typed = "" }
                 return .matched(candidate, shift ? clickKeys.kind(held: Modifiers.shift) ?? .plain : .plain)
             }
             if labels.contains(where: { $0.hasPrefix(candidate) }) {

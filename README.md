@@ -43,6 +43,10 @@ What Jumpr does with it:
 | Backspace | Undoes the last letter |
 | Esc | Cancels |
 | The hotkey again | Cancels |
+| Space | Turns persistent mode on, or off again |
+| Tab | In persistent mode, updates the labels after a change you made with the mouse |
+
+Persistent mode is for a run of clicks, such as opening a site, then Play, then Start. While it is on, the labels stay up after each click and update to match what the click changed. Things that did not change keep their letters, and the menu bar icon is shown filled. Esc ends it, and so does clicking into a text field, clicking a button that opens a menu, or a right-click, so the keys go back to you.
 
 Hold a key on the last letter of a label for another kind of click:
 
@@ -74,7 +78,7 @@ Press ⌘⇧J to turn on scroll mode. Every scrollable area on every display get
 | F | Brings the letters back |
 | Esc, or ⌘⇧J again | Leaves scroll mode |
 
-Holding a key keeps scrolling. While scroll mode is on, Jumpr takes the keys and the menu bar icon stays highlighted; shortcuts with ⌘, ⌃ or ⌥ still work. A click anywhere, switching apps, locking the screen or pausing Jumpr also leaves it.
+Holding a key keeps scrolling. While scroll mode is on, Jumpr takes the keys and the menu bar icon is shown filled; shortcuts with ⌘, ⌃ or ⌥ still work. A click anywhere, switching apps, locking the screen or pausing Jumpr also leaves it.
 
 ## Updates
 

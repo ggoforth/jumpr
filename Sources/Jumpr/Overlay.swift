@@ -130,6 +130,17 @@ final class Overlay {
         }
     }
 
+    /// Takes one label off, as a settle window does when its element has gone.
+    func remove(_ layer: CALayer) {
+        quietly { layer.removeFromSuperlayer() }
+    }
+
+    /// Puts a label at a new global top-left rect, without the implicit slide: a label that
+    /// glided would point at nothing on its way.
+    func move(_ layer: CALayer, to rect: CGRect) {
+        quietly { layer.frame = local(rect) }
+    }
+
     func clear() {
         quietly { root.sublayers?.forEach { $0.removeFromSuperlayer() } }
     }

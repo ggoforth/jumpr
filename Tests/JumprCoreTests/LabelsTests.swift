@@ -85,3 +85,22 @@ private func frame(_ target: CGRect) -> CGRect {
     #expect(Labels.screenIndex(for: CGPoint(x: -50, y: 50), screens: screens) == 1)
     #expect(Labels.screenIndex(for: CGPoint(x: 500, y: 50), screens: screens) == nil)
 }
+
+// "AS" was Play now a moment ago. It must not land on another button while unused letters remain.
+@Test func thePoolHandsOutUnusedLettersBeforeReturnedOnes() {
+    var p = LabelPool(length: 1, alphabet: ["A", "S", "D"])
+    #expect(p.next() == "A")
+    p.release("A")
+    #expect(p.next() == "S")
+    #expect(p.next() == "D")
+    #expect(p.next() == "A")
+    #expect(p.next() == nil)
+}
+
+@Test func returnedLettersComeBackOldestFirst() {
+    var p = LabelPool(length: 1, alphabet: ["A", "S"])
+    _ = p.next(); _ = p.next()
+    p.release("S"); p.release("A")
+    #expect(p.next() == "S")
+    #expect(p.next() == "A")
+}

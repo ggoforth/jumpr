@@ -17,8 +17,9 @@ final class KeyTap {
     var capturing = false
     var onHotkey: () -> Void = {}
     var onScrollHotkey: () -> Void = {}
-    /// Returns true to swallow the key.
-    var onKey: (Key) -> Bool = { _ in false }
+    /// Returns true to swallow the key. `isRepeat`: the system's auto-repeat of a held key,
+    /// which labels ignore for letters and scroll mode uses to keep scrolling.
+    var onKey: (_ key: Key, _ isRepeat: Bool) -> Bool = { _, _ in false }
     /// The system switched the tap off (it is switched back on before this is called).
     var onDisabled: () -> Void = {}
 
@@ -27,6 +28,8 @@ final class KeyTap {
 
     private static let escape: Int64 = 53
     private static let delete: Int64 = 51
+    private static let space: Int64 = 49
+    private static let tab: Int64 = 48
     private static let commandControlOption = Modifiers.command | Modifiers.control | Modifiers.option
 
     init() {}
@@ -74,7 +77,8 @@ final class KeyTap {
             return nil
         }
         guard capturing else { return Unmanaged.passUnretained(event) }
-        return onKey(key(code: code, flags: flags, event: event)) ? nil : Unmanaged.passUnretained(event)
+        let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
+        return onKey(key(code: code, flags: flags, event: event), isRepeat) ? nil : Unmanaged.passUnretained(event)
     }
 
     private func key(code: Int64, flags: UInt64, event: CGEvent) -> Key {
@@ -91,6 +95,11 @@ final class KeyTap {
         }
         if code == Self.escape { return .escape }
         if code == Self.delete { return .backspace }
+        if code == Self.space || code == Self.tab {
+            // Space switches persistent mode: held down, each repeat would switch it again.
+            guard event.getIntegerValueField(.keyboardEventAutorepeat) == 0 else { return .other }
+            return code == Self.space ? .space : .tab
+        }
         if let letter { return .character(letter, shift: flags & Modifiers.shift != 0) }
         return .other
     }

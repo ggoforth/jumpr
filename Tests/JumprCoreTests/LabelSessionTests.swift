@@ -129,3 +129,95 @@ import Testing
     _ = s.handle(.character("A"))
     #expect(s.handle(.character("S", shift: true)) == .matched("AS", .plain))
 }
+
+// A run of presses (a site, Play now, Start game) should take one invocation.
+@Test func spaceSwitchesPersistentModeOnAndOffAgain() {
+    var s = LabelSession(); s.labels = ["AA"]
+    #expect(s.handle(.space) == .persistent(true))
+    #expect(s.persistent)
+    #expect(s.handle(.space) == .persistent(false))
+    #expect(!s.persistent)
+}
+
+// Tab is swallowed today; outside persistent mode it must stay that way.
+@Test func tabAsksForARefreshOnlyInPersistentMode() {
+    var s = LabelSession(); s.labels = ["AA"]
+    #expect(s.handle(.tab) == .swallow)
+    _ = s.handle(.space)
+    #expect(s.handle(.tab) == .refresh)
+}
+
+// The session lives on after the press, so the letters of the last label must not narrow the next.
+@Test func aMatchInPersistentModeClearsWhatWasTyped() {
+    var s = LabelSession(persistent: true); s.labels = ["AS", "AD"]
+    _ = s.handle(.character("A"))
+    #expect(s.handle(.character("S")) == .matched("AS"))
+    #expect(s.typed == "")
+}
+
+// A page reloads after "A" was typed and every label starting with A is removed:
+// without this every key is swallowed until Backspace.
+@Test func typedLettersAreClearedWhenNoLabelStartsWithThem() {
+    var s = LabelSession(persistent: true); s.labels = ["AS", "DF"]
+    _ = s.handle(.character("A"))
+    let whileLabelsMatch = s.clearTypedIfNothingMatches()
+    #expect(!whileLabelsMatch)   // "AS" still starts with it
+    s.labels.remove("AS")
+    let afterTheyWereRemoved = s.clearTypedIfNothingMatches()
+    #expect(afterTheyWereRemoved)
+    #expect(s.typed == "")
+    let withNothingTyped = s.clearTypedIfNothingMatches()
+    #expect(!withNothingTyped)
+}
+
+// ⌘ on the last letter in persistent mode opens a link in a new tab and the run goes on:
+// "AS" left typed would make the next "D" try "ASD" and swallow it.
+@Test func aChordMatchInPersistentModeClearsWhatWasTyped() {
+    var s = LabelSession(persistent: true); s.labels = ["AS", "AD"]
+    _ = s.handle(.character("A"))
+    #expect(s.handle(.chord("S", held: Modifiers.command)) == .matched("AS", .command))
+    #expect(s.typed == "")
+}
+
+// Review of persistent mode: holding the S of "AS" past the repeat delay sent S again and
+// again. After the match the first repeat narrowed to "S", the next matched "SS" and pressed
+// it, and so on until the key came up. A repeated letter is never typing.
+@Test func aHeldLetterAfterAMatchInPersistentModeNeitherNarrowsNorMatches() {
+    var s = LabelSession(persistent: true); s.labels = ["AS", "SS", "SD"]
+    _ = s.handle(.character("A"))
+    #expect(s.handle(.character("S")) == .matched("AS"))
+    #expect(s.handle(.character("S"), isRepeat: true) == .swallow)
+    #expect(s.typed == "")
+    #expect(s.handle(.character("S"), isRepeat: true) == .swallow)
+    #expect(s.typed == "")
+}
+
+// The one-shot form on main: holding the A of "AA" a moment too long pressed "AA".
+@Test func aHeldFirstLetterOutsidePersistentModeDoesNotTypeTheSecondLetterOfALabel() {
+    var s = LabelSession(); s.labels = ["AA", "AS"]
+    #expect(s.handle(.character("A")) == .narrowed("A"))
+    #expect(s.handle(.character("A"), isRepeat: true) == .swallow)
+    #expect(s.typed == "A")
+}
+
+// ⌘S held on a one-letter label: the repeat would ⌘-click "S" again, once per repeat.
+@Test func aHeldChordThatWouldCompleteALabelDoesNotMatch() {
+    var s = LabelSession(persistent: true); s.labels = ["S", "D"]
+    #expect(s.handle(.chord("S", held: Modifiers.command)) == .matched("S", .command))
+    #expect(s.handle(.chord("S", held: Modifiers.command), isRepeat: true) == .swallow)
+    #expect(s.typed == "")
+}
+
+// A held ⌘Z keeps undoing in the app, as it does with no labels up.
+@Test func aHeldChordThatIsAShortcutStillPassesThrough() {
+    var s = LabelSession(persistent: true); s.labels = ["AS"]
+    #expect(s.handle(.chord("Z", held: Modifiers.command), isRepeat: true) == .passThrough)
+}
+
+// Holding Backspace still takes letters off one at a time, as it does today.
+@Test func aHeldBackspaceStillNarrows() {
+    var s = LabelSession(); s.labels = ["AAA", "ASD"]
+    _ = s.handle(.character("A"))
+    _ = s.handle(.character("S"))
+    #expect(s.handle(.backspace, isRepeat: true) == .narrowed("A"))
+}

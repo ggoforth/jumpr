@@ -12,8 +12,14 @@ struct WindowScan {
     let timedOut: Bool
     /// Web areas the walk met in this window, empty ones included.
     var webAreas = 0
+    /// Elements in the walk that did not answer; their subtrees were skipped.
+    var unanswered = 0
     /// Areas to scroll, from a scan for scroll mode (`Scanner.scanAreas`).
     var areas: [Area] = []
+
+    /// Whether this scan may have missed things the app still has. A rescan must not remove
+    /// labels on the strength of an incomplete scan.
+    var incomplete: Bool { timedOut || unanswered > 0 }
 
     /// Nothing scanned: the window is hidden, gone, or (`timedOut`) the app did not answer.
     static func empty(pid: Int32, window: WindowID?, startedAt: Double, ms: Double = 0,
@@ -76,7 +82,7 @@ final class Scanner {
     /// `pid`'s queue (inside `perform`), never from the main thread.
     func appWindows(pid: Int32) -> [(id: WindowID, element: AXUIElement)] {
         guard let a = axMulti(axApp(pid), windowsAttr), a.count == 1 else { return [] }
-        return resolveWindows(axElements(a[0]), pid: pid, stack: nil)
+        return resolveWindows(axElements(a[0]), pid: pid, stack: nil).wins
     }
 
     /// Every window of the app plus its system pieces, under one per-app budget.
@@ -110,7 +116,7 @@ final class Scanner {
                 return
             }
 
-            let wins = resolveWindows(axElements(a[0]), pid: pid, stack: stack)
+            let (wins, unresolved) = resolveWindows(axElements(a[0]), pid: pid, stack: stack)
             let ids = Set(wins.map(\.id))
             for w in wins {
                 if isStale() { cut = true; return }
@@ -122,9 +128,15 @@ final class Scanner {
                 }
             }
             if isStale() { cut = true; return }
-            deliver(scanSystem(pid: pid, app: app, isDock: false, isFront: pid == frontPid,
-                               pieces: (axElementValue(a[1]), axElementValue(a[2])),
-                               screens: screens, stack: stack, deadline: deadline))
+            var system = scanSystem(pid: pid, app: app, isDock: false, isFront: pid == frontPid,
+                                    pieces: (axElementValue(a[1]), axElementValue(a[2])),
+                                    screens: screens, stack: stack, deadline: deadline)
+            // A window that could not be named because it did not answer was not scanned, so
+            // the app's scan is not complete: a reconcile must not remove the labels that
+            // window may still have. An entry that answered with no on-screen window (Finder's
+            // desktop) is not counted, or every reconcile of Finder would remove nothing.
+            system.unanswered += unresolved
+            deliver(system)
         }
     }
 
@@ -149,7 +161,7 @@ final class Scanner {
                 }
                 return
             }
-            let wins = resolveWindows(axElements(a[0]), pid: pid, stack: stack)
+            let wins = resolveWindows(axElements(a[0]), pid: pid, stack: stack).wins
             let ids = Set(wins.map(\.id))
             for w in wins {
                 if isStale() { cut = true; return }
@@ -175,19 +187,30 @@ final class Scanner {
     private let appAttrs = ["AXWindows", "AXMenuBar", "AXExtrasMenuBar"] as CFArray
 
     /// Window IDs from `_AXUIElementGetWindow`; on error, the same app's on-screen window
-    /// whose bounds match the element's frame (within 1 pt per edge).
-    private func resolveWindows(_ elements: [AXUIElement], pid: Int32,
-                                stack: WindowStack?) -> [(id: WindowID, element: AXUIElement)] {
+    /// whose bounds match the element's frame (within 1 pt per edge). Entries neither way
+    /// names are left out (`windowNaming`). `unresolved` counts only those whose frame
+    /// request did not answer: one that answered with a frame no on-screen window has is not
+    /// a window that can hold labels. Finder's desktop is that case: an `AXWindows` entry the
+    /// size of all displays together, with no window ID and no window-server window.
+    private func resolveWindows(_ elements: [AXUIElement], pid: Int32, stack: WindowStack?)
+        -> (wins: [(id: WindowID, element: AXUIElement)], unresolved: Int) {
         var fallback = stack
-        return elements.compactMap { el in
+        var unresolved = 0
+        let wins: [(id: WindowID, element: AXUIElement)] = elements.compactMap { el in
             axTimed(el)
             var id = CGWindowID(0)
             if _AXUIElementGetWindow(el, &id) == .success, id != 0 { return (id, el) }
             let s = fallback ?? WindowServer.snapshot()
             fallback = s
-            guard let f = axFrame(el), let w = s.wins.first(where: { $0.pid == pid && sameWindowFrame($0.bounds, f) }) else { return nil }
-            return (w.id, el)
+            let f = axFrameResult(el)
+            let w = f.frame.flatMap { f in s.wins.first(where: { $0.pid == pid && sameWindowFrame($0.bounds, f) }) }
+            switch windowNaming(idFound: false, frameAnswered: f.answered, frameMatches: w != nil) {
+            case .named: return w.map { ($0.id, el) }
+            case .notOnScreen: return nil
+            case .unread: unresolved += 1; return nil
+            }
         }
+        return (wins, unresolved)
     }
 
     private func scanWindow(pid: Int32, id: WindowID, element: AXUIElement?, appWindows: Set<WindowID>,
@@ -200,7 +223,8 @@ final class Scanner {
                      scope: .window(id: id, bounds: bounds, appWindows: appWindows),
                      stack: stack, deadline: deadline, now: now, finding: finding)
         return WindowScan(pid: pid, window: id, targets: r.targets, nodes: r.nodes, startedAt: t0,
-                          ms: (now() - t0) * 1000, timedOut: r.timedOut, webAreas: r.webAreas, areas: r.areas)
+                          ms: (now() - t0) * 1000, timedOut: r.timedOut, webAreas: r.webAreas,
+                          unanswered: r.unanswered, areas: r.areas)
     }
 
     /// Dock: the whole application tree. Otherwise the menu bar (front app only) and extras.
@@ -220,14 +244,16 @@ final class Scanner {
         var targets: [Target] = []
         var nodes = 0
         var timedOut = false
+        var unanswered = 0
         for root in roots {
             let r = walk(root: AXElementNode(root), pid: pid, scope: .system(screens: screens),
                          stack: stack, deadline: deadline, now: now)
             targets += r.targets
             nodes += r.nodes
             timedOut = timedOut || r.timedOut
+            unanswered += r.unanswered
         }
         return WindowScan(pid: pid, window: nil, targets: targets, nodes: nodes, startedAt: t0,
-                          ms: (now() - t0) * 1000, timedOut: timedOut)
+                          ms: (now() - t0) * 1000, timedOut: timedOut, unanswered: unanswered)
     }
 }

@@ -99,7 +99,9 @@ keyTap.onScrollHotkey = {
         scrollController.toggle()
     }
 }
-keyTap.onKey = { scrollController.isActive ? scrollController.handle($0) : controller.handle($0) }
+keyTap.onKey = { key, isRepeat in
+    scrollController.isActive ? scrollController.handle(key) : controller.handle(key, isRepeat: isRepeat)
+}
 keyTap.onDisabled = {
     // Off the tap's callback: losing trust stops (invalidates) the tap itself.
     DispatchQueue.main.async {
@@ -111,14 +113,24 @@ keyTap.onDisabled = {
     }
 }
 let presser = Presser(scanner: scanner)
+controller.onPersistentChanged = { statusItem.holdsHighlight = $0 }
 controller.onMatched = { target, kind in
     let t0 = now()
+    // Read after today's path has cancelled, so only a press in persistent mode finds its
+    // session still current when it reports.
+    let gen = controller.generation
+    // True only for a press that kept a persistent session; its settle window labels a menu
+    // it opened. The menu rule below must not run for it: Esc or a shortcut before the rule's
+    // check would let it start a fresh session, with scroll mode up beside it.
+    let keptSession = controller.isActive
     presser.press(target, kind: kind) { result, axError in
+        controller.pressFinished(generation: gen)
         // The raw AXPress error whenever it was not success (e.g. on a click fallback).
         let ax = axError.map { $0 == 0 ? "" : " (axpress=\($0))" } ?? ""
         let app = NSRunningApplication(processIdentifier: target.pid)?.localizedName ?? "pid \(target.pid)"
         let click = kind == .plain ? "" : " \(kind)"  // right, command, double or shift
         log(String(format: "→ %@ %@%@ %.0f ms%@ in %@", target.role, "\(result)", click, (now() - t0) * 1000, ax, app))
+        guard !keptSession else { return }
         presser.openedMenu(target, result: result) { opened in
             guard opened else { return }
             // Label the menu the press just opened, unless a session started meanwhile.
