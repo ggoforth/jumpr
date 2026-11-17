@@ -32,14 +32,16 @@ public enum Settle {
 }
 
 /// The apps a settle window scans: every app pressed since the last window finished, plus
-/// the one in front now, without Jumpr itself, in ascending order.
+/// the one in front now, in ascending order.
 /// A press into Finder and, half a second later, one into Safari starts a second window
 /// while the first is still pending; Finder must still be scanned in it, so the window takes
 /// the set of everything touched rather than just the latest press.
-public func settleApps(touched: Set<Int32>, frontNow: Int32?, excluding me: Int32) -> [Int32] {
+/// Jumpr itself is scanned like any other app: it owns a menu bar extra, and its open panel's
+/// controls sit under that icon, so a trigger scans it too. Leaving it out left the panel
+/// opened from its own icon's label with no labels.
+public func settleApps(touched: Set<Int32>, frontNow: Int32?) -> [Int32] {
     var apps = touched
     if let frontNow { apps.insert(frontNow) }
-    apps.remove(me)
     return apps.sorted()
 }
 
