@@ -658,17 +658,26 @@ final class Controller {
                                     log("persistent: ended, no labels")
                                     cancel()
                                 case .carryOn:
-                                    if finished { touched = [] }
+                                    if finished { clearTouchedUnlessPressing() }
                                 }
                             })
         }
+    }
+
+    /// A finished window forgets the apps it looked at, except while a press is in flight:
+    /// `touched` then holds what that press touched, and the window that follows its report
+    /// must still scan it. Case: a press into a background window or a menu bar extra,
+    /// reported just after the previous window (or a Tab refresh) finished; clearing here
+    /// would leave only the frontmost app to scan.
+    private func clearTouchedUnlessPressing() {
+        if !pressInFlight { touched = [] }
     }
 
     /// The last moment of a settle window started no scan, so it has finished here: what was
     /// touched has been looked at, and a session with nothing left to type at ends, as a
     /// trigger with no labels does.
     private func settleEnded() {
-        touched = []
+        clearTouchedUnlessPressing()
         if placed.isEmpty {
             log("persistent: ended, no labels")
             cancel()
