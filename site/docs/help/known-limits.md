@@ -30,7 +30,7 @@ order: 3
 - An element an app rebuilds gets new letters, even if it looks the same.
 - Labels cover the page while you read it.
 
-![Labels sit on top of the window they point into.](limits-document.webp)
+![Labels sit on top of the window they point into.](limits-labels.webp)
 
 ## Scroll mode
 
