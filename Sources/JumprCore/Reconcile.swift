@@ -1,12 +1,11 @@
 import CoreGraphics
 
-/// One scan of the apps being reconciled, turned into what to do with their labels.
+/// One scan of one app being reconciled, turned into what to do with its labels.
 public struct Reconcile {
     public enum Change: Equatable { case keep, move(label: String), add }
 
+    /// For the log line; `Controller` counts what it moved and added itself, as it paints them.
     public private(set) var kept = 0
-    public private(set) var moved = 0
-    public private(set) var added = 0
     /// False once any result was cut short: a partial answer says nothing about what it did not reach.
     public private(set) var complete = true
 
@@ -22,15 +21,11 @@ public struct Reconcile {
     /// results is one element, so the second time changes nothing.
     public mutating func note(_ t: Target) -> Change {
         guard seen.insert(t.id).inserted else { return .keep }
-        guard let old = placed[t.id] else {
-            added += 1
-            return .add
-        }
+        guard let old = placed[t.id] else { return .add }
         if old.rect == t.rect {
             kept += 1
             return .keep
         }
-        moved += 1
         return .move(label: old.label)
     }
 

@@ -15,7 +15,7 @@ private func win(_ id: WindowID, pid: Int32, _ r: CGRect) -> Win {
     #expect(r.note(target(1)) == .keep)
     #expect(r.note(target(3)) == .add)
     #expect(r.removals() == ["AD"])
-    #expect(r.kept == 1 && r.added == 1 && r.moved == 0)
+    #expect(r.kept == 1)
 }
 
 // The page scrolls a little after the press: same button, new place, same letters.
@@ -23,7 +23,7 @@ private func win(_ id: WindowID, pid: Int32, _ r: CGRect) -> Win {
     var r = Reconcile(placed: [ElementID(1): ("AS", target(1).rect)])
     #expect(r.note(target(1, x: 40)) == .move(label: "AS"))
     #expect(r.removals() == [])
-    #expect(r.moved == 1)
+    #expect(r.kept == 0)
 }
 
 // A busy app ran out of budget halfway: what it did not reach is not known to be gone.
