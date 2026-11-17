@@ -55,15 +55,11 @@ Hold a key on the last letter of a label for another kind of click:
 
 Those are the keys Jumpr starts with. The panel lets you give each click another key, or none.
 
-Click the menu bar icon for Jumpr's panel. It has a switch that turns Jumpr on and off (off is a pause: the hotkey does nothing), a preview of the labels, Check for Updates…, Report a Problem and Quit.
+Click the menu bar icon for Jumpr's panel. At the top it has a switch that turns Jumpr on and off (off is a pause: the hotkey does nothing) and a preview of the labels. At the bottom are Report a Problem and Quit. Between them are three tabs:
 
-The panel is also where you change:
-
-- The hotkey, and the scroll shortcut
-- The key for each kind of click. Choosing a key another click has swaps the two.
-- Label size, label color and letter color (Auto picks black or white, whichever reads better on the label)
-- Start at login (off until you turn it on)
-- Whether Jumpr checks for updates on its own
+- **Appearance:** label color, letter color and label size. One palette serves both colors: choose Label or Letters above it, then a color. Auto letters are black or white, whichever reads better on the label.
+- **Shortcuts:** the hotkey, the scroll shortcut, and the key for each kind of click. Choosing a key another click has swaps the two.
+- **General:** Start at login (off until you turn it on), whether Jumpr checks for updates on its own, and Check for Updates…
 
 ### Scrolling
 

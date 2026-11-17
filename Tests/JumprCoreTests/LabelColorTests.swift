@@ -1,28 +1,41 @@
 import Testing
 @testable import JumprCore
 
-// Label color: two rows of six, the second behind "More".
-@Test func theLabelColorsComeInTwoRowsOfSix() {
-    #expect(Palette.labelColors.map(\.name) == ["Yellow", "Orange", "Green", "Sky", "Blue", "Pink"])
-    #expect(Palette.labelColors.map(\.hex) == ["FFD60A", "FF9F0A", "30D158", "64D2FF", "0A84FF", "FF375F"])
-    #expect(Palette.moreLabelColors.map(\.name) == ["Red", "Purple", "Indigo", "Mint", "White", "Black"])
-    #expect(Palette.moreLabelColors.map(\.hex) == ["FF453A", "BF5AF2", "5E5CE6", "66D4CF", "FFFFFF", "1C1C1E"])
+// One palette serves the label and its letters: ten hues across, each in a light, a vivid
+// and a deep shade. Before it each had its own row of presets, a second row behind "More"
+// and its own exact-colour field, which was most of the panel's height.
+@Test func thePaletteHasTenHuesInThreeShades() {
+    #expect(Palette.rows.count == 3)
+    #expect(Palette.rows.allSatisfy { $0.count == 10 })
+    #expect(Palette.rows[1].map(\.name)
+        == ["Red", "Orange", "Yellow", "Green", "Mint", "Sky", "Blue", "Indigo", "Purple", "Pink"])
+    #expect(Palette.rows[0].map(\.name) == Palette.rows[1].map { "Light \($0.name.lowercased())" })
+    #expect(Palette.rows[2].map(\.name) == Palette.rows[1].map { "Deep \($0.name.lowercased())" })
 }
 
-// Letter color: Auto leads the first row (it is not a colour, so it is not in the data),
-// then five colours; six more behind "More". Some eyes read a coloured letter better.
-@Test func theLetterColorsFollowAutoInTwoRows() {
-    #expect(Palette.letterColors.map(\.name) == ["Black", "White", "Yellow", "Blue", "Red"])
-    #expect(Palette.letterColors.map(\.hex) == ["000000", "FFFFFF", "FFD60A", "0A84FF", "FF453A"])
-    #expect(Palette.moreLetterColors.map(\.name) == ["Orange", "Green", "Sky", "Pink", "Purple", "Indigo"])
-    #expect(Palette.moreLetterColors.map(\.hex) == ["FF9F0A", "30D158", "64D2FF", "FF375F", "BF5AF2", "5E5CE6"])
+// A colour picked from the presets before the palette (yellow, the default, among them)
+// must still show as selected, so the vivid row is exactly those ten.
+@Test func theVividRowKeepsEveryColorThePresetsOffered() {
+    #expect(Palette.rows[1].map(\.hex)
+        == ["FF453A", "FF9F0A", "FFD60A", "30D158", "66D4CF", "64D2FF", "0A84FF", "5E5CE6", "BF5AF2", "FF375F"])
 }
 
-// Every preset must parse, or picking it would store a colour the labels cannot show.
-@Test func everyPresetColorIsAValidHexColor() {
-    for s in Palette.labelColors + Palette.moreLabelColors + Palette.letterColors + Palette.moreLetterColors {
+// White and black sit beside the palette. A black label was always the dark grey 1C1C1E,
+// and black letters true black; both stay, so neither stored choice loses its ring.
+@Test func blackIsDarkGreyForALabelAndTrueBlackForLetters() {
+    #expect(Palette.white.hex == "FFFFFF")
+    #expect(Palette.labelBlack.hex == "1C1C1E")
+    #expect(Palette.letterBlack.hex == "000000")
+}
+
+// Every colour must parse, or picking it would store a colour the labels cannot show; and
+// each is offered once, or two swatches would show the ring together.
+@Test func everyPaletteColorIsAValidHexColorOfferedOnce() {
+    let all = Palette.rows.flatMap { $0 } + [Palette.white, Palette.labelBlack, Palette.letterBlack]
+    for s in all {
         #expect(RGB(hex: s.hex)?.hex == s.hex)
     }
+    #expect(Set(all.map(\.hex)).count == all.count)
 }
 
 // Auto letters: black on the default yellow, white on blue, readable on both ends.
