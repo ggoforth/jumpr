@@ -46,6 +46,7 @@ Breaking one of these does not fail a test. It makes Jumpr slow or makes typing 
 | Command | What it does |
 |---|---|
 | `make test` | Runs the unit tests (`swift test`). CI runs the same on every pull request. |
+| `make docs` | Builds the website's docs from `docs-src/` into `site/docs/`. Needs Node, and no packages. CI fails when the committed pages are out of date |
 | `make run` | Builds `build/Jumpr.app` and opens it, stopping any running copy first |
 | `make run-direct` | The same, started from the shell so it uses that shell's Accessibility access |
 | `CODESIGN_IDENTITY=- make run` | Builds with ad-hoc signing, for a machine with no signing identity |
@@ -75,7 +76,8 @@ Tests cover the rules. They do not cover what real apps report, so check there t
 Each fact has one home.
 
 - **[docs/design.md](docs/design.md):** how it works, measured timings, known limits, ideas not built.
-- **[README](README.md):** what a user sees, installing, building.
+- **[README](README.md):** what Jumpr is, installing, building.
+- **`docs-src/`:** how to use it, one Markdown file per page. `make docs` builds the pages into `site/docs/`; commit both. Never edit `site/docs/*.html` by hand. [docs-src/README.md](docs-src/README.md) says how to write a page.
 - **`site/`:** the website, including the privacy page.
 - **This file:** rules and contracts only.
 

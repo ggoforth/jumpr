@@ -1,0 +1,17 @@
+# Jumpr docs
+
+> Jumpr is a free, open-source menu bar app for macOS. Press a hotkey and everything clickable on every display gets a two-letter label; type it, and it is clicked. Each page below is also available as Markdown at the same path with a .md extension.
+
+- [Jumpr](https://getjumpr.app/docs/index.md): Click anything on your Mac without the mouse. Press a hotkey, type two letters, and it clicks.
+- [Getting started](https://getjumpr.app/docs/getting-started.md): Install Jumpr, grant it the Accessibility permission and click your first label.
+- [Using Jumpr](https://getjumpr.app/docs/using/index.md): Labels, clicks, scrolling and settings, one page each.
+- [Labels and keys](https://getjumpr.app/docs/using/labels-and-keys.md): Press the hotkey, type a label, and Jumpr clicks it.
+- [Kinds of click](https://getjumpr.app/docs/using/kinds-of-click.md): Hold a key on the last letter of a label to right-click, double-click and more.
+- [Persistent mode](https://getjumpr.app/docs/using/persistent-mode.md): Keep the labels up for a run of clicks, such as opening a site, then Play, then Start.
+- [Scrolling](https://getjumpr.app/docs/using/scrolling.md): Scroll any area on any display from the keyboard, without moving the pointer.
+- [The panel](https://getjumpr.app/docs/using/the-panel.md): Click the menu bar icon to pause Jumpr, preview your labels and change its settings.
+- [Help](https://getjumpr.app/docs/help/index.md): The permission Jumpr needs, how it updates, what it can't do yet, and how to report a problem.
+- [The Accessibility permission](https://getjumpr.app/docs/help/accessibility.md): Why Jumpr needs the Accessibility permission, how to grant it, and what it does with it.
+- [Updates](https://getjumpr.app/docs/help/updates.md): Jumpr checks for a new version once a day and installs it when you say so.
+- [Known limits](https://getjumpr.app/docs/help/known-limits.md): What Jumpr can't label, click or hear yet, and what to do instead.
+- [Reporting a problem](https://getjumpr.app/docs/help/reporting-a-problem.md): Open an issue on GitHub, and attach the log if it helps show what happened.

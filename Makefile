@@ -1,7 +1,12 @@
-.PHONY: test app release run run-direct install icon
+.PHONY: test docs app release run run-direct install icon
 
 test:
 	swift test
+
+# Renders docs-src/**/*.md into site/docs/, which is committed. Needs Node, and no packages.
+# CI runs the same script with --check and fails when the committed pages are out of date.
+docs:
+	node scripts/build-docs.mjs
 
 # Env: CODESIGN_IDENTITY, CODESIGN_OPTIONS, JUMPR_FEED_URL, JUMPR_SPARKLE_PUBLIC_KEY, JUMPR_VERSION, JUMPR_BUILD_NUMBER (defaults: dev build, updates off; see the script).
 app:

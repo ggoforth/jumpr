@@ -292,6 +292,8 @@ Jumpr has no Dock icon and is rarely the active app, so a scheduled update alert
 
 **Release notes.** Each release has one entry in `site/releases.json`, written before the tag (the `release-notes` skill). `site/changelog.html` shows the entries, newest first, five at a time. `scripts/release-notes.swift` turns an entry into the GitHub release's text and into the appcast item's description, which Sparkle shows in the update window. The notes sit inside the appcast rather than behind a link, so showing them adds no network request. `scripts/release.sh` refuses a notarized build whose version has no entry.
 
+**Docs.** The pages under `site/docs/` are built from `docs-src/`, one Markdown file per page, by `scripts/build-docs.mjs` (`make docs`; Node, no packages). One template renders every page, and the sidebar, previous and next, and "On this page" come from the folders and each page's `title` and `order`, so adding a page never means editing another. The script accepts a small set of Markdown shapes and stops on anything else, on a dead link and on a page with no title. The built pages are committed, so deploying the site stays a copy of `site/`, and CI runs the script with `--check`, which fails when they are out of date. `docs-src/README.md` is the writer's guide.
+
 ## Known limits
 
 - `AXManualAccessibility` cannot be read back, so Jumpr cannot tell whether another tool already had an app's tree on. On Pause and Quit it switches off every such tree it set, including one another tool had on.
@@ -307,7 +309,7 @@ Jumpr has no Dock icon and is rarely the active app, so a scheduled update alert
 - Scroll mode gives a letter to every area the tree shows, including ones with nothing to scroll; picking one does nothing. Only a scroll area inside another area is asked how large its content is; asking every scroll area would retire most of this, once content sizes are counted across more apps. It does not switch web trees on or look again the way a trigger does, so a web-based app whose tree is not built yet may show no areas until a trigger has woken it.
 - Scroll mode scrolls vertically only. Scrolling relies on the app scrolling whatever is under the event's position, as it would under the pointer.
 - If both shortcuts are set to the same combination, the label hotkey wins and scroll mode cannot be reached.
-- While labels are up, ⌘ or ⌥ with a letter that completes a label is a click, not the shortcut. That takes a letter typed first, or a trigger with one-letter labels.
+- While labels are up, ⌘, ⌥ or ⌃ with a letter that completes a label is a click, not the shortcut. That takes a letter typed first, or a trigger with one-letter labels.
 - The menu a right-click opens is not labelled: only a menu opened by `AXPress` on a menu bar item or menu item is (step 7 of Pressing). Whether a trigger labels an open context menu at all has not been checked. The arrow keys work in it.
 - In persistent mode, changes made with the mouse or trackpad are not seen until the next press, shortcut or Tab.
 - A page that takes longer than the settle window (3.5 s) gets its labels on Tab.

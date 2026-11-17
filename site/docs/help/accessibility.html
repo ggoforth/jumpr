@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The Accessibility permission: Jumpr docs</title>
+  <meta name="description" content="Why Jumpr needs the Accessibility permission, how to grant it, and what it does with it.">
+  <meta name="color-scheme" content="light dark">
+  <link rel="canonical" href="https://getjumpr.app/docs/help/accessibility.html">
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../../site.css">
+  <link rel="stylesheet" href="../docs.css">
+  <script src="../../analytics.js" defer></script>
+  <script src="../docs.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="site-header docs-header">
+    <a class="brand" href="../../index.html" aria-label="Jumpr home"><span class="brand-mark" aria-hidden="true">J</span>Jumpr</a>
+    <nav class="header-nav" aria-label="Site">
+      <a class="header-link" href="../index.html" aria-current="page">Docs</a>
+      <a class="header-link wide" href="../../changelog.html">Changelog</a>
+      <a class="header-link wide" href="https://github.com/ggoforth/jumpr">GitHub</a>
+      <a class="header-link" href="https://github.com/ggoforth/jumpr/releases/latest/download/Jumpr.zip">Download</a>
+    </nav>
+  </header>
+
+  <div class="docs" id="docs">
+    <button class="docs-menu" id="docs-menu" type="button" aria-controls="docs-side" aria-expanded="false"><b>Browse docs</b><span>The Accessibility permission</span></button>
+    <nav class="docs-side" id="docs-side" aria-label="Docs"><a href="../index.html">Overview</a><a href="../getting-started.html">Getting started</a><p class="docs-group"><a href="../using/index.html">Using Jumpr</a></p><a href="../using/labels-and-keys.html">Labels and keys</a><a href="../using/kinds-of-click.html">Kinds of click</a><a href="../using/persistent-mode.html">Persistent mode</a><a href="../using/scrolling.html">Scrolling</a><a href="../using/the-panel.html">The panel</a><p class="docs-group"><a href="index.html">Help</a></p><a href="accessibility.html" aria-current="page">The Accessibility permission</a><a href="updates.html">Updates</a><a href="known-limits.html">Known limits</a><a href="reporting-a-problem.html">Reporting a problem</a></nav>
+    <main class="docs-content" id="main">
+      <header class="docs-hero">
+        <div>
+          <p class="docs-crumb"><i aria-hidden="true"></i>Help</p>
+          <h1>The Accessibility permission</h1>
+          <p class="docs-lede">Why Jumpr needs the Accessibility permission, how to grant it, and what it does with it.</p>
+        </div>
+        <button class="docs-copy" id="docs-copy" type="button" data-md="accessibility.md" title="Copy this page as Markdown, to paste into any AI">Copy for AI</button>
+      </header>
+      <div class="docs-main">
+        <article class="docs-article">
+<p>Jumpr needs the Accessibility permission for two things: to find the buttons, links and icons on your screens, and to click the one you pick. It is the only permission Jumpr asks for.</p>
+<h2 id="grant-it">Grant it</h2>
+<ol class="docs-steps"><li>Open System Settings → Privacy &amp; Security → Accessibility.</li><li>Turn on Jumpr.</li></ol>
+<p>When you open Jumpr without the permission, macOS asks for it and Jumpr opens its panel. Until you grant it, the panel has an Open Accessibility Settings button that takes you to the right place.</p>
+<div class="docs-note"><span class="docs-chip">Tip</span><p><strong>Panel shows Relaunch Jumpr?</strong> If Jumpr still can't start listening for the hotkey after you grant the permission, the panel shows a <strong>Relaunch Jumpr</strong> button.</p></div>
+<p>If you turn the permission off while Jumpr runs, Jumpr stops listening for the hotkey and opens its panel.</p>
+<h2 id="what-jumpr-does-with-it">What Jumpr does with it</h2>
+<ul><li>It reads the screen on your Mac to place labels. What it reads is not recorded, stored or sent anywhere.</li><li>It does not record your screen.</li><li>It keeps a small activity log on your Mac. <a href="reporting-a-problem.html#the-log">Reporting a problem</a> lists what is in it.</li></ul>
+<h2 id="web-based-apps">Web-based apps</h2>
+<p>Jumpr turns on accessibility information in web-based apps so it can see them. When you pause or quit Jumpr, it turns that off again. See <a href="known-limits.html#web-pages-and-web-based-apps">Known limits</a> for when it can't.</p>
+
+<footer class="docs-foot"><a href="index.html" class="prev"><small>← Previous</small>Help</a><a href="updates.html" class="next"><small>Next →</small>Updates</a></footer>
+        </article>
+        <aside class="docs-toc" aria-label="On this page"><h2>On this page</h2><a href="#grant-it">Grant it</a><a href="#what-jumpr-does-with-it">What Jumpr does with it</a><a href="#web-based-apps">Web-based apps</a></aside>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
