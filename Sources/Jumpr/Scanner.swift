@@ -103,6 +103,7 @@ final class Scanner {
 
             if isDock {
                 deliver(scanSystem(pid: pid, app: app, isDock: true, isFront: false, pieces: (nil, nil),
+                                   menus: openMenus(pid: pid, app: app, stack: stack).roots,
                                    screens: screens, stack: stack, deadline: deadline))
                 return
             }
@@ -116,6 +117,7 @@ final class Scanner {
                 return
             }
 
+            let menus = openMenus(pid: pid, app: app, stack: stack)
             let (wins, unresolved) = resolveWindows(axElements(a[0]), pid: pid, stack: stack)
             let ids = Set(wins.map(\.id))
             for w in wins {
@@ -124,12 +126,12 @@ final class Scanner {
                     deliver(.empty(pid: pid, window: w.id, startedAt: now()))
                 } else {
                     deliver(scanWindow(pid: pid, id: w.id, element: w.element, appWindows: ids,
-                                       stack: stack, deadline: deadline))
+                                       stack: stack, deadline: deadline, under: menus.covered))
                 }
             }
             if isStale() { cut = true; return }
             var system = scanSystem(pid: pid, app: app, isDock: false, isFront: pid == frontPid,
-                                    pieces: (axElementValue(a[1]), axElementValue(a[2])),
+                                    pieces: (axElementValue(a[1]), axElementValue(a[2])), menus: menus.roots,
                                     screens: screens, stack: stack, deadline: deadline)
             // A window that could not be named because it did not answer was not scanned, so
             // the app's scan is not complete: a reconcile must not remove the labels that
@@ -214,7 +216,8 @@ final class Scanner {
     }
 
     private func scanWindow(pid: Int32, id: WindowID, element: AXUIElement?, appWindows: Set<WindowID>,
-                            stack: WindowStack, deadline: Double, finding: Finding = .targets) -> WindowScan {
+                            stack: WindowStack, deadline: Double, finding: Finding = .targets,
+                            under menus: [CGRect] = []) -> WindowScan {
         let t0 = now()
         guard let element, let bounds = stack.win(id)?.bounds else {
             return .empty(pid: pid, window: id, startedAt: t0)
@@ -222,15 +225,38 @@ final class Scanner {
         let r = walk(root: AXElementNode(element), pid: pid,
                      scope: .window(id: id, bounds: bounds, appWindows: appWindows),
                      stack: stack, deadline: deadline, now: now, finding: finding)
-        return WindowScan(pid: pid, window: id, targets: r.targets, nodes: r.nodes, startedAt: t0,
+        return WindowScan(pid: pid, window: id, targets: targets(r.targets, clearOf: menus), nodes: r.nodes, startedAt: t0,
                           ms: (now() - t0) * 1000, timedOut: r.timedOut, webAreas: r.webAreas,
                           unanswered: r.unanswered, areas: r.areas)
     }
 
+    /// The app's open menus. `roots`: the ones no walk reaches from a window or the menu
+    /// bar (a right-click's, a button's, a Dock item's), each once however many submenus
+    /// are open. `covered`: the window of every open menu, the menu bar's included, for
+    /// `targets(_:clearOf:)`. Each window at the menu layer is asked for the element under
+    /// its middle, then climbed (`openMenu`): one hit-test and a short climb apiece, and
+    /// nothing at all while no menu is open.
+    private func openMenus(pid: Int32, app: AXUIElement, stack: WindowStack) -> (roots: [AXUIElement], covered: [CGRect]) {
+        var roots: [AXUIElement] = []
+        var covered: [CGRect] = []
+        var seen = Set<ElementID>()
+        for w in stack.openMenus(pid: pid) {
+            var hit: AXUIElement?
+            guard AXUIElementCopyElementAtPosition(app, Float(w.bounds.midX), Float(w.bounds.midY), &hit) == .success,
+                  let hit, let menu = openMenu(from: AXElementNode(hit)) else { continue }
+            covered.append(w.bounds)
+            if !menu.inMenuBar, let root = menu.root as? AXElementNode, seen.insert(root.id).inserted {
+                roots.append(root.element)
+            }
+        }
+        return (roots, covered)
+    }
+
     /// Dock: the whole application tree. Otherwise the menu bar (front app only) and extras.
+    /// Then, in either case, `menus`: the app's open menus that those do not reach.
     /// `pieces` is (menu bar, extras), already fetched by the caller (unused for the Dock).
     private func scanSystem(pid: Int32, app: AXUIElement, isDock: Bool, isFront: Bool,
-                            pieces: (AXUIElement?, AXUIElement?), screens: [CGRect],
+                            pieces: (AXUIElement?, AXUIElement?), menus: [AXUIElement], screens: [CGRect],
                             stack: WindowStack, deadline: Double) -> WindowScan {
         let t0 = now()
         var roots: [AXUIElement] = []
@@ -241,6 +267,7 @@ final class Scanner {
             if isFront, let bar { roots.append(bar) }
             if let extras { roots.append(extras) }
         }
+        roots += menus
         var targets: [Target] = []
         var nodes = 0
         var timedOut = false

@@ -63,7 +63,7 @@ hotkey (event tap, main run loop)
   └─ Controller.trigger
        ├─ list on-screen windows, front to back (WindowServer.snapshot)
        ├─ for each app to scan, on that app's own serial queue, all apps in parallel:
-       │     walk each visible window, then the app's menu bar and extras
+       │     walk each visible window, then the app's menu bar, extras and open menus
        │     └─ each window's result comes back to main and is painted at once
        ├─ user types: labels that no longer match are hidden
        └─ a full label matches → cancel the session → Presser.press
@@ -87,7 +87,7 @@ The same session ends on Esc, the hotkey, a match, a display change (overlays ar
 
 ## Scanning
 
-A scan of one app (`Scanner.scanApp`) asks for `AXWindows`, `AXMenuBar` and `AXExtrasMenuBar` in one request, walks each window, then walks the system pieces: the menu bar only for the frontmost app, and the extras bar for any app. The Dock is walked from its application element.
+A scan of one app (`Scanner.scanApp`) asks for `AXWindows`, `AXMenuBar` and `AXExtrasMenuBar` in one request, walks each window, then walks the system pieces: the menu bar only for the frontmost app, the extras bar for any app, and any open menu those do not reach (see Menus below). The Dock is walked from its application element.
 
 **Windows.** An accessibility window is matched to its window-server ID with the private `_AXUIElementGetWindow`, the only way to tie the two together. If it fails, the fallback is the same app's on-screen window whose bounds match the element's frame within 1 pt per edge (`sameWindowFrame`). A window is skipped outright if a 5×5 grid of sample points finds none of it on top (`WindowStack.anyVisible`).
 
@@ -106,6 +106,8 @@ A scan of one app (`Scanner.scanApp`) asks for `AXWindows`, `AXMenuBar` and `AXE
 - **Tables and outlines** are walked through `AXVisibleRows` only. Column elements are skipped, since they repeat the rows' cells.
 - **Grids** are walked through `AXVisibleChildren` when the grid names any. A grid's frame need not cover its children: the Smileys section of Messages' emoji picker reports 320×444 pt and holds 482 buttons laid out over 3400 pt, so the clip cannot prune it, and reading every off-screen button (about 1.6 ms each) ran Messages out of its budget after the two rows on screen. The grid names the 18 that show. One more request per grid.
 - **Menus.** A menu bar item or menu item is descended into only while it is selected, that is, while its menu is open.
+- **Open menus off the menu bar.** A menu opened by a right-click or by a pop-up or menu button is a child of the element it was opened on, and no walk gets there: a table's children are read as its visible rows (Mail hangs a message's context menu off the message list, beside its rows), and a button is a leaf. Every open menu is a window of its own at the pop-up menu layer (101, `Win.menuLayer`), so the menu is found from its window: for each of the app's windows at that layer, Jumpr asks the app for the element under the window's middle and climbs to the outermost `AXMenu` (`openMenu`). A menu a menu bar item holds is left to the menu bar's walk. The rest are walked as system pieces, so their items get labels with no window, as a menu bar menu's do, and an open submenu is reached through its selected item. Other things are drawn at that layer too; the element under one is in no menu and nothing is walked. The cost is one hit-test and two requests a level of the climb per menu window, and nothing while no menu is open: the window list is already in hand. Measured 2026-11-23 on macOS 27 with a test app, a table with five rows: 25 elements and 8 labels with no menu (30 ms), 32 and 8 with its five-item context menu open (24 ms: five items in, the five rows behind the menu out), 30 and 11 with a three-item pop-up button menu open (19 ms). Checked in a test app only so far; Mail, Finder, Safari and a web-based app are still to be counted.
+- **Under an open menu.** A window's target that one of its app's open menus overlaps gets no label (`targets(_:clearOf:)`), the menu bar's menus included. Its label would land among the labels of the menu's items: in Mail the two message rows behind the context menu kept theirs at the menu's right edge. Any overlap counts, not the center: those rows' centers were 1 pt left of the menu. The menu layer is not made to hide things for every app (`Win.occludes`), since only a window that turned out to hold a menu is known to be one; so another app's window behind the menu keeps its labels.
 - **Depth cap.** The walk stops 80 levels deep.
 - **Covered rows.** A clickable element whose clickable descendants together cover at least half its area gets no label of its own. Its label would sit at the right end beside theirs, and a press on the row would mostly land on one of them anyway. One descendant can be the cover (a row filled by a button) or many (each section of Messages' emoji picker is a table row filled by its emoji). A smaller control inside, such as a checkbox at the edge of a wide row, is a different action, so both keep their labels.
 
@@ -190,7 +192,7 @@ Without it, a run of presses takes one hotkey press per step: open a site, press
 
 - **A label typed while a press is in flight is held**, and pressed when that press reports. One is held at a time; a later one replaces it. A label that would end the mode is held too: pressed at once, a search field typed mid-press in another app raced the first press. The log says `persistent: held`.
 - **Space switching the mode off** drops the settle moments still pending and leaves the labels as they are. A held label is not dropped: it was typed, so it is pressed when the press in flight reports, and ends the session as any match does with the mode off (the log says `held` for one held then). With nothing held, the report starts no settle window.
-- **Three presses end the mode first** and take the plain path (`endsPersistentMode`), each decided by role or click, never by app. A target whose role is a text field (`Roles.text`: text field, text area, combo box), in web content or not: the next keys are for the field, and with the session up they would be swallowed as label letters. A target whose role is a pop-up button or menu button (`Roles.opensMenu`): the menu it opens is not labelled (labelling such menus is not built), and it needs the arrow keys and Return. And a right-click, for the same reason. A menu bar item or menu item keeps the mode, since the settle window's scan of the menu bar reaches its menu. Web text that can take focus (each day in a date picker) is a control, not a text field, so the run goes on.
+- **Three presses end the mode first** and take the plain path (`endsPersistentMode`), each decided by role or click, never by app. A target whose role is a text field (`Roles.text`: text field, text area, combo box), in web content or not: the next keys are for the field, and with the session up they would be swallowed as label letters. A target whose role is a pop-up button or menu button (`Roles.opensMenu`): the press does not label the menu it opens (the next trigger does), and it needs the arrow keys and Return. And a right-click, for the same reason. Whether the settle window's scan would label such a menu in time has not been measured, so the mode still ends. A menu bar item or menu item keeps the mode, since the settle window's scan of the menu bar reaches its menu. Web text that can take focus (each day in a date picker) is a control, not a text field, so the run goes on.
 
 **The settle window.** A press changes the screen after the app has answered: a menu opens, a page swaps, a window comes forward. So Jumpr looks again at fixed moments after the press reports (`Settle.moments`): 0.15, 0.5, 1.0, 2.0 and 3.5 s. They are one-shot delays caused by the press, not a timer; after the last, nothing runs until the next press. At each moment, on the main thread:
 
@@ -222,7 +224,7 @@ Adds and moves are painted as each window's result arrives. Removals wait for th
 **What ends it.** Everything that ends a session ends this one too (see [The trigger, end to end](#the-trigger-end-to-end)), except a match. Five things end it that do not end a plain session, each decided by role or by a system flag, never by app, and each writes its reason to the log:
 
 - a matched text field: `persistent: ended, text field`
-- a matched pop-up button or menu button, whose menu is not labelled (that is not built) and needs the arrow keys: `persistent: ended, menu button`
+- a matched pop-up button or menu button, whose menu the press does not label and which needs the arrow keys: `persistent: ended, menu button`
 - a right-click: `persistent: ended, right-click`
 - secure input, found on at a settle moment or a Tab: `persistent: ended, secure input`. Jumpr reads only the system's yes or no.
 - no labels left, with nothing pending that could add some: no trigger scans still out, no settle window running, no press in flight (`endsForWantOfLabels`): `persistent: ended, no labels`. A page swap removes the old page's labels at one moment and the new page's arrive at the next, so this waits. The same rule ends a plain session (`cancelled: no labels`), including one left with no labels after Space switched the mode off. When an app quits while labels are up, its labels go at once, in either mode, rather than waiting for a settle moment.
@@ -312,12 +314,13 @@ Jumpr has no Dock icon and is rarely the active app, so a scheduled update alert
 - Scroll mode scrolls vertically only. Scrolling relies on the app scrolling whatever is under the event's position, as it would under the pointer.
 - If both shortcuts are set to the same combination, the label hotkey wins and scroll mode cannot be reached.
 - While labels are up, ⌘, ⌥ or ⌃ with a letter that completes a label is a click, not the shortcut. That takes a letter typed first, or a trigger with one-letter labels.
-- The menu a right-click opens is not labelled: only a menu opened by `AXPress` on a menu bar item or menu item is (step 7 of Pressing). Whether a trigger labels an open context menu at all has not been checked. The arrow keys work in it.
+- The menu a right-click, a pop-up button or a menu button opens is not labelled by that press: only a menu opened by `AXPress` on a menu bar item or menu item is (step 7 of Pressing). Press the hotkey again and its items get labels (Open menus off the menu bar, under Scanning). The arrow keys work in it meanwhile.
+- Finding an open menu from its window has been checked in a test app only: a context menu on a table and a pop-up button's menu. A menu an app draws itself, as web-based apps do, has no window at the menu layer and is labelled only if the window's own tree holds it.
 - In persistent mode, changes made with the mouse or trackpad are not seen until the next press, shortcut or Tab.
 - A page that takes longer than the settle window (3.5 s) gets its labels on Tab.
 - If secure input begins after the settle window has closed, the labels stay up, and neither Esc nor the hotkey reaches Jumpr, until focus leaves the password field.
 - A press that opens a text field without being one (a search icon) leaves the labels up. Esc, then type.
-- A right-click ends persistent mode, because the menu it opens is not labelled.
+- A right-click ends persistent mode, because the press does not label the menu it opens.
 - A menu opened by a pop-up button or menu button gets no labels, in plain mode or persistent mode. In persistent mode the press ends the mode, so the menu has the keys.
 - An element an app rebuilds gets a new identity and so new letters, even if it looks the same.
 - In persistent mode, labels cover the page while it is being read. Nothing is done about this yet.
