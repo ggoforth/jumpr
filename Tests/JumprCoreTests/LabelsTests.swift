@@ -65,6 +65,55 @@ private func frame(_ target: CGRect) -> CGRect {
     #expect(screen.contains(frame(CGRect(x: -50, y: -50, width: 2000, height: 2000))))
 }
 
+// JUM-120: crowded neighbours draw smaller labels in the same place. Drawn at 10 pt, a
+// two-letter label is 18 x 13 (2 x 9 x 10/15 + 6 across, 10 x 1.3 down).
+private func small(_ target: CGRect, _ size: CGFloat = 10) -> CGRect {
+    Labels.frame(length: 2, target: target, screen: screen, fontSize: 15, advance: 9, drawnAt: size)
+}
+
+@Test func aSmallerLabelHangsFromTheSameCornerOfASmallTarget() {
+    // A window button's label shrinks toward the corner it hangs from, still off the button.
+    let icon = CGRect(x: 100, y: 0, width: 30, height: 24)
+    #expect(small(icon) == CGRect(x: 119, y: 18, width: 18, height: 13))
+    #expect(frame(icon).contains(small(icon)))
+    // Drawn at the full size, it is the full frame.
+    #expect(small(icon, 15) == frame(icon))
+}
+
+@Test func aSmallerLabelFlippedAtAScreenEdgeKeepsTheFullLabelsOuterEdge() {
+    // The menu bar clock at the right edge: its label sits to the left, ending where the full one ends.
+    let clock = CGRect(x: 970, y: 0, width: 30, height: 24)
+    #expect(small(clock) == CGRect(x: 963, y: 18, width: 18, height: 13))
+    #expect(small(clock).maxX == frame(clock).maxX)
+    // A Dock icon at the bottom edge: its label sits above, ending where the full one ends.
+    let dock = CGRect(x: 500, y: 760, width: 40, height: 40)
+    #expect(small(dock) == CGRect(x: 529, y: 753, width: 18, height: 13))
+    #expect(small(dock).maxY == frame(dock).maxY)
+    // The corner: both.
+    let corner = CGRect(x: 990, y: 790, width: 10, height: 10)
+    #expect(small(corner) == CGRect(x: 977, y: 779.5, width: 18, height: 13))
+    #expect(frame(corner).contains(small(corner)))
+}
+
+@Test func aSmallerLabelInsideALargeTargetStaysAtItsRightEnd() {
+    // A list row: centred down the row, as the full label is, and ending where it ends.
+    let row = CGRect(x: 100, y: 100, width: 200, height: 20)
+    #expect(small(row) == CGRect(x: 280, y: 103.5, width: 18, height: 13))
+    #expect(small(row).midY == frame(row).midY)
+    // Room for two full label heights: tucked into the same bottom-right corner.
+    let tall = CGRect(x: 100, y: 100, width: 300, height: 200)
+    #expect(small(tall) == CGRect(x: 380, y: 285, width: 18, height: 13))
+    #expect(frame(tall).contains(small(tall)))
+}
+
+@Test func whetherALabelHangsOrSitsInsideIsDecidedAtTheFullSize() {
+    // 107 pt is under four full label widths (4 x 27), so the label hangs. Drawn at 10 pt it
+    // would fit inside (107 >= 4 x 18), but it must stay where the person expects it.
+    let button = CGRect(x: 100, y: 100, width: 107, height: 20)
+    #expect(small(button) == CGRect(x: 196, y: 115, width: 18, height: 13))
+    #expect(small(button).origin == frame(button).origin)
+}
+
 // Scroll mode's letters and its SCROLL tag sit in an area's top-left corner, inside the
 // outline, off the content a person reads.
 @Test func scrollModeDrawsInsideAnAreasTopLeftCorner() {
