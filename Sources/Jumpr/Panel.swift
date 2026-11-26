@@ -180,7 +180,7 @@ struct PanelView: View {
             Text("Label size").fontWeight(.semibold)
             // No `step`: a stepped slider draws a tick for each of its 23 values. Whole
             // points come from rounding instead.
-            Slider(value: Binding(get: { clampLabelSize(size) }, set: { size = $0.rounded() }), in: 10...32) {
+            Slider(value: Binding(get: { clampLabelSize(size) }, set: { size = $0.rounded() }), in: smallestLabelSize...32) {
                 Text("Label size")
             }
             .labelsHidden()

@@ -20,20 +20,30 @@ public enum Labels {
     /// screen edge the label flips to the other side of the target rather than sliding
     /// back over it. A larger target (a row, a wide button) keeps its label inside, at
     /// the right end: outside, it would straddle two stacked rows and belong to neither.
-    public static func frame(length: Int, target: CGRect, screen: CGRect, fontSize: CGFloat, advance: CGFloat) -> CGRect {
-        let w = ceil(CGFloat(length) * advance + fontSize * 0.6)
-        let h = ceil(fontSize * 1.3)
+    ///
+    /// `drawnAt`: a smaller size the label is drawn at, when its neighbours crowd it
+    /// (`LabelLayout`). Where it goes is still decided at `fontSize`, so the smaller box stays
+    /// against the same corner of its target, within the full frame, where the person looks.
+    public static func frame(length: Int, target: CGRect, screen: CGRect, fontSize: CGFloat, advance: CGFloat,
+                             drawnAt size: CGFloat? = nil) -> CGRect {
+        let fullW = ceil(CGFloat(length) * advance + fontSize * 0.6)
+        let fullH = ceil(fontSize * 1.3)
+        var w = fullW, h = fullH
+        if let size, size != fontSize {
+            w = ceil(CGFloat(length) * advance * size / fontSize + size * 0.6)
+            h = ceil(size * 1.3)
+        }
         var x: CGFloat, y: CGFloat
-        if target.width >= 4 * w {
+        if target.width >= 4 * fullW {
             x = target.maxX - w - 2
-            y = target.height >= 2 * h ? target.maxY - h - 2 : target.midY - h / 2
+            y = target.height >= 2 * fullH ? target.maxY - h - 2 : target.midY - h / 2
         } else {
             let ox = min((fontSize * 0.75).rounded(), target.width / 2)
             let oy = min(fontSize * 0.4, target.height / 4)
             x = target.maxX - ox
             y = target.maxY - oy
-            if x + w > screen.maxX { x = target.minX - w + ox }
-            if y + h > screen.maxY { y = target.minY - h + oy }
+            if x + fullW > screen.maxX { x = target.minX - w + ox }
+            if y + fullH > screen.maxY { y = target.minY - h + oy }
         }
         let cx = max(screen.minX, min(x, screen.maxX - w))
         let cy = max(screen.minY, min(y, screen.maxY - h))
