@@ -156,3 +156,14 @@ private let me: Int32 = 77
     #expect(s.openMenus(pid: 10).map(\.id) == [6, 5])
     #expect(s.openMenus(pid: 30).isEmpty)
 }
+// An app already showing a completion list at the menu layer was right-clicked from a
+// label, and the right-click opened nothing. Counting every window at that layer brought
+// labels back though no menu had opened: only a window that was not there before counts.
+@Test func onlyAMenuWindowThatWasNotThereBeforeThePressCounts() {
+    let completions = w(5, 10, CGRect(x: 20, y: 20, width: 100, height: 130), layer: Win.menuLayer)
+    let menu = w(6, 10, CGRect(x: 120, y: 40, width: 100, height: 40), layer: Win.menuLayer)
+    let s = WindowStack([menu, completions, a, b])
+    #expect(s.openMenus(pid: 10, since: [5]).map(\.id) == [6])
+    #expect(s.openMenus(pid: 10, since: [5, 6]).isEmpty)
+    #expect(s.openMenus(pid: 10).map(\.id) == [6, 5])
+}

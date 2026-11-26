@@ -103,7 +103,7 @@ final class Scanner {
 
             if isDock {
                 deliver(scanSystem(pid: pid, app: app, isDock: true, isFront: false, pieces: (nil, nil),
-                                   menus: openMenus(pid: pid, app: app, stack: stack).roots,
+                                   menus: openMenus(pid: pid, app: app, stack: stack, deadline: deadline).roots,
                                    screens: screens, stack: stack, deadline: deadline))
                 return
             }
@@ -117,7 +117,7 @@ final class Scanner {
                 return
             }
 
-            let menus = openMenus(pid: pid, app: app, stack: stack)
+            let menus = openMenus(pid: pid, app: app, stack: stack, deadline: deadline)
             let (wins, unresolved) = resolveWindows(axElements(a[0]), pid: pid, stack: stack)
             let ids = Set(wins.map(\.id))
             for w in wins {
@@ -235,15 +235,18 @@ final class Scanner {
     /// are open. `covered`: the window of every open menu, the menu bar's included, for
     /// `targets(_:clearOf:)`. Each window at the menu layer is asked for the element under
     /// its middle, then climbed (`openMenu`): one hit-test and a short climb apiece, and
-    /// nothing at all while no menu is open.
-    private func openMenus(pid: Int32, app: AXUIElement, stack: WindowStack) -> (roots: [AXUIElement], covered: [CGRect]) {
+    /// nothing at all while no menu is open. All of it is inside the scan's budget and stops
+    /// at `deadline`, as the walk does: a slow app's climbs ran past the budget before the walk.
+    private func openMenus(pid: Int32, app: AXUIElement, stack: WindowStack,
+                           deadline: Double) -> (roots: [AXUIElement], covered: [CGRect]) {
         var roots: [AXUIElement] = []
         var covered: [CGRect] = []
         var seen = Set<ElementID>()
         for w in stack.openMenus(pid: pid) {
+            if now() >= deadline { break }
             var hit: AXUIElement?
             guard AXUIElementCopyElementAtPosition(app, Float(w.bounds.midX), Float(w.bounds.midY), &hit) == .success,
-                  let hit, let menu = openMenu(from: AXElementNode(hit)) else { continue }
+                  let hit, let menu = openMenu(from: AXElementNode(hit), deadline: deadline, now: now) else { continue }
             covered.append(w.bounds)
             if !menu.inMenuBar, let root = menu.root as? AXElementNode, seen.insert(root.id).inserted {
                 roots.append(root.element)

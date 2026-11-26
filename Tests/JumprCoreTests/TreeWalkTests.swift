@@ -124,9 +124,9 @@ private func r(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat = 40, _ h: CGFloat = 20)
     let item = Fake("AXMenuItem", r(110, 60, 100, 20))
     let menu = Fake("AXMenu", r(110, 40, 100, 130), [Fake("AXMenuItem", r(110, 40, 100, 20)), item])
     linked(Fake("AXWindow", bounds, [Fake("AXScrollArea", bounds, [Fake("AXTable", bounds, [menu])])]))
-    #expect(openMenu(from: item)?.root.id == menu.id)
-    #expect(openMenu(from: menu)?.root.id == menu.id)
-    #expect(openMenu(from: item)?.inMenuBar == false)
+    #expect(openMenu(from: item, deadline: 100, now: { 0 })?.root.id == menu.id)
+    #expect(openMenu(from: menu, deadline: 100, now: { 0 })?.root.id == menu.id)
+    #expect(openMenu(from: item, deadline: 100, now: { 0 })?.inMenuBar == false)
 }
 // An open submenu has a window of its own. The item under it leads to the submenu first;
 // the walk has to start at the outermost menu to label both.
@@ -135,7 +135,7 @@ private func r(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat = 40, _ h: CGFloat = 20)
     let opener = Fake("AXMenuItem", r(110, 60, 100, 20), [Fake("AXMenu", r(210, 60, 100, 40), [subItem])])
     let menu = Fake("AXMenu", r(110, 40, 100, 130), [opener])
     linked(Fake("AXWindow", bounds, [Fake("AXGroup", bounds, [menu])]))
-    #expect(openMenu(from: subItem)?.root.id == menu.id)
+    #expect(openMenu(from: subItem, deadline: 100, now: { 0 })?.root.id == menu.id)
 }
 // A menu bar menu, and a menu bar extra's, is drawn in the same kind of window. The walk
 // of the menu bar already reaches it through its selected item, so it is told apart and
@@ -144,15 +144,15 @@ private func r(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat = 40, _ h: CGFloat = 20)
     let item = Fake("AXMenuItem", r(10, 30))
     let menu = Fake("AXMenu", r(10, 30, 100, 100), [item])
     linked(Fake("AXMenuBar", r(0, 0, 400, 24), [Fake("AXMenuBarItem", r(10, 0), [menu])]))
-    #expect(openMenu(from: item)?.root.id == menu.id)
-    #expect(openMenu(from: item)?.inMenuBar == true)
+    #expect(openMenu(from: item, deadline: 100, now: { 0 })?.root.id == menu.id)
+    #expect(openMenu(from: item, deadline: 100, now: { 0 })?.inMenuBar == true)
 }
 // Other things are drawn at a menu's layer too (a completion list). The element under one
 // is in no menu, and there is nothing to walk.
 @Test func anElementInNoMenuLeadsToNoMenu() {
     let row = Fake("AXRow", r(0, 0, 400, 20))
     linked(Fake("AXWindow", bounds, [Fake("AXTable", bounds, [row])]))
-    #expect(openMenu(from: row) == nil)
+    #expect(openMenu(from: row, deadline: 100, now: { 0 }) == nil)
 }
 // A menu that closes while the climb is under way stops answering. Half a menu is not walked.
 @Test func aMenuThatStopsAnsweringLeadsToNoMenu() {
@@ -161,7 +161,36 @@ private func r(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat = 40, _ h: CGFloat = 20)
     let table = Fake("AXTable", bounds, [menu])
     linked(table)
     table.answers = false
-    #expect(openMenu(from: item) == nil)
+    #expect(openMenu(from: item, deadline: 100, now: { 0 }) == nil)
+}
+/// A context menu's item two levels under a table, as in Mail.
+private func contextMenuItem() -> (item: Fake, menu: Fake) {
+    let item = Fake("AXMenuItem", r(110, 60, 100, 20))
+    let menu = Fake("AXMenu", r(110, 40, 100, 130), [item])
+    linked(Fake("AXWindow", bounds, [Fake("AXTable", bounds, [menu])]))
+    return (item, menu)
+}
+// An open menu in an app that answers slowly: five requests up from a context menu's item,
+// each just under the request timeout, ran past the 0.5 s scan budget before the walk
+// began. A climb that starts with the budget spent finds no menu.
+@Test func theClimbToAMenuStartedAtTheDeadlineFindsNoMenu() {
+    let (item, _) = contextMenuItem()
+    #expect(openMenu(from: item, deadline: 1, now: { 1 }) == nil)
+}
+// The same slow app: the budget runs out after the item answers, before the menu above it
+// is asked. The climb stops there rather than running past the scan's budget.
+@Test func theClimbToAMenuStopsWhenTheDeadlinePassesPartWay() {
+    let (item, _) = contextMenuItem()
+    var t = 0.0
+    #expect(openMenu(from: item, deadline: 1, now: { defer { t = 10 }; return t }) == nil)
+}
+// With time to spare, the deadline changes nothing: the item still leads to its menu.
+@Test func theClimbToAMenuWithTimeToSpareFindsTheMenu() {
+    let (item, menu) = contextMenuItem()
+    var t = 0.0
+    let found = openMenu(from: item, deadline: 100, now: { t += 1; return t })
+    #expect(found?.root.id == menu.id)
+    #expect(found?.inMenuBar == false)
 }
 // The menu found is walked as the menu bar's menus are: each enabled item gets a label
 // with no window, and a selected item's open submenu is walked too.

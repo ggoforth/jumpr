@@ -123,6 +123,10 @@ controller.onMatched = { target, kind in
     // it opened. The menu rule below must not run for it: Esc or a shortcut before the rule's
     // check would let it start a fresh session, with scroll mode up beside it.
     let keptSession = controller.isActive
+    // The menu windows already up before a right-click: only a new one is its menu. Read
+    // for a right-click only, so a plain press reads no window list.
+    let menusBefore = kind == .right
+        ? Set(WindowServer.snapshot().openMenus(pid: target.pid).map(\.id)) : []
     presser.press(target, kind: kind) { result, axError in
         controller.pressFinished(generation: gen)
         // The raw AXPress error whenever it was not success (e.g. on a click fallback).
@@ -135,13 +139,16 @@ controller.onMatched = { target, kind in
             // A context menu reports nothing to the press, so look for its window at the
             // moments and label it at the first one where it is up. `generation` changes on
             // every trigger and cancel: a session started and ended meanwhile was theirs too.
+            // Scroll mode counts as theirs: the scroll shortcut before the first look left no
+            // labels session and the same `generation`, and labels came up over scroll mode.
             let reported = controller.generation
             var done = false
             for (n, delay) in MenuWait.moments.enumerated() {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     guard !done else { return }
-                    let started = controller.isActive || controller.generation != reported
-                    let menus = WindowServer.snapshot().openMenus(pid: target.pid).count
+                    let started = controller.isActive || scrollController.isActive
+                        || controller.generation != reported
+                    let menus = WindowServer.snapshot().openMenus(pid: target.pid, since: menusBefore).count
                     switch menuLook(sessionStarted: started, menuWindows: menus) {
                     case .label:
                         done = true
@@ -160,9 +167,10 @@ controller.onMatched = { target, kind in
         }
         presser.openedMenu(target, result: result) { opened in
             guard opened else { return }
-            // Label the menu the press just opened, unless a session started meanwhile.
+            // Label the menu the press just opened, unless a session started meanwhile, scroll
+            // mode's included: the scroll shortcut within 0.1 s would get labels over it.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                if !controller.isActive { controller.trigger() }
+                if !controller.isActive && !scrollController.isActive { controller.trigger() }
             }
         }
     }

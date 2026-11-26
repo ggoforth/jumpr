@@ -208,11 +208,15 @@ public struct OpenMenu {
 /// walk gets there: a table's children are read as its visible rows (Mail's message list
 /// holds its context menu beside 158,970 rows), and a button is not descended into. So the
 /// menu is found from its window, upward. Two requests a level, a context menu's item being
-/// two levels down, and only while a menu is open.
-public func openMenu(from hit: any AXNode) -> OpenMenu? {
+/// two levels down, and only while a menu is open. The climb runs inside the scan's budget
+/// and stops at its `deadline`: in an app that answers slowly, five requests up from a
+/// context menu's item, each just under the request timeout, ran past the 0.5 s budget
+/// before the walk began.
+public func openMenu(from hit: any AXNode, deadline: Double, now: () -> Double) -> OpenMenu? {
     var node = hit
     var root: (any AXNode)?
     for _ in 0..<maxDepth {
+        if now() >= deadline { return nil }
         guard let role = node.roleOnly() else { return nil }
         if role == "AXMenu" {
             root = node

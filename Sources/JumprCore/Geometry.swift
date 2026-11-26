@@ -65,9 +65,11 @@ public struct WindowStack {
     }
 
     /// The app's windows at the menu layer, front to back: its open menus, and whatever else
-    /// it draws there (`openMenu` tells them apart).
-    public func openMenus(pid: Int32) -> [Win] {
-        wins.filter { $0.pid == pid && $0.layer == Win.menuLayer }
+    /// it draws there (`openMenu` tells them apart). `before` leaves out the windows that were
+    /// already there: an app showing a completion list at that layer was right-clicked from a
+    /// label, the right-click opened nothing, and counting the list brought labels back.
+    public func openMenus(pid: Int32, since before: Set<WindowID> = []) -> [Win] {
+        wins.filter { $0.pid == pid && $0.layer == Win.menuLayer && !before.contains($0.id) }
     }
 
     /// Samples a 5x5 grid inside the window's bounds.
