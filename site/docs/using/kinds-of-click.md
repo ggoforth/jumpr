@@ -29,4 +29,4 @@ A click set to **None** can't be reached from a label. If its key was [[⌘]], [
 
 ## In persistent mode
 
-A right-click ends [persistent mode](persistent-mode.md), because the menu it opens gets no labels. Use the arrow keys in that menu.
+A right-click ends [persistent mode](persistent-mode.md), so the keys go to the menu it opens. The menu opens with labels of its own.

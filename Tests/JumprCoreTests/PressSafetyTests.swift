@@ -89,6 +89,60 @@ import CoreGraphics
     #expect(!relabelsAfterPress(role: "AXButton", result: .pressed, selected: true))
 }
 
+// Mail: right-click a message from its label, and the context menu's items had no
+// letters until the hotkey was pressed again.
+@Test func aRightClickLooksForTheMenuItOpened() {
+    #expect(looksForMenuAfterPress(kind: .right, result: .clicked))
+}
+
+// A right-click that was skipped sent nothing, so no menu can have opened.
+@Test func aSkippedRightClickDoesNotLookForAMenu() {
+    #expect(!looksForMenuAfterPress(kind: .right, result: .skipped))
+}
+
+// Only a right-click opens a context menu; the other clicks press, open or select.
+@Test func noOtherClickLooksForAMenu() {
+    for kind in [ClickKind.plain, .command, .double, .shift] {
+        #expect(!looksForMenuAfterPress(kind: kind, result: .clicked))
+        #expect(!looksForMenuAfterPress(kind: kind, result: .pressed))
+        #expect(!looksForMenuAfterPress(kind: kind, result: .skipped))
+    }
+}
+
+// The menu window is up when Jumpr looks: label it now.
+@Test func aMenuWindowFoundAfterARightClickIsLabelled() {
+    #expect(menuLook(sessionStarted: false, menuWindows: 1) == .label)
+    #expect(menuLook(sessionStarted: false, menuWindows: 2) == .label)
+}
+
+// The menu may not be drawn yet at the first look; the next moment checks again.
+@Test func noMenuWindowYetLooksAgain() {
+    #expect(menuLook(sessionStarted: false, menuWindows: 0) == .lookAgain)
+}
+
+// The person pressed the hotkey themselves before the menu was found: a second trigger
+// must not replace their session.
+@Test func aSessionTheyStartedStopsTheLook() {
+    #expect(menuLook(sessionStarted: true, menuWindows: 0) == .stop)
+    #expect(menuLook(sessionStarted: true, menuWindows: 1) == .stop)
+}
+
+// The moments are one-shot looks after the press, in order.
+@Test func theMenuLooksComeInOrder() {
+    #expect(!MenuWait.moments.isEmpty)
+    #expect(zip(MenuWait.moments, MenuWait.moments.dropFirst()).allSatisfy { $0 < $1 })
+}
+
+// A menu that is up quickly should not wait on a slow first look.
+@Test func theFirstMenuLookComesSoon() {
+    #expect((MenuWait.moments.first ?? .infinity) <= 0.15)
+}
+
+// A right-click that opened nothing visible must not bring labels back long after.
+@Test func theLastMenuLookIsWithinASecond() {
+    #expect((MenuWait.moments.last ?? .infinity) <= 1.0)
+}
+
 @Test func axPressSuccessCountsAsPressed() {
     #expect(afterAXPress(0) == .pressed)
 }
