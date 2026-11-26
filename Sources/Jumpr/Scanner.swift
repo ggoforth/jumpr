@@ -200,7 +200,7 @@ final class Scanner {
             axTimed(el)
             var id = CGWindowID(0)
             if _AXUIElementGetWindow(el, &id) == .success, id != 0 { return (id, el) }
-            let s = fallback ?? WindowServer.snapshot()
+            let s = fallback ?? WindowStack(WindowServer.windows())  // only its bounds are read here
             fallback = s
             let f = axFrameResult(el)
             let w = f.frame.flatMap { f in s.wins.first(where: { $0.pid == pid && sameWindowFrame($0.bounds, f) }) }

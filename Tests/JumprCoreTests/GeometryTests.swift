@@ -44,6 +44,53 @@ private let b = w(2, 20, CGRect(x: 50, y: 0, width: 100, height: 100))
     #expect(!s.anyVisible(2))
     #expect(s.isVisible(CGPoint(x: 120, y: 50), window: 8, pid: 50, appWindows: [8]))
 }
+// A notification banner is shown in the same layer-21 window as the open sidebar, across the
+// whole 3440×1440 display, transparent outside a 344×58 banner at 3080,46. Every window on that
+// display lost its labels while it showed, though a click outside the banner lands on the
+// window behind. Asking the window server about every control cost 384 questions per trigger
+// at about 290 µs each (106 on the main thread), and triggers went from 67–80 ms to 109–135 ms,
+// so it is asked once per window list, at the 5×5 grid `anyVisible` samples (573×240 apart).
+private let display = CGRect(x: 0, y: 0, width: 3440, height: 1440)
+private let ncWindow = w(12, 70, display, layer: 21)
+private let behindNC = w(13, 80, display)
+private let realBanner = CGRect(x: 3080, y: 46, width: 344, height: 58)
+private let bannerCentre = CGPoint(x: 3252, y: 75)
+private func landsOnNC(inside region: CGRect) -> (CGPoint) -> WindowID? {
+    { region.contains($0) ? ncWindow.id : behindNC.id }
+}
+
+@Test func clicksPassThroughAWindowWhoseBannerNoSamplePointLandsOn() {
+    #expect(clicksPassThrough(ncWindow, clickLandsOn: landsOnNC(inside: realBanner)))
+}
+// A stack of banners can catch one or two of the grid's samples. This region holds the
+// samples (2866.7, 240) and (2866.7, 480), and clicks still pass through everywhere else.
+@Test func clicksPassThroughAWindowWhoseBannersCatchOnlyAFewSamplePoints() {
+    let stack = CGRect(x: 2850, y: 46, width: 574, height: 454)
+    #expect(clicksPassThrough(ncWindow, clickLandsOn: landsOnNC(inside: stack)))
+}
+// The open sidebar (JUM-98): a click anywhere in the window lands on it, all 25 samples.
+@Test func clicksDoNotPassThroughTheOpenSidebar() {
+    #expect(!clicksPassThrough(ncWindow, clickLandsOn: { _ in ncWindow.id }))
+}
+@Test func withABannerUpTheWindowBehindKeepsItsLabels() {
+    let s = WindowStack([ncWindow, behindNC], clickThrough: [ncWindow.id])
+    let p = CGPoint(x: 1720, y: 720)
+    #expect(s.anyVisible(behindNC.id))
+    #expect(s.isVisible(p, window: behindNC.id, pid: behindNC.pid, appWindows: [behindNC.id]))
+    #expect(s.top(at: p)?.id == behindNC.id)
+}
+// The scan has to walk Notification Center's window for its banner to get a label.
+@Test func withABannerUpTheBannerIsVisibleToAScan() {
+    let s = WindowStack([ncWindow, behindNC], clickThrough: [ncWindow.id])
+    #expect(s.anyVisible(ncWindow.id))
+    #expect(s.isVisible(bannerCentre, window: ncWindow.id, pid: ncWindow.pid, appWindows: [ncWindow.id]))
+}
+// A menu bar app's panel (layer 25) open over the banner still hides it there.
+@Test func aClickThroughWindowIsHiddenWhereAWindowInFrontOfItHidesIt() {
+    let panel = w(14, 90, CGRect(x: 3200, y: 0, width: 200, height: 150), layer: 25)
+    let s = WindowStack([panel, ncWindow, behindNC], clickThrough: [ncWindow.id])
+    #expect(!s.isVisible(bannerCentre, window: ncWindow.id, pid: ncWindow.pid, appWindows: [ncWindow.id]))
+}
 @Test func theLayersAroundTheSidebarStillDoNotHide() {   // the Dock (20), and nothing seen at 22
     let dock = w(9, 60, CGRect(x: 0, y: 0, width: 200, height: 200), layer: 20)
     let above = w(10, 61, CGRect(x: 0, y: 0, width: 200, height: 200), layer: 22)
