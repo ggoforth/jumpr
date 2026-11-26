@@ -160,7 +160,8 @@ public func menuLook(sessionStarted: Bool, menuWindows: Int) -> MenuLook {
 }
 
 /// When Jumpr looks for the menu a right-click opened, in seconds after the press reported.
-/// Starting values, not yet measured in real apps: the first is soon so a quick menu is not
+/// Starting values, measured in Mail and Finder only (docs/design.md has the numbers: the
+/// first look found four menus of five, the last the fifth): the first is soon so a quick menu is not
 /// kept waiting, the last within a second so a right-click that opened nothing does not bring
 /// labels back long after. One-shot delays caused by the press, not a timer; after the last
 /// one nothing runs until the next press.
