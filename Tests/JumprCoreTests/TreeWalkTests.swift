@@ -36,6 +36,16 @@ final class Fake: AXNode {
     var content: CGSize?
     private(set) var contentAsks = 0
     func contentSize() -> CGSize? { contentAsks += 1; return content }
+    /// The element holding this one, set by `linked`: the walk never asks for it. Strong,
+    /// so a tree stays whole while a test holds only the node it climbs from.
+    var up: Fake?
+    func roleOnly() -> String? { answers ? role : nil }
+    func parent() -> (any AXNode)? { up }
+}
+/// Sets each child's `up`, so `openMenu` can climb from any node of the tree.
+@discardableResult private func linked(_ root: Fake) -> Fake {
+    for k in root.kids { k.up = root; linked(k) }
+    return root
 }
 /// Text that says it can be pressed, as Messages' sidebar items do.
 private func pressableText(_ frame: CGRect) -> Fake {
@@ -104,6 +114,78 @@ private func r(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat = 40, _ h: CGFloat = 20)
     let res2 = run(Fake("AXMenuBar", r(0, 0, 400, 24), [closed]), scope: .system(screens: [bounds]))
     #expect(res2.targets.map(\.role) == ["AXMenuBarItem", "AXMenuItem"])
     #expect(res2.targets.allSatisfy { $0.window == nil })
+}
+// Mail, 2026-11-23: a right-click on a message opened its context menu, and the next
+// trigger read the same 171 elements as the one before it: no item got a letter. AppKit
+// hangs the open menu off the table as a child, and the walk reads a table's visible rows
+// in place of its children, so it never met the menu. The menu's own window is what gives
+// it away, and the element under that window leads up to the menu.
+@Test func anOpenContextMenuIsFoundFromTheItemUnderItsWindow() {
+    let item = Fake("AXMenuItem", r(110, 60, 100, 20))
+    let menu = Fake("AXMenu", r(110, 40, 100, 130), [Fake("AXMenuItem", r(110, 40, 100, 20)), item])
+    linked(Fake("AXWindow", bounds, [Fake("AXScrollArea", bounds, [Fake("AXTable", bounds, [menu])])]))
+    #expect(openMenu(from: item)?.root.id == menu.id)
+    #expect(openMenu(from: menu)?.root.id == menu.id)
+    #expect(openMenu(from: item)?.inMenuBar == false)
+}
+// An open submenu has a window of its own. The item under it leads to the submenu first;
+// the walk has to start at the outermost menu to label both.
+@Test func anOpenSubmenuLeadsToTheOutermostMenu() {
+    let subItem = Fake("AXMenuItem", r(210, 60, 100, 20))
+    let opener = Fake("AXMenuItem", r(110, 60, 100, 20), [Fake("AXMenu", r(210, 60, 100, 40), [subItem])])
+    let menu = Fake("AXMenu", r(110, 40, 100, 130), [opener])
+    linked(Fake("AXWindow", bounds, [Fake("AXGroup", bounds, [menu])]))
+    #expect(openMenu(from: subItem)?.root.id == menu.id)
+}
+// A menu bar menu, and a menu bar extra's, is drawn in the same kind of window. The walk
+// of the menu bar already reaches it through its selected item, so it is told apart and
+// not walked twice.
+@Test func aMenuOpenedFromTheMenuBarIsToldApart() {
+    let item = Fake("AXMenuItem", r(10, 30))
+    let menu = Fake("AXMenu", r(10, 30, 100, 100), [item])
+    linked(Fake("AXMenuBar", r(0, 0, 400, 24), [Fake("AXMenuBarItem", r(10, 0), [menu])]))
+    #expect(openMenu(from: item)?.root.id == menu.id)
+    #expect(openMenu(from: item)?.inMenuBar == true)
+}
+// Other things are drawn at a menu's layer too (a completion list). The element under one
+// is in no menu, and there is nothing to walk.
+@Test func anElementInNoMenuLeadsToNoMenu() {
+    let row = Fake("AXRow", r(0, 0, 400, 20))
+    linked(Fake("AXWindow", bounds, [Fake("AXTable", bounds, [row])]))
+    #expect(openMenu(from: row) == nil)
+}
+// A menu that closes while the climb is under way stops answering. Half a menu is not walked.
+@Test func aMenuThatStopsAnsweringLeadsToNoMenu() {
+    let item = Fake("AXMenuItem", r(110, 60, 100, 20))
+    let menu = Fake("AXMenu", r(110, 40, 100, 130), [item])
+    let table = Fake("AXTable", bounds, [menu])
+    linked(table)
+    table.answers = false
+    #expect(openMenu(from: item) == nil)
+}
+// The menu found is walked as the menu bar's menus are: each enabled item gets a label
+// with no window, and a selected item's open submenu is walked too.
+@Test func anOpenContextMenuWalkedFromItsRootLabelsItsItems() {
+    let subItem = Fake("AXMenuItem", r(210, 60, 100, 20))
+    let opener = Fake("AXMenuItem", r(110, 60, 100, 20), [Fake("AXMenu", r(210, 60, 100, 40), [subItem])])
+    opener.selected = true
+    let closedSub = Fake("AXMenuItem", r(110, 80, 100, 20), [Fake("AXMenu", r(0, 0, 0, 0), [Fake("AXMenuItem", r(210, 80, 100, 20))])])
+    let off = Fake("AXMenuItem", r(110, 100, 100, 20)); off.enabled = false
+    let menu = Fake("AXMenu", r(110, 40, 100, 130), [Fake("AXMenuItem", r(110, 40, 100, 20)), opener, closedSub, off])
+    let res = run(menu, scope: .system(screens: [bounds]))
+    #expect(res.targets.map(\.rect) == [r(110, 40, 100, 20), r(110, 60, 100, 20), r(210, 60, 100, 20), r(110, 80, 100, 20)])
+    #expect(res.targets.allSatisfy { $0.window == nil && $0.role == "AXMenuItem" })
+}
+// Mail, the same morning: the two message rows behind the open context menu kept their
+// labels, at the right edge of the menu, where the labels of its items go. The rows ran
+// 355...803 across and the menu 580...803, so each row's center was 1 pt left of the menu.
+@Test func aTargetAnOpenMenuOverlapsGetsNoLabel() {
+    let menu = CGRect(x: 580, y: 180, width: 223, height: 610)
+    func target(_ rect: CGRect) -> Target { Target(id: ElementID(rect.minY), rect: rect, role: "AXRow", pid: 10, window: 1, inWeb: false) }
+    let behind = target(CGRect(x: 355, y: 140, width: 448, height: 86))
+    let sidebar = target(CGRect(x: 75, y: 200, width: 270, height: 28)), below = target(CGRect(x: 355, y: 800, width: 448, height: 86))
+    #expect(targets([behind, sidebar, below], clearOf: [menu]) == [sidebar, below])
+    #expect(targets([behind, sidebar, below], clearOf: []) == [behind, sidebar, below])
 }
 @Test func tablesUseVisibleRowsAndSkipColumns() {
     let row1 = Fake("AXRow", r(0, 0, 400, 20)), row2 = Fake("AXRow", r(0, 20, 400, 20))

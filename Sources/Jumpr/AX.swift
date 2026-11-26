@@ -161,6 +161,14 @@ final class AXElementNode: AXNode {
         axCopy(element, "AXContentSize").flatMap(axSize)
     }
 
+    func roleOnly() -> String? {
+        axCopy(element, "AXRole") as? String
+    }
+
+    func parent() -> (any AXNode)? {
+        axCopy(element, "AXParent").flatMap(axElementValue).map { AXElementNode($0) }
+    }
+
     func offersPageScroll() -> Bool {
         guard let actions = axActionNames(element) else { return false }
         return actions.contains("AXScrollDownByPage") || actions.contains("AXScrollUpByPage")

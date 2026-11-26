@@ -145,3 +145,14 @@ private let me: Int32 = 77
     #expect(WindowStack([settings, a, b, panel, c]).appsWithVisibleWindow(excluding: me) == [60])
     #expect(WindowStack([a, b, c]).appsWithVisibleWindow(excluding: me) == [10, 20, 60])
 }
+// An open menu is a window of its own at the pop-up menu layer (101): a context menu, a
+// button's menu, a menu bar menu, and each open submenu. Measured 2026-11-23 on macOS 27
+// with a context menu open over a table: one window at layer 101 beside the app's window.
+@Test func anAppsOpenMenusAreItsWindowsAtTheMenuLayer() {
+    let menu = w(5, 10, CGRect(x: 20, y: 20, width: 100, height: 130), layer: Win.menuLayer)
+    let sub = w(6, 10, CGRect(x: 120, y: 40, width: 100, height: 40), layer: Win.menuLayer)
+    let others = w(7, 20, CGRect(x: 0, y: 0, width: 50, height: 50), layer: Win.menuLayer)
+    let s = WindowStack([sub, menu, others, a, b])
+    #expect(s.openMenus(pid: 10).map(\.id) == [6, 5])
+    #expect(s.openMenus(pid: 30).isEmpty)
+}

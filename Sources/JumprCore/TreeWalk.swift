@@ -48,6 +48,12 @@ public protocol AXNode {
     /// How large a scroll area says its content is (`AXContentSize`); nil if it does not
     /// say. One more request, asked only of a scroll area inside another area.
     func contentSize() -> CGSize?
+    /// The role alone. One small request, for `openMenu`: there `info` would also fetch
+    /// every child of whatever holds the menu, and a table holds its rows by the thousand.
+    /// nil: the request failed.
+    func roleOnly() -> String?
+    /// The element this one sits in (`AXParent`). One more request, asked by `openMenu` only.
+    func parent() -> (any AXNode)?
 }
 
 public struct Target: Equatable {
@@ -99,7 +105,8 @@ public enum Finding {
 
 public enum Roles {
     public static let text: Set<String> = ["AXTextField", "AXTextArea", "AXComboBox"]
-    /// Buttons whose press opens a menu no scan reaches, so pressing one ends persistent mode.
+    /// Buttons whose press opens a menu. A trigger labels the menu once it is open
+    /// (`openMenu`), the press itself does not, so pressing one ends persistent mode.
     public static let opensMenu: Set<String> = ["AXPopUpButton", "AXMenuButton"]
     public static let leaf: Set<String> = text.union([
         "AXButton", "AXLink", "AXCheckBox", "AXRadioButton", "AXPopUpButton", "AXMenuButton",
@@ -184,6 +191,48 @@ public struct WalkResult {
 }
 
 private let maxDepth = 80
+
+/// An open menu, found from the element under its window (`openMenu`).
+public struct OpenMenu {
+    /// The outermost `AXMenu`: a walk from here reaches every item and open submenu.
+    public let root: any AXNode
+    /// A menu bar item holds it, so the walk of the menu bar already reaches it through
+    /// its selected item and it is not walked again.
+    public let inMenuBar: Bool
+}
+
+/// The open menu that `hit` belongs to, or nil if it is in no menu or the menu did not answer.
+///
+/// `hit` is the element under a window at the menu layer (`WindowStack.openMenus`). A menu
+/// opened by a right-click or a button is a child of the element it was opened on, and no
+/// walk gets there: a table's children are read as its visible rows (Mail's message list
+/// holds its context menu beside 158,970 rows), and a button is not descended into. So the
+/// menu is found from its window, upward. Two requests a level, a context menu's item being
+/// two levels down, and only while a menu is open.
+public func openMenu(from hit: any AXNode) -> OpenMenu? {
+    var node = hit
+    var root: (any AXNode)?
+    for _ in 0..<maxDepth {
+        guard let role = node.roleOnly() else { return nil }
+        if role == "AXMenu" {
+            root = node
+        } else if role != "AXMenuItem" {
+            return root.map { OpenMenu(root: $0, inMenuBar: role == "AXMenuBarItem") }
+        }
+        guard let up = node.parent() else { break }
+        node = up
+    }
+    return root.map { OpenMenu(root: $0, inMenuBar: false) }
+}
+
+/// The targets that no open menu overlaps. A label on one the menu overlaps lands among
+/// the labels of the menu's items: in Mail the two message rows behind the context menu
+/// kept theirs at the menu's right edge, where its items' labels go. Any overlap counts, not
+/// the center as for windows (`WindowStack.isVisible`): those rows' centers were 1 pt left
+/// of the menu. For a window's targets only; the menu's own items are under it by definition.
+public func targets(_ targets: [Target], clearOf menus: [CGRect]) -> [Target] {
+    menus.isEmpty ? targets : targets.filter { t in !menus.contains { $0.intersects(t.rect) } }
+}
 
 /// `finding`: targets to label, or areas to scroll. Both share the clip, the on-top rule and
 /// the descent. Looking for areas labels nothing and never asks whether text offers a press;
