@@ -26,6 +26,12 @@ public struct Win: Equatable {
     /// the whole display, transparent outside the sidebar's column or the banner.
     public static let sidebarLayer = 21
 
+    /// The layer of an open menu's window: a context menu, a button's menu, a menu bar menu,
+    /// and each open submenu, one window apiece (`kCGPopUpMenuWindowLevel`). Not one of the
+    /// layers that hide what is behind them (`occludes`): apps draw other things here, and
+    /// only a window that turns out to hold a menu takes labels away (`targets(_:clearOf:)`).
+    public static let menuLayer = 101
+
     /// Non-transparent windows hide whatever is behind them, if they are at a normal layer or
     /// are a menu bar app's panel. The layers between and above hold full-screen windows that
     /// hide nothing: the Dock (20), Notification Center's (21), the menu bar (24), Jumpr's own
@@ -67,6 +73,14 @@ public struct WindowStack {
     private func showsThrough(_ w: Win, at p: CGPoint) -> Bool {
         w.layer == Win.sidebarLayer && w.alpha > 0
             && !wins.prefix { $0.id != w.id }.contains { $0.occludes && $0.bounds.contains(p) }
+    }
+
+    /// The app's windows at the menu layer, front to back: its open menus, and whatever else
+    /// it draws there (`openMenu` tells them apart). `before` leaves out the windows that were
+    /// already there: an app showing a completion list at that layer was right-clicked from a
+    /// label, the right-click opened nothing, and counting the list brought labels back.
+    public func openMenus(pid: Int32, since before: Set<WindowID> = []) -> [Win] {
+        wins.filter { $0.pid == pid && $0.layer == Win.menuLayer && !before.contains($0.id) }
     }
 
     /// Samples a 5x5 grid inside the window's bounds.
