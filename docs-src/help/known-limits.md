@@ -9,8 +9,8 @@ order: 3
 - Widgets on the desktop have no labels.
 - While Notification Center is open, windows behind it on that display have no labels, because a click outside it only closes it.
 - Menu bar icons are found by remembering which apps own one. If an app adds its icon later, it has no label until Jumpr next checks: at unlock, when Jumpr resumes, or when an app launches or first comes to the front.
-- The menu a right-click opens gets no labels of its own. Use the arrow keys in it.
-- A menu opened by a pop-up button or menu button gets no labels either.
+- A menu opened by a pop-up button or menu button gets no labels of its own. Use the arrow keys in it.
+- A menu a web-based app draws itself gets no labels after a right-click, and nor does one that takes longer than a second to open.
 - An element an app does not show to accessibility can't get a label.
 
 ## Keys

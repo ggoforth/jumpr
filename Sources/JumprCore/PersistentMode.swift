@@ -3,9 +3,9 @@
 /// A text field means the next keys are for the field, not for labels: with the session up
 /// they would be swallowed as label letters. The role must be in `Roles.text`; web text that
 /// merely takes focus (each day in a date picker is an `AXStaticText`) is a control, so it is
-/// not on the list and the run goes on. A right-click opens a menu that the press does not
-/// label (the next trigger does, `openMenu`), and with the session up its arrow keys and
-/// Return would be swallowed, so it ends the mode too.
+/// not on the list and the run goes on. A right-click opens a menu whose arrow keys and
+/// Return would be swallowed with the session up, so it ends the mode too; the menu is then
+/// labelled by a plain trigger once its window is up (`looksForMenuAfterPress`).
 /// So does a pop-up or menu button, for the same reason: Finder's toolbar Group button opened
 /// a menu with no labels and the keys were stuck until Esc. A menu bar menu is labelled by the
 /// settle window's scan, so a menu bar item or menu item keeps the mode.

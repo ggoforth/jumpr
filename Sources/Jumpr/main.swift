@@ -131,6 +131,33 @@ controller.onMatched = { target, kind in
         let click = kind == .plain ? "" : " \(kind)"  // right, command, double or shift
         log(String(format: "→ %@ %@%@ %.0f ms%@ in %@", target.role, "\(result)", click, (now() - t0) * 1000, ax, app))
         guard !keptSession else { return }
+        if looksForMenuAfterPress(kind: kind, result: result) {
+            // A context menu reports nothing to the press, so look for its window at the
+            // moments and label it at the first one where it is up. `generation` changes on
+            // every trigger and cancel: a session started and ended meanwhile was theirs too.
+            let reported = controller.generation
+            var done = false
+            for (n, delay) in MenuWait.moments.enumerated() {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    guard !done else { return }
+                    let started = controller.isActive || controller.generation != reported
+                    let menus = WindowServer.snapshot().openMenus(pid: target.pid).count
+                    switch menuLook(sessionStarted: started, menuWindows: menus) {
+                    case .label:
+                        done = true
+                        log(String(format: "menu after right-click: labelled at %.0f ms", delay * 1000))
+                        controller.trigger()
+                    case .stop:
+                        done = true
+                    case .lookAgain:
+                        if n == MenuWait.moments.count - 1 {
+                            log(String(format: "menu after right-click: none within %.0f ms", delay * 1000))
+                        }
+                    }
+                }
+            }
+            return
+        }
         presser.openedMenu(target, result: result) { opened in
             guard opened else { return }
             // Label the menu the press just opened, unless a session started meanwhile.

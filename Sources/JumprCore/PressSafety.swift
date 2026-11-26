@@ -134,3 +134,36 @@ public func relabelsAfterPress(role: String, result: PressResult, selected: Bool
     default: return false
     }
 }
+
+/// A right-click that was sent opens a context menu, which the press itself cannot see: the
+/// clicked element is not selected and nothing reports the menu. Mail's message list showed
+/// it: the menu came up with no letters until the hotkey was pressed again. So Jumpr looks
+/// for a menu window of the app at `MenuWait.moments` after the press.
+public func looksForMenuAfterPress(kind: ClickKind, result: PressResult) -> Bool {
+    kind == .right && result == .clicked
+}
+
+/// What one look after a right-click does.
+public enum MenuLook: Equatable {
+    case label
+    case lookAgain
+    case stop
+}
+
+/// A session the person started meanwhile (the hotkey, or a trigger they cancelled) is
+/// theirs: a second trigger would cancel or replace it, so the looks stop. Otherwise a menu
+/// window of the app (`WindowStack.openMenus`) is labelled, and none yet means wait for the
+/// next moment.
+public func menuLook(sessionStarted: Bool, menuWindows: Int) -> MenuLook {
+    if sessionStarted { return .stop }
+    return menuWindows > 0 ? .label : .lookAgain
+}
+
+/// When Jumpr looks for the menu a right-click opened, in seconds after the press reported.
+/// Starting values, not yet measured in real apps: the first is soon so a quick menu is not
+/// kept waiting, the last within a second so a right-click that opened nothing does not bring
+/// labels back long after. One-shot delays caused by the press, not a timer; after the last
+/// one nothing runs until the next press.
+public enum MenuWait {
+    public static let moments: [Double] = [0.1, 0.25, 0.5, 1.0]
+}
