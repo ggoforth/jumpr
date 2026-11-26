@@ -1,5 +1,6 @@
 import Testing
 import CoreGraphics
+import Foundation
 @testable import JumprCore
 
 final class Fake: AXNode {
@@ -14,6 +15,8 @@ final class Fake: AXNode {
     var pressAnswers = true
     var selectedAnswers = true
     var subrole: String?
+    /// Runs on each `info()`, on the walk's own stack: lets a test see how deep it is.
+    var onInfo: (() -> Void)?
     private(set) var infoCalls = 0
     private(set) var pressAsks = 0
     private static var next = 0
@@ -23,6 +26,7 @@ final class Fake: AXNode {
     }
     func info() -> NodeInfo? {
         infoCalls += 1
+        onInfo?()
         if !answers { return nil }
         return NodeInfo(role: role, frame: frame, enabled: enabled, children: kids, focusable: focusable, subrole: subrole)
     }
@@ -258,6 +262,36 @@ private func buttonAt(depth: Int) -> Fake {
 @Test func depthCapBoundary() {   // the walk stops at depth 80
     #expect(run(buttonAt(depth: 79)).targets.count == 1)
     #expect(run(buttonAt(depth: 80)).targets.isEmpty)
+}
+
+// JUM-122: with Swift 6.4 on macOS 27, a walk used 7,088 B of stack per level in a debug
+// build, so a tree as deep as the cap (80 levels, 554 KB) overran the 512 KB stack that
+// Swift Testing's threads and dispatch queue threads have, and the test process died with
+// signal 10. The walk runs here on a thread with room for that, so a regression reports
+// its size instead of crashing; half of 512 KB leaves the rest for whatever calls the walk.
+@Test func aWalkAtTheDepthCapUsesLessThanHalfOfA512KBStack() {
+    let root = buttonAt(depth: 79)
+    var addresses: [UInt] = []
+    var node: Fake? = root
+    while let n = node {
+        n.onInfo = {
+            var here = 0
+            addresses.append(withUnsafeMutablePointer(to: &here) { UInt(bitPattern: $0) })
+        }
+        node = n.kids.first
+    }
+    var res: WalkResult?
+    let done = DispatchSemaphore(value: 0)
+    let thread = Thread { res = run(root); done.signal() }
+    thread.stackSize = 8 << 20
+    thread.start()
+    done.wait()
+
+    #expect(res?.nodes == 80)
+    #expect(res?.targets.count == 1)
+    #expect(addresses.count == 80)
+    let used = (addresses.first ?? 0) - (addresses.min() ?? 0)
+    #expect(used < 256 * 1024, "the walk used \(used) B of stack for 80 levels")
 }
 
 // Chrome with its page tree off still answers with its toolbar (about 60 nodes), so the

@@ -40,6 +40,8 @@ final class Controller {
     private var session = LabelSession()
     private var pool = LabelPool(length: 1)
     private var placed: [String: Placed] = [:]
+    /// Where the labels in `placed` are drawn and at what size; holds exactly the labels in `placed`.
+    private var layout = LabelLayout(length: 1, fontSize: 15, advance: 9)
     /// Elements labelled in this session, so a repeated scan of an app adds only what is new.
     private var placedIDs = Set<ElementID>()
     /// Targets left with no letters because the pool ran out, per app, as its latest scan
@@ -232,6 +234,7 @@ final class Controller {
         let wake = Set(treeCandidates(stack, running))
         let visible = Set(stack.appsWithVisibleWindow(excluding: getpid()))
         pool = LabelPool(length: Labels.length(forEstimate: lastTotal ?? 200))
+        layout = LabelLayout(length: pool.length, fontSize: style.size, advance: style.advance)
         pendingApps = pids.count
         readout.listed(apps: pids.count)
 
@@ -380,11 +383,12 @@ final class Controller {
         guard !placedIDs.contains(t.id) else { return false }
         guard let label = pool.next() else { unlabelled += 1; return false }
         placedIDs.insert(t.id)
-        let rect = Labels.frame(length: pool.length, target: t.rect, screen: screens[i],
-                                fontSize: style.size, advance: style.advance)
-        let layer = overlays[i].add(label: label, at: rect, style: style)
+        let spots = layout.add(label, target: t.rect, screen: screens[i])
+        let spot = spots[label]!
+        let layer = overlays[i].add(label: label, at: spot.rect, size: spot.size, style: style)
         layer.isHidden = !label.hasPrefix(session.typed)  // the user may already be typing
-        placed[label] = Placed(target: t, rect: rect, layer: layer, overlay: i)
+        placed[label] = Placed(target: t, rect: spot.rect, layer: layer, overlay: i)
+        resizeNeighbours(spots, of: label)
         session.labels.insert(label)
         return true
     }
@@ -394,6 +398,7 @@ final class Controller {
     /// check, and letters released twice would later sit on two elements.
     private func remove(_ label: String) {
         guard let p = placed.removeValue(forKey: label) else { return }
+        layout.remove(label)
         overlays[p.overlay].remove(p.layer)
         placedIDs.remove(p.target.id)
         session.labels.remove(label)
@@ -417,18 +422,29 @@ final class Controller {
             remove(label)
             return
         }
-        let rect = Labels.frame(length: pool.length, target: t.rect, screen: screens[i],
-                                fontSize: style.size, advance: style.advance)
+        layout.remove(label)
+        let spots = layout.add(label, target: t.rect, screen: screens[i])
+        let spot = spots[label]!
         let layer: CALayer
         if i == p.overlay {
             layer = p.layer
-            overlays[i].move(layer, to: rect)
+            overlays[i].resize(layer, to: spot.rect, size: spot.size)
         } else {
             overlays[p.overlay].remove(p.layer)
-            layer = overlays[i].add(label: label, at: rect, style: style)
+            layer = overlays[i].add(label: label, at: spot.rect, size: spot.size, style: style)
         }
         layer.isHidden = !label.hasPrefix(session.typed)
-        placed[label] = Placed(target: t, rect: rect, layer: layer, overlay: i)
+        placed[label] = Placed(target: t, rect: spot.rect, layer: layer, overlay: i)
+        resizeNeighbours(spots, of: label)
+    }
+
+    /// Redraws the labels that got smaller to make room for `label` (`LabelLayout.add`).
+    private func resizeNeighbours(_ spots: [String: LabelLayout.Spot], of label: String) {
+        for (other, spot) in spots where other != label {
+            guard let p = placed[other] else { continue }
+            overlays[p.overlay].resize(p.layer, to: spot.rect, size: spot.size)
+            placed[other] = Placed(target: p.target, rect: spot.rect, layer: p.layer, overlay: p.overlay)
+        }
     }
 
     /// Every app has answered for the current generation.
@@ -765,6 +781,7 @@ final class Controller {
         overlays.forEach { $0.clear() }
         CATransaction.flush()
         placed = [:]
+        layout = LabelLayout(length: pool.length, fontSize: style.size, advance: style.advance)
         // Only when this session held the highlight: scroll mode holds it too, and the
         // scroll shortcut cancels labels on its way in.
         if session.persistent { onPersistentChanged(false) }

@@ -248,8 +248,7 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
     case .system: startClip = .infinite
     }
 
-    /// Records the node as an area if it is one, and returns the nearest area around its
-    /// children. Kept out of `visit`, whose frame is on the stack once per level of the tree.
+    /// Records the node as an area if it is one, and returns the nearest area around its children.
     func noteArea(_ node: any AXNode, role: String, subrole: String?, focusable: Bool, frame: CGRect, visible r: CGRect,
                   inWeb: Bool, inList: Bool, inArea: Int?) -> Int? {
         let item = inList || subrole.map(Roles.itemSubroles.contains) == true
@@ -295,21 +294,37 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
         return answer == true
     }
 
+    /// What `visit` keeps on its frame across the children: what they are given, and what
+    /// `leave` needs once they are done.
+    struct Descent {
+        var children: [any AXNode]
+        var clip: CGRect
+        var inWeb: Bool
+        var inTarget: Bool
+        var isList: Bool
+        var inArea: Int?
+        /// The index of this node's own target, if it got one.
+        var mine: Int?
+        var firstInList: Int
+    }
+
+    /// The work on one node before its children: counts it, labels it, notes its area, and
+    /// returns what its children need, or nil when the walk does not descend.
     /// `inTarget`: under an element that got a label. `inList`: a list's own item.
     /// `inArea`: the index in `result.areas` of the nearest area around this node.
-    func visit(_ node: any AXNode, clip: CGRect, depth: Int, inWeb: Bool, inTarget: Bool, inList: Bool,
-               inArea: Int?) {
-        if depth >= maxDepth || result.timedOut { return }
+    func enter(_ node: any AXNode, clip: CGRect, depth: Int, inWeb: Bool, inTarget: Bool, inList: Bool,
+               inArea: Int?) -> Descent? {
+        if depth >= maxDepth || result.timedOut { return nil }
         if now() > deadline {
             result.timedOut = true
-            return
+            return nil
         }
         result.nodes += 1
         guard let info = node.info() else {
             result.unanswered += 1
-            return
+            return nil
         }
-        if info.role == "AXColumn" { return }
+        if info.role == "AXColumn" { return nil }
         if info.role == "AXWebArea" { result.webAreas += 1 }
         let inWeb = inWeb || info.role == "AXWebArea"
 
@@ -321,7 +336,7 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
         var visibleRect: CGRect?
         if let f = info.frame, f.width > 0, f.height > 0 {
             let r = f.intersection(clip)
-            if r.isEmpty { return }
+            if r.isEmpty { return nil }
             visibleRect = r
             if info.role == "AXScrollArea" { clip = r }
         }
@@ -358,8 +373,8 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
         }
         let mine: Int? = result.targets.count > before ? before : nil
 
-        if Roles.leaf.contains(info.role) { return }
-        if (info.role == "AXMenuBarItem" || info.role == "AXMenuItem") && !counted(node.isSelected()) { return }
+        if Roles.leaf.contains(info.role) { return nil }
+        if (info.role == "AXMenuBarItem" || info.role == "AXMenuItem") && !counted(node.isSelected()) { return nil }
 
         var children = info.children
         if info.role == "AXTable" || info.role == "AXOutline",
@@ -373,23 +388,22 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
         if info.role == "AXGrid", let shown = node.visibleChildren(), !shown.isEmpty {
             children = shown
         }
-        let isList = info.role == "AXList"
-        let firstInList = result.targets.count
-        for child in children {
-            visit(child, clip: clip, depth: depth + 1, inWeb: inWeb, inTarget: inTarget || mine != nil, inList: isList,
-                  inArea: inArea)
-        }
+        return Descent(children: children, clip: clip, inWeb: inWeb, inTarget: inTarget || mine != nil,
+                       isList: info.role == "AXList", inArea: inArea, mine: mine, firstInList: result.targets.count)
+    }
 
+    /// The work on one node after its children: trims what they overlap.
+    func leave(_ d: Descent) {
         // An item with no role can span more than its own line: an open folder in Dia also
         // spans the tabs in it, which are the list's next items. Its label and its click
         // belong on the part the list's other labels leave free; with nothing free, it gets
         // none. In list order, so an outer item is trimmed before the items inside it.
-        if isList {
-            var i = firstInList
+        if d.isList {
+            var i = d.firstInList
             while i < result.targets.count {
                 let t = result.targets[i]
                 guard Roles.clickableAsListItem.contains(t.role) else { i += 1; continue }
-                let others = result.targets[firstInList...].filter { $0.id != t.id }.map(\.rect)
+                let others = result.targets[d.firstInList...].filter { $0.id != t.id }.map(\.rect)
                 if let free = largestFreeBand(of: t.rect, around: others) {
                     result.targets[i] = Target(id: t.id, rect: free, role: t.role, pid: t.pid, window: t.window, inWeb: t.inWeb)
                     i += 1
@@ -406,12 +420,29 @@ public func walk(root: any AXNode, pid: Int32, scope: WalkScope, stack: WindowSt
         // (each section of Messages' emoji picker is a row filled by its emoji). A smaller
         // control inside (a checkbox at the edge of a wide row) is a different action, so
         // both keep their labels.
-        if let mine {
+        if let mine = d.mine {
             let outer = result.targets[mine].rect
             if coverHalf(result.targets[(mine + 1)...].map(\.rect), of: outer) {
                 result.targets.remove(at: mine)
             }
         }
+    }
+
+    // JUM-122: this frame is on the stack once per level of the tree, 80 levels at the cap,
+    // on a 512 KB thread (Swift Testing's, a dispatch queue's). A debug build gives every
+    // temporary its own slot in the function it appears in, and with the work on each node
+    // inline here that came to 7,088 B per level: 554 KB, which overran the stack. So the
+    // work is in `enter` and `leave`, which return before and after the descent, and only
+    // the descent stays here.
+    func visit(_ node: any AXNode, clip: CGRect, depth: Int, inWeb: Bool, inTarget: Bool, inList: Bool,
+               inArea: Int?) {
+        guard let d = enter(node, clip: clip, depth: depth, inWeb: inWeb, inTarget: inTarget, inList: inList,
+                            inArea: inArea) else { return }
+        for child in d.children {
+            visit(child, clip: d.clip, depth: depth + 1, inWeb: d.inWeb, inTarget: d.inTarget, inList: d.isList,
+                  inArea: d.inArea)
+        }
+        leave(d)
     }
 
     visit(root, clip: startClip, depth: 0, inWeb: false, inTarget: false, inList: false, inArea: nil)

@@ -119,10 +119,14 @@ public struct RGB: Equatable {
     }
 }
 
+/// The smallest label size the settings allow, and so the floor crowded labels shrink to
+/// (`LabelLayout`): no label is ever drawn smaller than a person could choose.
+public let smallestLabelSize: Double = 10
+
 /// Clamps to 10...32 pt; an unset (0 or less) or non-finite value falls back to the 15 pt default.
 public func clampLabelSize(_ v: Double) -> Double {
     if !v.isFinite || v <= 0 { return 15 }
-    return min(max(v, 10), 32)
+    return min(max(v, smallestLabelSize), 32)
 }
 
 public enum Keys {

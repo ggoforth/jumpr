@@ -68,15 +68,17 @@ final class Overlay {
     var layerCount: Int { root.sublayers?.count ?? 0 }
 
     /// `rect` is the label's own frame in global top-left coordinates (see `Labels.frame`).
-    func add(label: String, at rect: CGRect, style: LabelStyle) -> CALayer {
+    /// `size`: the size it is drawn at, smaller than the style's when neighbours crowd it
+    /// (`LabelLayout`).
+    func add(label: String, at rect: CGRect, size: CGFloat? = nil, style: LabelStyle) -> CALayer {
         let l = CATextLayer()
         l.string = label
         l.font = style.font
-        l.fontSize = style.size
+        l.fontSize = size ?? style.size
         l.alignmentMode = .center
         l.foregroundColor = style.fg
         l.backgroundColor = style.bg
-        l.cornerRadius = style.size / 4
+        l.cornerRadius = (size ?? style.size) / 4
         l.borderWidth = 0.5
         l.borderColor = CGColor(gray: 0, alpha: 0.6)
         add(layer: l, at: rect)
@@ -135,10 +137,15 @@ final class Overlay {
         quietly { layer.removeFromSuperlayer() }
     }
 
-    /// Puts a label at a new global top-left rect, without the implicit slide: a label that
-    /// glided would point at nothing on its way.
-    func move(_ layer: CALayer, to rect: CGRect) {
-        quietly { layer.frame = local(rect) }
+    /// Puts a label at a new global top-left rect, drawn at `size`: its toolbar reflowed, or a
+    /// crowding newcomer made it smaller. Without the implicit slide: a label that glided would
+    /// point at nothing on its way.
+    func resize(_ layer: CALayer, to rect: CGRect, size: CGFloat) {
+        quietly {
+            layer.frame = local(rect)
+            (layer as? CATextLayer)?.fontSize = size
+            layer.cornerRadius = size / 4
+        }
     }
 
     func clear() {
