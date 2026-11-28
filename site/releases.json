@@ -1,6 +1,18 @@
 {
   "releases": [
     {
+      "version": "v1.3.1",
+      "date": "2026-11-28",
+      "summary": "A right-click from a label now puts labels on the menu it opens. Windows keep their labels while a notification is showing.",
+      "bullets": [
+        "<strong>Menus:</strong> after a right-click from a label, the menu's items get labels by themselves. With a context menu or a button's menu already open, the hotkey labels its items, and what the menu covers gets none.",
+        "<strong>Notifications:</strong> while a notification was on screen, every window on that display lost its labels. They keep them now, and the notification has a label of its own.",
+        "<strong>Notification Center:</strong> with it open, the windows behind it keep their labels as well.",
+        "<strong>Crowded controls:</strong> labels on controls that sit close together, such as a window's close, minimize and zoom buttons, are drawn smaller so they no longer cover each other."
+      ],
+      "note": "A menu opened by a pop-up button or menu button has no labels when it opens; press the hotkey again to label it. A menu a web-based app draws itself gets no labels after a right-click, and nor does one that takes longer than a second to open. A control under a notification, or under Notification Center while it is open, still gets a label, drawn over what covers it."
+    },
+    {
       "version": "v1.3.0",
       "date": "2026-11-17",
       "summary": "Persistent mode: press Space while labels are up and they stay up, so one press of the hotkey carries a run of clicks. The panel is now three tabs.",
