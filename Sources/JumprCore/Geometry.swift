@@ -22,8 +22,8 @@ public struct Win: Equatable {
     /// The layer of a menu bar app's panel, open under its icon (Jumpr's own is one).
     public static let statusLayer = 25
 
-    /// The layer of Notification Center's open sidebar: one window across the whole display,
-    /// transparent outside the sidebar. A click anywhere outside it only closes it.
+    /// The layer of Notification Center's open sidebar and of its banners: one window across
+    /// the whole display, transparent outside the sidebar's column or the banner.
     public static let sidebarLayer = 21
 
     /// The layer of an open menu's window: a context menu, a button's menu, a menu bar menu,
@@ -32,12 +32,12 @@ public struct Win: Equatable {
     /// only a window that turns out to hold a menu takes labels away (`targets(_:clearOf:)`).
     public static let menuLayer = 101
 
-    /// Non-transparent windows hide whatever is behind them, if they are at a normal layer,
-    /// are a menu bar app's panel, or are the open sidebar. The layers between and above
-    /// hold full-screen windows that hide nothing: the Dock (20), the menu bar (24), Jumpr's
-    /// own label overlays (1000).
+    /// Non-transparent windows hide whatever is behind them, if they are at a normal layer or
+    /// are a menu bar app's panel. The layers between and above hold full-screen windows that
+    /// hide nothing: the Dock (20), Notification Center's (21), the menu bar (24), Jumpr's own
+    /// label overlays (1000).
     public var occludes: Bool {
-        ((0..<20).contains(layer) || layer == Win.statusLayer || layer == Win.sidebarLayer) && alpha > 0
+        ((0..<20).contains(layer) || layer == Win.statusLayer) && alpha > 0
     }
 }
 
@@ -58,10 +58,21 @@ public struct WindowStack {
     }
 
     /// True if `window` (or a helper window of the same app that is not in
-    /// `appWindows`) is the topmost occluding window at `p`.
+    /// `appWindows`) is the topmost occluding window at `p`, or shows through there.
     public func isVisible(_ p: CGPoint, window: WindowID, pid: Int32, appWindows: Set<WindowID>) -> Bool {
-        guard let t = top(at: p) else { return false }
-        return t.id == window || (t.pid == pid && !appWindows.contains(t.id))
+        if let t = top(at: p), t.id == window || (t.pid == pid && !appWindows.contains(t.id)) { return true }
+        return win(window).map { showsThrough($0, at: p) } == true
+    }
+
+    /// A sidebar-layer window hides nothing, so it is never the topmost occluding window. It
+    /// still has to be walked, for its banner or its sidebar's items to get labels: it shows
+    /// wherever no occluding window in front of it covers the point. While it counted as
+    /// occluding, every window on the display lost its labels for as long as a banner showed
+    /// (an Orca window: 114 labels without a banner, none with one), though a click outside
+    /// the banner, or outside the open sidebar's column, lands on the window behind.
+    private func showsThrough(_ w: Win, at p: CGPoint) -> Bool {
+        w.layer == Win.sidebarLayer && w.alpha > 0
+            && !wins.prefix { $0.id != w.id }.contains { $0.occludes && $0.bounds.contains(p) }
     }
 
     /// The app's windows at the menu layer, front to back: its open menus, and whatever else
@@ -80,7 +91,7 @@ public struct WindowStack {
             for j in 1...5 {
                 let p = CGPoint(x: r.minX + r.width * CGFloat(i) / 6,
                                 y: r.minY + r.height * CGFloat(j) / 6)
-                if top(at: p)?.id == window { return true }
+                if top(at: p)?.id == window || showsThrough(w, at: p) { return true }
             }
         }
         return false
